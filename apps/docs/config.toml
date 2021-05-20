@@ -1,4 +1,7 @@
 baseURL = "https://starter-kit.ga4gh.org/"
 languageCode = "en-us"
 title = "GA4GH Starter Kit"
-theme = "ananke"
+theme = "learn"
+
+[params]
+    themeVariant = "blue"
