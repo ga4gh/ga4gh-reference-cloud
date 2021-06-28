@@ -37,19 +37,16 @@ module.exports = {
           label: 'APIs'
         },
         {
-          type: 'doc',
-          docId: 'intro',
-          position: 'left',
-          label: 'Tutorial',
-        },
-        {to: '/blog', label: 'Blog', position: 'left'},
-        {
           href: 'https://github.com/facebook/docusaurus',
           label: 'GitHub',
           position: 'right',
         },
         {
           type: 'localeDropdown',
+          position: 'right'
+        },
+        {
+          type: 'docsVersionDropdown',
           position: 'right'
         }
       ],
@@ -86,10 +83,6 @@ module.exports = {
         {
           title: 'More',
           items: [
-            {
-              label: 'Blog',
-              to: '/blog',
-            },
             {
               label: 'GitHub',
               href: 'https://github.com/facebook/docusaurus',
