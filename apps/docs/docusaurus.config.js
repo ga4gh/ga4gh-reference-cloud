@@ -58,10 +58,27 @@ module.exports = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/docs/intro',
+              label: 'Start Here',
+              to: '/docs/getting-started/intro',
             },
+            {
+              label: 'APIs',
+              to: '/docs/starter-kit-apis/overview'
+            }
           ],
+        },
+        {
+          title: 'APIs',
+          items: [
+            {
+              label: 'DRS',
+              to: '/docs/starter-kit-apis/drs/drs_overview'
+            },
+            {
+              label: 'WES',
+              to: '/docs/starter-kit-apis/wes/wes_overview'
+            }
+          ]
         },
         {
           title: 'Community',

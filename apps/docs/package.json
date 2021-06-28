@@ -11,7 +11,9 @@
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
-    "write-heading-ids": "docusaurus write-heading-ids"
+    "write-heading-ids": "docusaurus write-heading-ids",
+    "upload": "aws s3 cp build s3://ga4gh-starter-kit-docs/ --recursive",
+    "build-upload": "npm run build && npm run upload"
   },
   "dependencies": {
     "@docusaurus/core": "2.0.0-beta.0",
