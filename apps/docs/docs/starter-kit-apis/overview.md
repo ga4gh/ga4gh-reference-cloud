@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Overview
+# Starter Kit APIs Overview
 
 This section provides comprehensive documentation on how to setup, configure, and run each of the Starter Kit applications.
 
