@@ -1,7 +1,7 @@
 ---
 title: DRS Starter Kit UI
 sidebar_label: Starter Kit UI 
-sidebar_position: 2
+sidebar_position: 4
 ---
 
 Ensure that both the [DRS Starter Kit API](./drs_overview.md) service and the [GA4GH Starter Kit UI](../../concepts-and-guides/starter_kit_ui.md) are running, then visit the URL where the Starter Kit UI is deployed in a web browser. Navigate to the [Services](../../concepts-and-guides/starter_kit_ui.md#starter-kit-services) page and click the "View" button corresponding to a valid DRS service.
