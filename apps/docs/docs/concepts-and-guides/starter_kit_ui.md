@@ -100,6 +100,8 @@ _Figure 1: Example `/services` page displaying three valid DRS services and two 
 
 ### `/services/{serviceId}` - info for a single connected service
 
+Clicking the `View` button on a valid service will navigate to a full display of information about that service. From this page, it is also possible to see the GA4GH data models that can be browsed and edited for that service. A service's `{serviceId}` is based on the value of `id` returned from `/service-info`.
+
 ![Service Details](./assets/ServiceDetails.png)
 _Figure 2: Example `/services/{serviceId}` page displaying information about a single service that the UI connects to. The left panel displays the service's `Service Info`, and the right panel leads to additional pages for editing instances of GA4GH models specific to the service type. In the example the UI is displaying info from a `DRS` service, which has only one editable model, `DRS Object`_
 
