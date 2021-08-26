@@ -46,7 +46,7 @@ docker run \
 where:
 * `CONTAINER_PUBLIC_API_PORT`: The port within the docker container that the public API endpoints will be served over, must be equal to the `publicApiPort` value in `serverProps`; e.g. `8000`. [More info](../../concepts-and-guides/configuring-webservice-properties)
 * `HOST_PUBLIC_API_PORT`: The mapped port on the host machine that will serve the public API endpoints; e.g. `80`
-* `CONTAINER_ADMIN_API_PORT`: The port within the docker container the that the admin API endpoints will be server over, must be equal to the `adminApiPort` value in `serverProps`; e.g. `3000`. [More info](../../concepts-and-guides/configuring-webservice-properties)
+* `CONTAINER_ADMIN_API_PORT`: The port within the docker container that the admin API endpoints will be served over, must be equal to the `adminApiPort` value in `serverProps`; e.g. `3000`. [More info](../../concepts-and-guides/configuring-webservice-properties)
 * `HOST_ADMIN_API_PORT`: The mapped port on the host machine that will serve the admin API endpoints; e.g. `8080`
 * `HOST_CONFIG_DIR`: Absolute file path to directory containing YAML config file; e.g. `/home/user/drs/config`
 * `CONFIG_FILE`: Name of YAML config file mounted to container; e.g. `config.yml` [More info](./drs_configuration)
