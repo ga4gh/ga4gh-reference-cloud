@@ -314,3 +314,5 @@ If we navigate to the `/services` view (by clicking "Enter" -> "Get Started"), w
 Lastly, if we click the "View" button for the DRS service, we will be directed to the `/services/org.ga4gh.starterkit.cookbook.samtools.drs` view. This displays the DRS instance's Service Info, and also leads to forms where we can create and edit DRS Objects for that instance.
 
 ![UI Service](/img/cookbooks/samtools-view-drs-wes/ui-service.png)
+
+In the next phase, we will run a Nextflow-based `samtools view` workflow using API calls to the WES service we set up.
