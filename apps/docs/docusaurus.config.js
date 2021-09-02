@@ -37,18 +37,25 @@ module.exports = {
           label: 'APIs'
         },
         {
-          href: 'https://github.com/facebook/docusaurus',
-          label: 'GitHub',
-          position: 'right',
+          type: 'doc',
+          docId: 'cookbooks/intro',
+          position: 'left',
+          label: 'Cookbooks'
+        },
+        {
+          type: 'doc',
+          docId: 'starter-kit-in-action/overview',
+          position: 'left',
+          label: 'In Action'
         },
         {
           type: 'localeDropdown',
           position: 'right'
-        },
-        {
-          type: 'docsVersionDropdown',
-          position: 'right'
-        }
+        }//,
+        // {
+          // type: 'docsVersionDropdown',
+          // position: 'right'
+        // }
       ],
     },
     footer: {
@@ -64,11 +71,19 @@ module.exports = {
             {
               label: 'APIs',
               to: '/docs/starter-kit-apis/overview'
+            },
+            {
+              label: 'Cookbooks',
+              to: '/docs/cookbooks/intro'
+            },
+            {
+              label: 'In Action',
+              to: '/docs/starter-kit-in-action/overview'
             }
           ],
         },
         {
-          title: 'APIs',
+          title: 'API Docs',
           items: [
             {
               label: 'DRS',
@@ -81,33 +96,20 @@ module.exports = {
           ]
         },
         {
-          title: 'Community',
+          title: 'Github',
           items: [
             {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+              label: 'DRS',
+              href: 'https://github.com/ga4gh/ga4gh-starter-kit-drs',
             },
             {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
-            },
-            {
-              label: 'Twitter',
-              href: 'https://twitter.com/docusaurus',
-            },
+              label: 'WES',
+              href: 'https://github.com/ga4gh/ga4gh-starter-kit-wes',
+            }
           ],
-        },
-        {
-          title: 'More',
-          items: [
-            {
-              label: 'GitHub',
-              href: 'https://github.com/facebook/docusaurus',
-            },
-          ],
-        },
+        }
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Global Alliance for Genomics and Health.`,
     },
   },
   presets: [

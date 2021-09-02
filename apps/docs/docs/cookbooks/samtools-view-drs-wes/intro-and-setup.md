@@ -59,10 +59,11 @@ docker run ga4gh/ga4gh-starter-kit-utils:0.1.0 database list-migrations wes
 Result:
 ```
 API Migration Signatures: wes
+wes@0.2.0
 wes@0.1.0
 ```
 
-The above result tells us that we can create tables based on the `0.1.0` release of Starter Kit WES. Let's create these tables on the `wes.demo.db` SQLite database:
+The above result tells us that we can create tables based on the `0.2.0` release of Starter Kit WES. Let's create these tables on the `wes.demo.db` SQLite database:
 
 ```
 docker run \
@@ -71,7 +72,7 @@ docker run \
     database \
     create-tables \
     -d jdbc:sqlite:/db/wes.demo.db \
-    wes@0.1.0
+    wes@0.2.0
 ```
 
 You may confirm the operation was successful by reviewing the contents of `wes.demo.db`.
@@ -192,9 +193,9 @@ With our database and YAML configurations set up, we are ready to run each of th
 
 ### Run WES Service
 
-We are ready to spin up the WES service. If you haven't already done so, pull the `0.1.0-nextflow` release of the Starter Kit WES docker image:
+We are ready to spin up the WES service. If you haven't already done so, pull the `0.2.0-nextflow` release of the Starter Kit WES docker image:
 ```
-docker pull ga4gh/ga4gh-starter-kit-wes:0.1.0-nextflow
+docker pull ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow
 ```
 
 The above image comes pre-bundled with Nextflow, so it is possible to submit Nextflow-based workflow run requests to WES.
@@ -213,12 +214,13 @@ docker run \
   --name starterkit-demo-wes \
   -p 4500:4500 \
   -p 4501:4501 \
+  -p 4502:4502 \
   -v `pwd`/db/wes:/db \
   -v `pwd`/config/wes:/config \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /tmp/shared/wes:/tmp/shared/wes \
   --workdir "/tmp/shared/wes" \
-  ga4gh/ga4gh-starter-kit-wes:0.1.0-nextflow \
+  ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow \
   -c /config/wes.config.yml
 ```
 

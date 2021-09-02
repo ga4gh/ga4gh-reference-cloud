@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Starter Kit WES Overview
 
-The current Starter Kit WES release **0.1.0** implements WES Specification Release **1.0.1**
+The current Starter Kit WES release **0.2.0** implements WES Specification Release **1.0.1**
 
 [Github](https://github.com/ga4gh/ga4gh-starter-kit-wes), [Docker Hub](https://hub.docker.com/repository/docker/ga4gh/ga4gh-starter-kit-wes)
 
@@ -35,7 +35,7 @@ where `${TAG}` represents the release version of the application. Browse release
 e.g.
 
 ```
-docker pull ga4gh/ga4gh-starter-kit-wes:0.1.0-nextflow
+docker pull ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow
 ```
 
 We strongly recommend running the Starter Kit WES service with a YAML config file to set server properties. In addition, the docker container requires access to the host machine's docker daemon to launch dockerized workflows from Nextflow.
@@ -50,7 +50,7 @@ docker run \
     -v ${HOST_WORKING_DIR}:${CONTAINER_WORKING_DIR} \
     -v ${HOST_CONFIG_DIR}:/config
     --workdir "${CONTAINER_WORKING_DIR}" \
-    ga4gh/ga4gh-starter-kit-wes:0.1.0-nextflow \
+    ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow \
     -c /config/${CONFIG_FILE}
 ```
 
@@ -74,6 +74,6 @@ docker run \
   -v /tmp/shared/wes:/tmp/shared/wes \
   -v /home/user/wes/config:/config \
   --workdir "/tmp/shared/wes" \
-  ga4gh/ga4gh-starter-kit-wes:0.1.0-nextflow \
+  ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow \
   -c /config/config.yml
 ```

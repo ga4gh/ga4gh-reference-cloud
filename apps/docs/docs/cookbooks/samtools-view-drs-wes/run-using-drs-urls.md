@@ -171,11 +171,95 @@ Content-Type: multipart/form-data
 workflow_type: NEXTFLOW
 workflow_type_version: 21.04.0
 workflow_url: https://github.com/jb-adams/samtools-view-count-nf
-workflow_params: {"input": "drs://localhost:4502/tabulamuris.A1-B000126-3_39_F-1-1_R1"}
+workflow_params: {"input": "drs://drs-demo.ga4gh.org/tabulamuris.A1-B000126-3_39_F-1-1_R1"}
 ```
 
 Note that compared to the `POST` request from the previous section, only the `workflow_params` have changed.
 
 ### Monitor workflow run
 
+If we give the workflow run a minute to complete, we can again monitor its status by passing the `run_id` (in this case, `940f0c51-2dab-4e02-ab3a-92dfaf68d65f`) to the `GET /runs/{run_id}` endpoint:
+
+```
+GET http://localhost/ga4gh/wes/v1/runs/940f0c51-2dab-4e02-ab3a-92dfaf68d65f
+```
+
+Response:
+```
+{
+    "run_id": "940f0c51-2dab-4e02-ab3a-92dfaf68d65f",
+    "request": {
+        "workflow_params": {
+            "input": "drs://drs-demo.ga4gh.org/tabulamuris.A1-B000126-3_39_F-1-1_R1"
+        },
+        "workflow_type": "NEXTFLOW",
+        "workflow_type_version": "21.04.0",
+        "workflow_url": "https://github.com/jb-adams/samtools-view-count-nf"
+    },
+    "state": "COMPLETE",
+    "run_log": {
+        "name": "jb-adams/samtools-view-count-nf",
+        "cmd": [
+            "#!/bin/bash -ue",
+            "echo \"Running samtools view on https://s3.us-east-1.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam\" >&2",
+            "samtools view -c https://s3.us-east-1.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam"
+        ],
+        "start_time": "2021-09-02T19:15:33Z",
+        "end_time": "2021-09-02T19:15:43Z",
+        "stdout": "http://localhost/ga4gh/wes/v1/logs/nextflow/stdout/940f0c51-2dab-4e02-ab3a-92dfaf68d65f?workdirs=0a%2F0838ad17d4486bace1dc908e9e44ca",
+        "stderr": "http://localhost/ga4gh/wes/v1/logs/nextflow/stderr/940f0c51-2dab-4e02-ab3a-92dfaf68d65f?workdirs=0a%2F0838ad17d4486bace1dc908e9e44ca",
+        "exit_code": 0
+    },
+    "task_logs": [
+        {
+            "name": "samtools_view",
+            "cmd": [
+                "#!/bin/bash -ue",
+                "echo \"Running samtools view on https://s3.us-east-1.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam\" >&2",
+                "samtools view -c https://s3.us-east-1.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam"
+            ],
+            "start_time": "2021-09-02T19:15:33Z",
+            "end_time": "2021-09-02T19:15:43Z",
+            "stdout": "http://localhost/ga4gh/wes/v1/logs/nextflow/stdout/940f0c51-2dab-4e02-ab3a-92dfaf68d65f/0a/0838ad17d4486bace1dc908e9e44ca",
+            "stderr": "http://localhost/ga4gh/wes/v1/logs/nextflow/stderr/940f0c51-2dab-4e02-ab3a-92dfaf68d65f/0a/0838ad17d4486bace1dc908e9e44ca",
+            "exit_code": 0
+        }
+    ],
+    "outputs": {}
+}
+```
+
+Just as before, the response payload tells us that the workflow run completed successfully. If we follow the URL at `run_log.stdout`, we again see the expected read count of `848036` printed to stdout.
+
+But there's a key difference between this run and the run launched in the previous section. Let's look at original request parameters we submitted to WES, indicated by `request.workflow_params`:
+```
+{
+  ...
+  "request": {
+        "workflow_params": {
+            "input": "drs://drs-demo.ga4gh.org/tabulamuris.A1-B000126-3_39_F-1-1_R1"
+        },
+        ...
+  },
+  ...
+}
+```
+
+Here, we see the DRS URL (representing our DRS Object) we submitted. However, when we look at the raw workflow commands under `run_log.cmd`, we see:
+```
+samtools view -c https://s3.us-east-1.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam
+```
+
+How did WES know to run the workflow using that BAM file URL? Simply put, the WES service performed 2 URL resolutions prior to running the workflow on the `drs://` URL. First, to lookup the contents of the DRS Object, and second, to resolve the S3 access method it found into the final HTTPS URL.
+
+While we only explored the resolution of `s3://` URLs, the DRS specification supports many URL schemes (e.g. `file://`, `https://`, `gs://`), giving data providers flexibility over the access methods they can support, and giving WES implementations choice over which access method(s) to make use of.
+
 ## Summary
+
+In this cookbook, we explored how to use WES and DRS to launch a simple workflow using only HTTP requests. First, by submitting direct URLs as input parameters, and second, by submitting DRS URLs and allowing WES to resolve the DRS Object to a raw URL for fetching bytes.
+
+If you wish to explore the concepts covered in this cookbook further, you could:
+1. Create more DRS Objects based on the [table of Tabula Muris S3 BAM objects](./run-using-http-urls#run-workflow-with-different-inputs). Register one DRS Object per BAM file via the UI, and attempt to run the workflow using the resulting DRS URL as input. Validate the workflow run outputs the correct number of reads.
+2. Attempt to run your own Nextflow workflow via WES. Currently, Nextflow workflows tracked on Github can be submitted to Starter Kit WES...
+
+Return to table... 

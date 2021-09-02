@@ -2,4 +2,8 @@
 sidebar_position: 1
 ---
 
-# Cookbooks Intro
+# Intro to Cookbooks
+
+| Cookbook | GA4GH Standards |
+|----------|-----------------|
+|  | WES, DRS |
