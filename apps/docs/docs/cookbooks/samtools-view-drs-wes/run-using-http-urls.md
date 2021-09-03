@@ -28,7 +28,7 @@ Let's submit a workflow run request to WES, running our `samtools view` workflow
 **Method and URL**
 
 ```
-POST http://localhost:4500/ga4gh/wes/v1/runs
+POST http://localhost/ga4gh/wes/v1/runs
 ```
 
 **Headers**
@@ -45,7 +45,7 @@ workflow_url: https://github.com/jb-adams/samtools-view-count-nf
 workflow_params: {"input": "https://s3.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam"}
 ```
 
-Upon doing so, we should receive a single `run_id`, indicating that the workflow run request was accepted. The `run_id` provided to us will allow us to monitor the status of the workflow run. In this example, a `run_id` of `0a0b05b1-38c7-4c68-845f-c3512b7328c9` was returned, however each time a run request is submitted to WES, and randomly generated `run_id` will be returned.
+Upon doing so, we should receive a single `run_id`, indicating that the workflow run request was accepted. The `run_id` provided to us will allow us to monitor the status of the workflow run. In this example, a `run_id` of `8d2f044a-a613-41c0-b67b-0477a1b1b1f8` was returned, however each time a run request is submitted to WES, and randomly generated `run_id` will be returned.
 
 Example workflow run request and `run_id` response:
 
@@ -57,13 +57,13 @@ If we give the workflow run a minute to complete, we can monitor its status by p
 
 Example request (substitute in your own `run_id`):
 ```
-GET http://localhost:4500/ga4gh/wes/v1/runs/0a0b05b1-38c7-4c68-845f-c3512b7328c9
+GET http://localhost/ga4gh/wes/v1/runs/8d2f044a-a613-41c0-b67b-0477a1b1b1f8
 ```
 
 Response:
 ```
 {
-    "run_id": "0a0b05b1-38c7-4c68-845f-c3512b7328c9",
+    "run_id": "8d2f044a-a613-41c0-b67b-0477a1b1b1f8",
     "request": {
         "workflow_params": {
             "input": "https://s3.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam"
@@ -80,10 +80,10 @@ Response:
             "echo \"Running samtools view on https://s3.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam\" >&2",
             "samtools view -c https://s3.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam"
         ],
-        "start_time": "2021-08-31T18:19:24Z",
-        "end_time": "2021-08-31T18:19:40Z",
-        "stdout": "http://localhost:4500/ga4gh/wes/v1/logs/nextflow/stdout/0a0b05b1-38c7-4c68-845f-c3512b7328c9?workdirs=ec%2F7716479bc056fd0043e6912af2fdc9",
-        "stderr": "http://localhost:4500/ga4gh/wes/v1/logs/nextflow/stderr/0a0b05b1-38c7-4c68-845f-c3512b7328c9?workdirs=ec%2F7716479bc056fd0043e6912af2fdc9",
+        "start_time": "2021-09-03T13:40:06Z",
+        "end_time": "2021-09-03T13:40:20Z",
+        "stdout": "http://localhost/ga4gh/wes/v1/logs/nextflow/stdout/8d2f044a-a613-41c0-b67b-0477a1b1b1f8?workdirs=0f%2F4340a1a21885f9bfb182bf34a85d2f",
+        "stderr": "http://localhost/ga4gh/wes/v1/logs/nextflow/stderr/8d2f044a-a613-41c0-b67b-0477a1b1b1f8?workdirs=0f%2F4340a1a21885f9bfb182bf34a85d2f",
         "exit_code": 0
     },
     "task_logs": [
@@ -94,10 +94,10 @@ Response:
                 "echo \"Running samtools view on https://s3.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam\" >&2",
                 "samtools view -c https://s3.amazonaws.com/czbiohub-tabula-muris/facs_bam_files/A1-B000126-3_39_F-1-1_R1.mus.Aligned.out.sorted.bam"
             ],
-            "start_time": "2021-08-31T18:19:24Z",
-            "end_time": "2021-08-31T18:19:40Z",
-            "stdout": "http://localhost:4500/ga4gh/wes/v1/logs/nextflow/stdout/0a0b05b1-38c7-4c68-845f-c3512b7328c9/ec/7716479bc056fd0043e6912af2fdc9",
-            "stderr": "http://localhost:4500/ga4gh/wes/v1/logs/nextflow/stderr/0a0b05b1-38c7-4c68-845f-c3512b7328c9/ec/7716479bc056fd0043e6912af2fdc9",
+            "start_time": "2021-09-03T13:40:06Z",
+            "end_time": "2021-09-03T13:40:20Z",
+            "stdout": "http://localhost/ga4gh/wes/v1/logs/nextflow/stdout/8d2f044a-a613-41c0-b67b-0477a1b1b1f8/0f/4340a1a21885f9bfb182bf34a85d2f",
+            "stderr": "http://localhost/ga4gh/wes/v1/logs/nextflow/stderr/8d2f044a-a613-41c0-b67b-0477a1b1b1f8/0f/4340a1a21885f9bfb182bf34a85d2f",
             "exit_code": 0
         }
     ],
@@ -115,7 +115,7 @@ If we follow the URL at `run_log.stdout`, we will find the main result of the wo
 
 For example:
 ```
-GET http://localhost:4500/ga4gh/wes/v1/logs/nextflow/stdout/0a0b05b1-38c7-4c68-845f-c3512b7328c9?workdirs=ec%2F7716479bc056fd0043e6912af2fdc9
+GET http://localhost/ga4gh/wes/v1/logs/nextflow/stdout/8d2f044a-a613-41c0-b67b-0477a1b1b1f8?workdirs=0f%2F4340a1a21885f9bfb182bf34a85d2f
 ```
 
 Returns a response of:

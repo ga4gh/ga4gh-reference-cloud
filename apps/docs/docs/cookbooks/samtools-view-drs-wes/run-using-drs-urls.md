@@ -104,10 +104,10 @@ should return the following response (`created_time` and `updated_time` will be 
 {
     "id": "tabulamuris.A1-B000126-3_39_F-1-1_R1",
     "description": "FACS BAM file from Tabula Muris dataset id A1-B000126-3_39_F-1-1_R1",
-    "created_time": "2021-09-02T14:27:00Z",
+    "created_time": "2021-09-03T14:46:00Z",
     "name": "Tabula Muris FACS A1-B000126-3_39_F-1-1_R1 BAM file",
     "size": 29298050,
-    "updated_time": "2021-09-02T14:27:00Z",
+    "updated_time": "2021-09-03T14:46:00Z",
     "version": "1.0.0",
     "checksums": [
         {
@@ -123,7 +123,7 @@ should return the following response (`created_time` and `updated_time` will be 
             "type": "md5"
         }
     ],
-    "self_uri": "drs://localhost:4502/tabulamuris.A1-B000126-3_39_F-1-1_R1",
+    "self_uri": "drs://drs-demo.ga4gh.org/tabulamuris.A1-B000126-3_39_F-1-1_R1",
     "access_methods": [
         {
             "access_url": {
@@ -140,7 +140,7 @@ Let's inspect both the `self_uri` and `access_methods` attributes further, as th
 
 #### `self_uri`
 
-The value of `self_uri` is `drs://localhost:4502/tabulamuris.A1-B000126-3_39_F-1-1_R1`. The `drs://` scheme indicates that this is a standardized DRS URI, in which both the server (`localhost:4502`) and the object id (`tabulamuris.A1-B000126-3_39_F-1-1_R1`) are indicated. Any service that understands DRS URIs will be able to resolve this to an HTTP URL to obtain the corresponding DRS Object. The Starter Kit WES service can resolve DRS URIs.
+The value of `self_uri` is `drs://drs-demo.ga4gh.org/tabulamuris.A1-B000126-3_39_F-1-1_R1`. The `drs://` scheme indicates that this is a standardized DRS URI, in which both the server (`drs-demo.ga4gh.org`) and the object id (`tabulamuris.A1-B000126-3_39_F-1-1_R1`) are indicated. Any service that understands DRS URIs will be able to resolve this to an HTTP URL to obtain the corresponding DRS Object. The Starter Kit WES service can resolve DRS URIs.
 
 #### `access_methods`
 
@@ -157,7 +157,7 @@ Issue the following HTTP request:
 **Method and URL**
 
 ```
-POST http://localhost:4500/ga4gh/wes/v1/runs
+POST http://localhost/ga4gh/wes/v1/runs
 ```
 
 **Headers**
@@ -260,6 +260,8 @@ In this cookbook, we explored how to use WES and DRS to launch a simple workflow
 
 If you wish to explore the concepts covered in this cookbook further, you could:
 1. Create more DRS Objects based on the [table of Tabula Muris S3 BAM objects](./run-using-http-urls#run-workflow-with-different-inputs). Register one DRS Object per BAM file via the UI, and attempt to run the workflow using the resulting DRS URL as input. Validate the workflow run outputs the correct number of reads.
-2. Attempt to run your own Nextflow workflow via WES. Currently, Nextflow workflows tracked on Github can be submitted to Starter Kit WES...
+2. Attempt to run your own Nextflow workflow via WES. Currently, Nextflow workflows tracked on Github can be submitted to Starter Kit WES with one of the following URL structures:
+    * `https://github.com/{user/org}/{repository}` - runs the workflow at the default branch (e.g. `main`)
+    * `https://github.com/{user/org}/{repository}/tree/{branch}` runs the workflow at the specified branch
 
-Return to table... 
+Return to [cookbook intro](../intro) to explore more cookbooks.

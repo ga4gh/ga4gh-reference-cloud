@@ -19,7 +19,7 @@ This cookbook assumes that:
 
 ## Starter Kit Service setup
 
-Let's begin by configuring and running our two starter kit services: WES and DRS.
+Let's begin by configuring and running our two starter kit services: WES and DRS, as well as the UI service.
 
 ### Project directory
 
@@ -138,7 +138,7 @@ Using a preferred text editor, write the following YAML config to `config/wes/we
 ```
 wes:
   serverProps:
-    publicApiPort: 4500
+    publicApiPort: 80
     adminApiPort: 4501
   databaseProps:
    url: jdbc:sqlite:/db/wes.demo.db
@@ -155,7 +155,8 @@ Using a preferred text editor, write the following YAML config to `config/drs/dr
 ```
 drs:
   serverProps:
-    publicApiPort: 4502
+    hostname: drs-demo.ga4gh.org
+    publicApiPort: 80
     publicApiCorsAllowedOrigins:
       - '*'
     publicApiCorsAllowedHeaders:
@@ -187,79 +188,211 @@ starterKitUI:
       adminURL: 'http://localhost:4503'
 ```
 
+The above config points the UI to the DRS service, so that models controlled by DRS (i.e. DRS Objects) can be created and edited via the UI.
+
 ## Run Services
 
 With our database and YAML configurations set up, we are ready to run each of the necessary web services.
 
-### Run WES Service
-
-We are ready to spin up the WES service. If you haven't already done so, pull the `0.2.0-nextflow` release of the Starter Kit WES docker image:
+First, let's pull the docker images we want to run if we haven't already:
 ```
 docker pull ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow
+docker pull ga4gh/ga4gh-starter-kit-drs:0.2.0
+docker pull ga4gh/ga4gh-starter-kit-ui:0.2.1
 ```
 
-The above image comes pre-bundled with Nextflow, so it is possible to submit Nextflow-based workflow run requests to WES.
-
-We also need to create a working directory mount between the host and container. To start, we first create this directory on the host, e.g.
+For WES, we also need to create a working directory mount between the host and container. To start, we first create this directory on the host, e.g.
 ```
 mkdir -p /tmp/shared/wes
 ```
 
-Next, let's start the Starter Kit WES service using `docker run`, taking care to mount both the SQLite database and YAML config. We also need to mount docker-specific files/directories, so that docker processes can be started from within the container (Nextflow starts its own docker containers for individual workflow runs).
+### Run Services with docker-compose
+
+We will use `docker-compose` to spin up our 3 dockerized GA4GH services using a single YAML file.
+
+In the project directory, create a file named `docker-compose.yml`, e.g.:
+```
+touch docker-compose.yml
+```
+
+In a text editor, write the following YAML config to `docker-compose.yml`:
 
 ```
-docker run \
-  --rm \
-  -d \
-  --name starterkit-demo-wes \
-  -p 4500:4500 \
-  -p 4501:4501 \
-  -p 4502:4502 \
-  -v `pwd`/db/wes:/db \
-  -v `pwd`/config/wes:/config \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /tmp/shared/wes:/tmp/shared/wes \
-  --workdir "/tmp/shared/wes" \
-  ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow \
-  -c /config/wes.config.yml
+version: "3.9"
+services:
+  wes-demo.ga4gh.org:
+    container_name: wes-demo.ga4gh.org
+    image: ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow
+    ports:
+      - "80:80"
+      - "4501:4501"
+    volumes:
+      - $PWD/db/wes:/db
+      - $PWD/config/wes:/config
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/shared/wes:/tmp/shared/wes
+    working_dir: /tmp/shared/wes
+    command: -c /config/wes.config.yml
+  drs-demo.ga4gh.org:
+    container_name: drs-demo.ga4gh.org
+    image: ga4gh/ga4gh-starter-kit-drs:0.2.0
+    ports:
+      - "4502:80"
+      - "4503:4503"
+    volumes:
+      - $PWD/db/drs:/db
+      - $PWD/config/drs:/config
+    command: java -jar ga4gh-starter-kit-drs.jar -c /config/drs.config.yml
+  ui-demo.ga4gh.org:
+    container_name: ui-demo.ga4gh.org
+    image: ga4gh/ga4gh-starter-kit-ui:0.2.1
+    ports:
+      - "4504:4504"
+    volumes:
+      - $PWD/config/ui:/config
+    command: -c /config/ui.config.yml
 ```
+
+Finally, we can start our network of 3 services by simply running:
+```
+docker-compose up
+```
+
+### Explanation of the docker network
+
+Running the above steps just created a **docker network** of 3 services. With `docker-compose`, each service sits within a single virtual network, meaning that one service can easily reach out to another service in the network by referencing the docker container name as if it were a domain name. In the last section of this cookbook, we will see WES making calls to DRS using its `container_name`, i.e. `http://drs-demo.ga4gh.org`
+
+**Note:** Since our API testing tool sits outside the docker network, the URLs we use to make test API calls will be different from the URLs used by one service in the network to reach another service. For example, to call the DRS service we use:
+* `http://localhost:4502` outside the docker network, i.e. from API testing tool
+* `http://drs-demo.ga4gh.org` inside the docker network, i.e. from WES
+
+Next, let's quickly go over how each of our services are configured to run according to the contents of `docker-compose.yml`.
+
+#### WES docker-compose.yml config
+
+Recall the WES service snippet from `docker-compose.yml:
+
+```
+...
+  wes-demo.ga4gh.org:
+    container_name: wes-demo.ga4gh.org
+    image: ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow
+    ports:
+      - "80:80"
+      - "4501:4501"
+    volumes:
+      - $PWD/db/wes:/db
+      - $PWD/config/wes:/config
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/shared/wes:/tmp/shared/wes
+    working_dir: /tmp/shared/wes
+    command: -c /config/wes.config.yml
+...
+```
+
+The above configuration:
+* starts a Starter Kit WES container that is pre-bundled with Nextflow, so it is possible to submit Nextflow-based workflow run requests to WES.
+* exposes ports, enabling us to make API requests from outside the network
+* mounts the SQLite database and YAML config passed to the server application
+* mounts docker-specific files/directories, so that docker processes can be started from within the container (Nextflow starts its own docker containers for individual workflow runs).
+* runs the Starter Kit WES application with the YAML config as input
+
+#### DRS docker-compose.yml config
+
+Recall the DRS service snippet from `docker-compose.yml`
+
+```
+...
+  drs-demo.ga4gh.org:
+    container_name: drs-demo.ga4gh.org
+    image: ga4gh/ga4gh-starter-kit-drs:0.2.0
+    ports:
+      - "4502:80"
+      - "4503:4503"
+    volumes:
+      - $PWD/db/drs:/db
+      - $PWD/config/drs:/config
+    command: java -jar ga4gh-starter-kit-drs.jar -c /config/drs.config.yml
+...
+```
+
+The above configuration:
+* starts a Starter Kit DRS container
+* exposes ports, enabling us to make API requests from outside the network
+* mounts the SQLite database and YAML config passed to the server application
+* runs the Starter Kit DRS application with the YAML config as input
+
+**NOTE**: The `0.1.9` DRS database schema we applied is compatible with the `0.2.0` release of Starter Kit DRS.
+
+#### Starter Kit UI docker-compose.yml config
+
+Recall the UI service snippet from `docker-compose.yml`
+
+```
+...
+  ui-demo.ga4gh.org:
+    container_name: ui-demo.ga4gh.org
+    image: ga4gh/ga4gh-starter-kit-ui:0.2.1
+    ports:
+      - "4504:4504"
+    volumes:
+      - $PWD/config/ui:/config
+    command: -c /config/ui.config.yml
+```
+
+The above configuration:
+* starts a Starter Kit UI container
+* exports ports, enabling us to access the UI via web browser
+* mounts the YAML config passed to the UI server application
+
+## Validate Services
+
+Now, let's validate each service is running correctly
+
+### Validate WES
 
 Let's confirm the WES service is running correctly by checking its Service Info. Using a preferred API testing tool, submit the following request:
 
 ```
-GET http://localhost:4500/ga4gh/wes/v1/service-info
+GET http://localhost/ga4gh/wes/v1/service-info
 ```
 
 You should receive the following Service Info as a response:
 
-![WES Service Info](/img/cookbooks/samtools-view-drs-wes/wes-serviceinfo.png)
+```
+{
+    "id": "org.ga4gh.starterkit.cookbook.samtools.wes",
+    "name": "Starter Kit Demo WES Service",
+    "description": "WES service for samtools view Starter Kit Cookbook",
+    "contactUrl": "mailto:info@ga4gh.org",
+    "documentationUrl": "https://github.com/ga4gh/ga4gh-starter-kit-wes",
+    "createdAt": "2020-01-15T12:00:00Z",
+    "updatedAt": "2020-01-15T12:00:00Z",
+    "environment": "test",
+    "version": "0.2.0",
+    "type": {
+        "group": "org.ga4gh",
+        "artifact": "wes",
+        "version": "1.0.1"
+    },
+    "organization": {
+        "name": "Global Alliance for Genomics and Health",
+        "url": "https://ga4gh.org"
+    },
+    "workflowTypeVersions": {
+        "NEXTFLOW": [
+            "21.04.0"
+        ]
+    },
+    "workflowEngineVersions": {
+        "NATIVE": ""
+    }
+}
+```
 
 Note that the `id`, `name`, and `description` fields are the same as what was specified in the YAML config.
 
-### Run DRS Service
-
-We are ready to spin up the DRS service. If you haven't already done so, pull the `0.2.0` release of the Starter Kit DRS docker image:
-```
-docker pull ga4gh/ga4gh-starter-kit-drs:0.2.0
-```
-
-**NOTE**: The `0.1.9` DRS database schema we applied is compatible with the `0.2.0` release of Starter Kit DRS.
-
-Next, let's start the Starter Kit DRS service using `docker run`, taking care to mount both the SQLite database and YAML config.
-
-```
-docker run \
-  --rm \
-  -d \
-  --name starterkit-demo-drs \
-  -p 4502:4502 \
-  -p 4503:4503 \
-  -v `pwd`/db/drs:/db \
-  -v `pwd`/config/drs:/config \
-  ga4gh/ga4gh-starter-kit-drs:0.2.0 \
-  java -jar ga4gh-starter-kit-drs.jar \
-  -c /config/drs.config.yml
-```
+### Validate DRS
 
 Let's confirm the DRS service is running correctly by checking its Service Info. Using a preferred API testing tool, submit the following request:
 
@@ -269,7 +402,28 @@ GET http://localhost:4502/ga4gh/drs/v1/service-info
 
 You should receive the following Service Info as a response:
 
-![DRS Service Info](/img/cookbooks/samtools-view-drs-wes/drs-serviceinfo.png)
+```
+{
+    "id": "org.ga4gh.starterkit.cookbook.samtools.drs",
+    "name": "Starter Kit Demo DRS Service",
+    "description": "DRS service for samtools view Starter Kit Cookbook",
+    "contactUrl": "mailto:info@ga4gh.org",
+    "documentationUrl": "https://github.com/ga4gh/ga4gh-starter-kit-drs",
+    "createdAt": "2020-01-15T12:00:00Z",
+    "updatedAt": "2020-01-15T12:00:00Z",
+    "environment": "test",
+    "version": "0.1.0",
+    "type": {
+        "group": "org.ga4gh",
+        "artifact": "drs",
+        "version": "1.1.0"
+    },
+    "organization": {
+        "name": "Global Alliance for Genomics and Health",
+        "url": "https://ga4gh.org"
+    }
+}
+```
 
 Note that the `id`, `name`, and `description` fields are the same as what was specified in the YAML config.
 
@@ -279,31 +433,66 @@ Since we added the test DRS dataset, we can also verify that the `/objects` endp
 GET http://localhost:4502/ga4gh/drs/v1/objects/b8cd0667-2c33-4c9f-967b-161b905932c9
 ```
 
-The response you receive should resemble the following partial response:
-
-![DRS Object Partial Response](/img/cookbooks/samtools-view-drs-wes/drs-partial-response.png)
-
-### Run Starter Kit UI
-
-We are ready to spin up the Starter Kit UI service. In the YAML config, we point the UI to the DRS service, so that models controlled by DRS (i.e. DRS Objects) can be created and edited via the UI.
-
-If you haven't already done so, pull the `0.2.1` release of the Starter Kit UI docker image:
-```
-docker pull ga4gh/ga4gh-starter-kit-ui:0.2.1
-```
-
-Next, let's start the Starter Kit UI service using `docker run`, taking care to mount the YAML config:
+You should receive the following DRS Object response:
 
 ```
-docker run \
-  --rm \
-  -d \
-  --name starterkit-demo-ui \
-  -p 4504:4504 \
-  -v `pwd`/config/ui:/config \
-  ga4gh/ga4gh-starter-kit-ui:0.2.1 \
-  -c /config/ui.config.yml
+{
+    "id": "b8cd0667-2c33-4c9f-967b-161b905932c9",
+    "description": "Open dataset of 384 phenopackets",
+    "created_time": "2021-03-12T20:00:00Z",
+    "name": "phenopackets.test.dataset",
+    "size": 143601,
+    "updated_time": "2021-03-13T12:30:45Z",
+    "version": "1.0.0",
+    "checksums": [
+        {
+            "checksum": "8711d59ca4264b3e3d0ce16349d94d0ab8ce493e",
+            "type": "sha1"
+        },
+        {
+            "checksum": "930014c944b655323ade3f4b239178022bfb5443ef6b280a7d7d69292867d010",
+            "type": "sha256"
+        },
+        {
+            "checksum": "938b077a59b11ad6e5958f9f34148f18",
+            "type": "md5"
+        }
+    ],
+    "self_uri": "drs://drs-demo.ga4gh.org/b8cd0667-2c33-4c9f-967b-161b905932c9",
+    "contents": [
+        {
+            "name": "phenopackets.mundhofir.family",
+            "drs_uri": [
+                "drs://drs-demo.ga4gh.org/1af5cdcf-898c-4dbc-944e-1ac95e82c0ea"
+            ],
+            "id": "1af5cdcf-898c-4dbc-944e-1ac95e82c0ea"
+        },
+        {
+            "name": "phenopackets.zhang.family",
+            "drs_uri": [
+                "drs://drs-demo.ga4gh.org/355a74bd-6571-4d4a-8602-a9989936717f"
+            ],
+            "id": "355a74bd-6571-4d4a-8602-a9989936717f"
+        },
+        {
+            "name": "phenopackets.cao.family",
+            "drs_uri": [
+                "drs://drs-demo.ga4gh.org/a1dd4ae2-8d26-43b0-a199-342b64c7dff6"
+            ],
+            "id": "a1dd4ae2-8d26-43b0-a199-342b64c7dff6"
+        },
+        {
+            "name": "phenopackets.lalani.family",
+            "drs_uri": [
+                "drs://drs-demo.ga4gh.org/c69a3d6c-4a28-4b7c-b215-0782f8d62429"
+            ],
+            "id": "c69a3d6c-4a28-4b7c-b215-0782f8d62429"
+        }
+    ]
+}
 ```
+
+### Validate Starter Kit UI
 
 Let's confirm the UI service is running correctly by visiting `http://localhost:4504/` via web browser (such as Google Chrome). You should see the following landing page:
 
