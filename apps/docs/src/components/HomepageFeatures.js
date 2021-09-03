@@ -1,9 +1,9 @@
 import React from 'react';
 import clsx from 'clsx';
 import styles from './HomepageFeatures.module.css';
-import tesImg from '../../static/img/tes.png'
+import tesImg from '../../static/img/tes-min.png'
 import networksImg from '../../static/img/networks.png'
-import htsgetImg from '../../static/img/htsget.png'
+import htsgetImg from '../../static/img/htsget-min.png'
 
 const FeatureList = [
   {
