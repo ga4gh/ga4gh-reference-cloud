@@ -1,45 +1,51 @@
 import React from 'react';
 import clsx from 'clsx';
 import styles from './HomepageFeatures.module.css';
+import tesImg from '../../static/img/tes-min.png'
+import networksImg from '../../static/img/networks.png'
+import htsgetImg from '../../static/img/htsget-min.png'
 
 const FeatureList = [
   {
-    title: 'Easy to Use',
-    Svg: require('../../static/img/undraw_docusaurus_mountain.svg').default,
+    title: 'Deploy Anywhere',
+    image: htsgetImg,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Starter Kit services are unopinionated about where they can be run.
+        Deploy a service network on your local laptop, a high performance compute
+        cluster, or a public cloud provider.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('../../static/img/undraw_docusaurus_tree.svg').default,
+    title: 'Modular Design',
+    image: tesImg,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Each microservice in the Starter Kit suite implements a single GA4GH
+        specification. Deploy only the required services for your data sharing
+        needs.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('../../static/img/undraw_docusaurus_react.svg').default,
+    title: 'Explore Federated Genomics',
+    image: networksImg,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Quickly set up networks of GA4GH services to explore how GA4GH standards
+        work together to facilitate federated genomic data sharing. 
       </>
     ),
   },
 ];
 
-function Feature({Svg, title, description}) {
+function Feature({image, title, description}) {
   return (
     <div className={clsx('col col--4')}>
       <div className="text--center">
-        <Svg className={styles.featureSvg} alt={title} />
+        {/* <Svg className={styles.featureSvg} alt={title} /> */}
+        <img src={image} />
       </div>
       <div className="text--center padding-horiz--md">
         <h3>{title}</h3>

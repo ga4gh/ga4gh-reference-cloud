@@ -30,7 +30,7 @@ The following table lists the default attribute values returned over `/service-i
 | `createdAt` | 2020-01-15T12:00:00Z |
 | `updatedAt` | 2020-01-15T12:00:00Z |
 | `environment` | test |
-| `version` | 0.0.1 |
+| `version` | 0.2.0 |
 | `organization.name` | Global Alliance for Genomics and Health |
 | `organization.url` | https://ga4gh.org |
 

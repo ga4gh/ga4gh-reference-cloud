@@ -47,7 +47,7 @@ docker run \
   -p 7501:7501 \
   -v /tmp/shared/wes:/tmp/shared/wes \
   --workdir "/tmp/shared/wes" \
-  ga4gh/ga4gh-starter-kit-wes:0.1.0-nextflow \
+  ga4gh/ga4gh-starter-kit-wes:0.2.0-nextflow \
   -c /config/config.yml
 ```
 
@@ -73,7 +73,7 @@ You should receive a response with a status of `200`, and a response body of:
     "createdAt": "2020-01-15T12:00:00Z",
     "updatedAt": "2020-01-15T12:00:00Z",
     "environment": "test",
-    "version": "0.0.1",
+    "version": "0.2.0",
     "type": {
         "group": "org.ga4gh",
         "artifact": "wes",
