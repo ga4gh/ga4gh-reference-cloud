@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Run samtools view on WES with HTTP URLs as input
 
-In the previous step, we configured and started instances of WES, DRS, and the Starter Kit UI.
+In the [previous step](./intro-and-setup), we configured and started instances of WES, DRS, and the Starter Kit UI.
 
 ## Workflow and Dataset
 
@@ -144,4 +144,4 @@ Try running the same workflow with different input BAMs. Use WES API calls to su
 
 ## Summary
 
-In this section, we ran the `samtools view` workflow to count reads in BAM files by executing simple HTTP requests to the WES service. You may have noticed that we did not need DRS or the UI for this section. In the next section, we will explore how to run the same workflow with DRS URLs instead of direct HTTP URLs as input, and how this abstraction provides us with much more flexibility in terms of where input resources can be stored.
+In this section, we ran the `samtools view` workflow to count reads in BAM files by executing simple HTTP requests to the WES service. You may have noticed that we did not need DRS or the UI for this section. In the [next section](./run-using-drs-urls), we will explore how to run the same workflow with DRS URLs instead of direct HTTP URLs as input, and how this abstraction provides us with much more flexibility in terms of where input resources can be stored.

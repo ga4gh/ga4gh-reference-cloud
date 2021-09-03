@@ -506,4 +506,4 @@ Lastly, if we click the "View" button for the DRS service, we will be directed t
 
 ![UI Service](/img/cookbooks/samtools-view-drs-wes/ui-service.png)
 
-In the next phase, we will run a Nextflow-based `samtools view` workflow using API calls to the WES service we set up.
+In the [next phase](./run-using-http-urls), we will run a Nextflow-based `samtools view` workflow using API calls to the WES service we set up.

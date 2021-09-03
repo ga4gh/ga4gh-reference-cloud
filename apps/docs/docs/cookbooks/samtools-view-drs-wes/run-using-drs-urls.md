@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Run samtools view on WES with DRS URLs as input
 
-In the previous section, we used **direct** `https://` URLs as input BAM files to the `samtools view` workflow. This is sufficient for multiple use cases, however, we may want to provide an **indirect** means of referencing workflow inputs, allowing the WES service to **resolve** the best paths to those inputs based on a number of criteria.
+In the [previous section](./run-using-http-urls), we used **direct** `https://` URLs as input BAM files to the `samtools view` workflow. This is sufficient for multiple use cases, however, we may want to provide an **indirect** means of referencing workflow inputs, allowing the WES service to **resolve** the best paths to those inputs based on a number of criteria.
 
 The Data Repository Service (DRS) provides an indirection layer to data. Each `DRS Object` served by DRS contains some metadata about a set of bytes (e.g. an input file). `DRS Object`s also provide one or more access methods to the raw file bytes. This allows multiple, identical copies of data to be stored on different cloud storage resources (e.g. AWS S3, Google Storage), and in different geographical regions. A resolving service (in this case, WES) can choose where to retrieve the raw data from based on its own capabilities. Different resolving (WES) services have the opportunity to choose the best "mirror" to access the data from. This could be based on regional proximity or supported cloud infrastructure. 
 
