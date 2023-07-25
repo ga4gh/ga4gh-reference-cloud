@@ -23,7 +23,7 @@ where `${TAG}` represents the release version of the application. See the "Lates
 
 e.g.
 ```
-docker pull ga4gh/ga4gh-starter-kit:0.2.0
+docker pull ga4gh/ga4gh-starter-kit-drs:0.2.0
 ```
 
 To run the container with all default settings, run:

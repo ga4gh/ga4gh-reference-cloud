@@ -59,6 +59,7 @@ The following table links out to the issue and pull request pages for each Start
 |------|--------|---------------|
 | GA4GH Starter Kit DRS | [Issues](https://github.com/ga4gh/ga4gh-starter-kit-drs/issues) | [Pull Requests](https://github.com/ga4gh/ga4gh-starter-kit-drs/pulls) |
 | GA4GH Starter Kit WES | [Issues](https://github.com/ga4gh/ga4gh-starter-kit-wes/issues) | [Pull Requests](https://github.com/ga4gh/ga4gh-starter-kit-wes/pulls) |
+| GA4GH Starter Kit Data Connect | [Issues](https://github.com/ga4gh/ga4gh-starter-kit-data-connect/issues) | [Pull Requests](https://github.com/ga4gh/ga4gh-starter-kit-data-connect/pulls) | 
 | GA4GH Starter Kit UI | [Issues](https://github.com/ga4gh/ga4gh-starter-kit-ui/issues) | [Pull Requests](https://github.com/ga4gh/ga4gh-starter-kit-ui/pulls) |
 | GA4GH Starter Kit Utils | [Issues](https://github.com/ga4gh/ga4gh-starter-kit-utils/issues) | [Pull Requests](https://github.com/ga4gh/ga4gh-starter-kit-utils/pulls) |
 | GA4GH Starter Kit Common | [Issues](https://github.com/ga4gh/ga4gh-starter-kit-common/issues) | [Pull Requests](https://github.com/ga4gh/ga4gh-starter-kit-common/pulls) |

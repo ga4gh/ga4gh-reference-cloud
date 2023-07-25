@@ -52,5 +52,6 @@ The following table links out to the full installation and configuration instruc
 
 | Name | Documentation |
 |------|---------------|
-| GA4GH Starter Kit DRS | [Documentation](../starter-kit-apis/drs/drs_overview)
-| GA4GH Starter Kit WES | [Documentation](../starter-kit-apis/wes/wes_overview)
+| GA4GH Starter Kit DRS | [Documentation](../starter-kit-apis/drs/drs_overview) |
+| GA4GH Starter Kit WES | [Documentation](../starter-kit-apis/wes/wes_overview) |
+| GA4GH Starter Kit Data Connect | [Documentation](../starter-kit-apis/data_connect/data_connect_overview) |
