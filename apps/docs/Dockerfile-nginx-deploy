@@ -1,0 +1,13 @@
+# Deploy static contents in `build` directory using nginx
+
+# Use nginx base image
+FROM nginx:alpine
+
+# Copy the static files to the web server directory
+COPY ./build /usr/share/nginx/html
+
+# Expose the default HTTP port
+EXPOSE 80
+
+# Start the web server
+CMD ["nginx", "-g", "daemon off;"]

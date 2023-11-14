@@ -1,0 +1,25 @@
+# Generate static contents into the `build` directory
+
+# Use a base image with Node.js and npm pre-installed
+FROM node:16.20.0-alpine
+
+# set yarn version to 1.22.19
+RUN yarn set version 1.22.19
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the package.json and yarn.lock files to the container
+COPY package.json yarn.lock ./
+
+# Install dependencies
+RUN yarn install
+
+# Copy the rest of the project files to the container
+COPY . .
+
+# Volume mount
+VOLUME /app/build
+
+# generates `build` directory with static contents
+CMD ["yarn", "build"]
