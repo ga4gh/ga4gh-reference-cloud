@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ga4gh-reference-cloud-helm.fullname" . }}
+  labels:
+    {{- include "ga4gh-reference-cloud-helm.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ga4gh-reference-cloud-helm.selectorLabels" . | nindent 4 }}
