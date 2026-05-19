@@ -29,9 +29,9 @@ spec:
             - name: HYDRA_ADMIN_URL
               value: http://hydra:4445/
             - name: PASSPORT_BROKER_PUBLIC_URL
-              value: http://host.docker.internal:4500/ga4gh/passport/v1/ # TODO: parameterize this
+              value: http:/passport-broker:4500/ga4gh/passport/v1/ # TODO: parameterize this
             - name: PASSPORT_BROKER_ADMIN_URL
-              value: http://host.docker.internal:4501/admin/ga4gh/passport/v1/ # TODO: parameterize this
+              value: http://passport-broker:4501/admin/ga4gh/passport/v1/ # TODO: parameterize this
             - name: PORT
               value: "4455"
             - name: SECURITY_MODE
