@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ory-hydra-db-migration
+spec:
+  template:
+    spec:
+      volumes:
+        - name: ory-hydra-config-map
+          configMap:
+            name: ory-hydra-config-map
+      containers:
+        - name: ory-hydra-db-migration
+          image: oryd/hydra:v1.11.7
+          volumeMounts:
+            - name: ory-hydra-config-map
+              mountPath: /etc/config
+              readOnly: true
+          command: ["hydra", "-c", "/etc/config/hydra.yaml", "migrate", "sql", "-e", "--yes"]
+          env:
+            - name: DSN
+              value: postgres://hydra:secret@host.docker.internal:5432/hydra?sslmode=disable
+      restartPolicy: Never
+  backoffLimit: 4

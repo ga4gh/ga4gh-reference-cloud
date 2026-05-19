@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ory-hydra-config-map
+data:
+  hydra.yaml: |
+    serve:
+      cookies:
+        same_site_mode: Lax
+
+    urls:
+      self:
+        issuer: http://127.0.0.1:4444
+      consent: http://127.0.0.1:3000/consent
+      login: http://127.0.0.1:3000/login
+      logout: http://127.0.0.1:3000/logout
+
+    secrets:
+      system:
+        - b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397
+
+    oidc:
+      subject_identifiers:
+        supported_types:
+          - pairwise
+          - public
+        pairwise:
+          salt: b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397

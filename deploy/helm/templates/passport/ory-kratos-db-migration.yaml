@@ -19,6 +19,6 @@ spec:
           command: ["kratos", "-c", "/etc/config/kratos.yaml", "migrate", "sql", "-e", "--yes"]
           env:
             - name: DSN
-              value: postgres://kratos:kratos@host.docker.internal:5432/kratos?sslmode=disable
+              value: postgres://kratos:secret@host.docker.internal:5432/kratos?sslmode=disable
       restartPolicy: Never
   backoffLimit: 4
