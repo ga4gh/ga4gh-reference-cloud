@@ -25,13 +25,13 @@ spec:
             - name: KRATOS_ADMIN_URL
               value: http://kratos:4434/
             - name: KRATOS_BROWSER_URL
-              value: http://127.0.0.1:4433/
+              value: http://127.0.0.1:4433/ # TODO: parameterize this
             - name: HYDRA_ADMIN_URL
               value: http://hydra:4445/
             - name: PASSPORT_BROKER_PUBLIC_URL
-              value: http://host.docker.internal:4500/ga4gh/passport/v1/
+              value: http://host.docker.internal:4500/ga4gh/passport/v1/ # TODO: parameterize this
             - name: PASSPORT_BROKER_ADMIN_URL
-              value: http://host.docker.internal:4501/admin/ga4gh/passport/v1/
+              value: http://host.docker.internal:4501/admin/ga4gh/passport/v1/ # TODO: parameterize this
             - name: PORT
               value: "4455"
             - name: SECURITY_MODE
