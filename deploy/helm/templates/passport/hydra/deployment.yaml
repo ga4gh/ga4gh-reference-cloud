@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydra
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hydra
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hydra
+    spec:
+      volumes:
+        - name: hydra-config-map
+          configMap:
+            name: hydra-config-map
+      containers:
+        - image: oryd/hydra:v1.11.7
+          imagePullPolicy: Always
+          name: hydra
+          volumeMounts:
+            - name: hydra-config-map
+              mountPath: /etc/config
+              readOnly: true
+          command: ["hydra", "-c", "/etc/config/hydra.yaml", "serve", "all", "--dangerous-force-http"]
+          ports:
+            - containerPort: 4444
+              hostPort: 4444
+            - containerPort: 4445
+              hostPort: 4445
+            - containerPort: 5555
+              hostPort: 5555
+          env:
+            - name: DSN
+              value: postgres://hydra:secret@host.docker.internal:5432/hydra?sslmode=disable
+            

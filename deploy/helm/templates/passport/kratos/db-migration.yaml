@@ -1,19 +1,19 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: ory-kratos-db-migration
+  name: kratos-db-migration
 spec:
   template:
     spec:
       volumes:
-        - name: ory-kratos-config-map
+        - name: kratos-config-map
           configMap:
-            name: ory-kratos-config-map
+            name: kratos-config-map
       containers:
-        - name: ory-kratos-db-migration
+        - name: kratos-db-migration
           image: oryd/kratos:v0.9.0-alpha.2
           volumeMounts:
-            - name: ory-kratos-config-map
+            - name: kratos-config-map
               mountPath: /etc/config
               readOnly: true
           command: ["kratos", "-c", "/etc/config/kratos.yaml", "migrate", "sql", "-e", "--yes"]

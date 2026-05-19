@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ory-hydra-config-map
+  name: hydra-config-map
 data:
   hydra.yaml: |
     serve:

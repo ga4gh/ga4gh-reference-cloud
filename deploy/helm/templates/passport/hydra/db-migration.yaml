@@ -1,19 +1,19 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: ory-hydra-db-migration
+  name: hydra-db-migration
 spec:
   template:
     spec:
       volumes:
-        - name: ory-hydra-config-map
+        - name: hydra-config-map
           configMap:
-            name: ory-hydra-config-map
+            name: hydra-config-map
       containers:
-        - name: ory-hydra-db-migration
+        - name: hydra-db-migration
           image: oryd/hydra:v1.11.7
           volumeMounts:
-            - name: ory-hydra-config-map
+            - name: hydra-config-map
               mountPath: /etc/config
               readOnly: true
           command: ["hydra", "-c", "/etc/config/hydra.yaml", "migrate", "sql", "-e", "--yes"]
