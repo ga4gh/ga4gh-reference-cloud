@@ -15,14 +15,8 @@ data:
       login: http://127.0.0.1:3000/login
       logout: http://127.0.0.1:3000/logout
 
-    secrets:
-      system:
-        - b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397
-
     oidc:
       subject_identifiers:
         supported_types:
           - pairwise
           - public
-        pairwise:
-          salt: b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397

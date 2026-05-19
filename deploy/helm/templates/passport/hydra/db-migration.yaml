@@ -18,7 +18,37 @@ spec:
               readOnly: true
           command: ["hydra", "-c", "/etc/config/hydra.yaml", "migrate", "sql", "-e", "--yes"]
           env:
+            - name: PSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hydra-db-credentials
+                  key: username
+            - name: PSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hydra-db-credentials
+                  key: password
+            - name: PSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: host
+            - name: PSQL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: port
             - name: DSN
-              value: postgres://hydra:secret@host.docker.internal:5432/hydra?sslmode=disable
+              value: postgres://$(PSQL_USER):$(PSQL_PASSWORD)@$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)?sslmode=disable
+            - name: SECRETS_SYSTEM
+              valueFrom:
+                secretKeyRef:
+                  name: hydra-secrets
+                  key: system-secret
+            - name: OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: hydra-secrets
+                  key: pairwise-salt
       restartPolicy: Never
   backoffLimit: 4
