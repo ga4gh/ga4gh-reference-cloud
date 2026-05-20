@@ -53,3 +53,13 @@ spec:
                   key: port
             - name: DSN
               value: postgres://$(PSQL_USER):$(PSQL_PASSWORD)@$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)?sslmode=disable
+            - name: SECRETS_COOKIE_0
+              valueFrom:
+                secretKeyRef:
+                  name: kratos-secrets
+                  key: cookie
+            - name: SECRETS_CIPHER_0
+              valueFrom:
+                secretKeyRef:
+                  name: kratos-secrets
+                  key: cipher

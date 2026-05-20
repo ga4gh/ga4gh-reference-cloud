@@ -62,7 +62,7 @@ data:
                 -
                   hook: web_hook
                   config:
-                    url: http://host.docker.internal:4501/admin/ga4gh/passport/v1/users
+                    url: http://passport-broker:4501/admin/ga4gh/passport/v1/users
                     method: POST
                     body: file:///etc/config/register.jsonnet
 
@@ -73,9 +73,9 @@ data:
 
     secrets:
       cookie:
-        - PLEASE-CHANGE-ME-I-AM-VERY-INSECURE
+        - # import from environment
       cipher:
-        - 32-LONG-SECRET-NOT-SECURE-AT-ALL
+        - # import from environment
 
     ciphers:
       algorithm: xchacha20-poly1305

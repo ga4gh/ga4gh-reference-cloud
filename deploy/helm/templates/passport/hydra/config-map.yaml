@@ -8,6 +8,9 @@ data:
       cookies:
         same_site_mode: Lax
 
+    secrets:
+      system:
+
     urls:
       self:
         issuer: http://127.0.0.1:4444
@@ -20,3 +23,5 @@ data:
         supported_types:
           - pairwise
           - public
+        pairwise:
+          salt:
