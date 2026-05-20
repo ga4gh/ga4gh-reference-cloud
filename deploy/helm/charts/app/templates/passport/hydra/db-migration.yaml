@@ -39,7 +39,7 @@ spec:
                   name: common-db-info
                   key: port
             - name: DSN
-              value: postgres://$(PSQL_USER):$(PSQL_PASSWORD)@$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)?sslmode=disable
+              value: postgres://$(PSQL_USER):$(PSQL_PASSWORD)@$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)
             - name: SECRETS_SYSTEM
               valueFrom:
                 secretKeyRef:
