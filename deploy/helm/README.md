@@ -17,10 +17,9 @@ Helm chart for the GA4GH Reference Cloud
     --docker-password=$TOKEN \
     --namespace=<your-namespace>
   ```
-* Run `helm install refcloud .` to install the helm chart in your Minikube cluster
+* Run `helm install refcloud charts/app` to install the helm chart in your Minikube cluster
 * Run the following commands to enable port-forwarding to local services:
   ```
   kubectl port-forward service/passport-ui-node 4455:4455 &
   kubectl port-forward service/kratos 4433:4433 &
-  kubectl port-forward service/passport-broker 4500:4500 4501:4501 &
   ```
