@@ -7,6 +7,6 @@ spec:
   selector:
     app.kubernetes.io/name: passport-ui-node
   ports:
-    - port: 4455
+    - port: 80
       targetPort: 4455
       protocol: TCP
