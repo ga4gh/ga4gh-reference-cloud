@@ -8,7 +8,7 @@ metadata:
     {{- end }}
     {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
       alb.ingress.kubernetes.io/ssl-redirect: '443'
-      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/uuid # specify certificate ARN
+      alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ga4gh.referenceCloud.aws.certificateARN }}
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
       kubernetes.io/ingress.class: alb
     {{- end }}
