@@ -163,3 +163,4 @@ affinity: {}
 ga4gh:
   referenceCloud:
     baseURL: refcloud.ga4gh.local
+    cloudEnvironment: local

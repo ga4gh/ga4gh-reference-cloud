@@ -3,16 +3,26 @@ kind: Ingress
 metadata:
   name: ga4gh-reference-cloud
   annotations:
-    # AWS ANNOTATIONS
-    # alb.ingress.kubernetes.io/ssl-redirect: '443'
-    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/uuid # specify certificate ARN
-    # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    # kubernetes.io/ingress.class: alb
-    # MINIKUBE ANNOTATIONS
+    {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
     kubernetes.io/ingress.class: nginx
+    {{- end }}
+    {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
+      alb.ingress.kubernetes.io/ssl-redirect: '443'
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/uuid # specify certificate ARN
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      kubernetes.io/ingress.class: alb
+    {{- end }}
 spec:
-  # ingressClassName: alb # AWS
+  {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
   ingressClassName: nginx
+  tls:
+    - hosts:
+      - {{ .Values.ga4gh.referenceCloud.baseURL }}
+      secretName: refcloud-tls
+  {{- end }}
+  {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
+  ingressClassName: alb
+  {{- end }}
   rules:
     - host: {{ .Values.ga4gh.referenceCloud.baseURL }}
       http:
@@ -31,13 +41,3 @@ spec:
                 name: passport-ui-node
                 port:
                   number: 80
-#     - host: idp.{{ .Values.ga4gh.referenceCloud.baseURL }}
-#       http:
-#         paths:
-#           - path: /
-#             pathType: Prefix
-#             backend:
-#               service:
-#                 name: kratos
-#                 port:
-#                   number: 80

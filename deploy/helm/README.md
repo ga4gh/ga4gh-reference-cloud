@@ -8,6 +8,7 @@ Helm chart for the GA4GH Reference Cloud
   * `kubectl`
   * `minikube`
   * `helm`
+  * `mkcert`
 * Ensure your `kubectl` active context is the `minikube` context
 * Enable ingress by running the following:
  ```
@@ -17,6 +18,12 @@ Helm chart for the GA4GH Reference Cloud
 * edit your `/etc/hosts` file with the following line(s) to point the ingress URLs to localhost:
   ```
   127.0.0.1	refcloud.ga4gh.local
+  ```
+* Create an SSL certificate for `refcloud.ga4gh.local` and subdomains:
+  * **NOTE:** Do this in a secure folder on your machine. DO NOT commit cert/key files to GitHub
+  ```
+  mkcert -install -cert-file cert.pem -key-file key.pem "*.refcloud.ga4gh.local" "refcloud.ga4gh.local"
+  kubectl create secret tls refcloud-tls --cert=cert.pem --key=key.pem
   ```
 * Create a kubernetes secret to enable minikube to pull images from private ECR repository, e.g.
   ```
@@ -29,4 +36,4 @@ Helm chart for the GA4GH Reference Cloud
   ```
 * Run `helm install refcloud charts/app` to install the helm chart in your Minikube cluster
 * Run `minikube tunnel` to enable ingress
-* You should now be able to access the local service via web browser at `http://refcloud.ga4gh.local`
+* You should now be able to access the local service via web browser at `https://refcloud.ga4gh.local`
