@@ -14,7 +14,6 @@ spec:
     spec:
       containers:
         - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/ga4gh-starter-kit-passport-broker:v0.0.2-44-g024b4aa
-          imagePullPolicy: Always
           name: passport-broker
           command: ["java", "-jar", "ga4gh-starter-kit-passport-broker.jar", "-c", "/etc/config.yml" ]
           volumeMounts:
