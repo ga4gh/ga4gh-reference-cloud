@@ -15,9 +15,19 @@ spec:
       containers:
         - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/ga4gh-starter-kit-passport-broker:v0.0.2-44-g024b4aa
           imagePullPolicy: Always
-          name: passport-broker 
+          name: passport-broker
+          command: ["java", "-jar", "ga4gh-starter-kit-passport-broker.jar", "-c", "/etc/config.yml" ]
+          volumeMounts:
+            - name: passport-broker-config
+              mountPath: /etc/config.yml
+              subPath: config.yml
+              readOnly: true
           ports:
             - containerPort: 4500
             - containerPort: 4501
       imagePullSecrets:
         - name: ecr-registry-key
+      volumes:
+        - name: passport-broker-config
+          secret:
+            secretName: passport-broker-config
