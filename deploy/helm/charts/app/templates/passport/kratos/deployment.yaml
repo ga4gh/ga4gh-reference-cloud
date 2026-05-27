@@ -18,7 +18,6 @@ spec:
             name: kratos-config-map
       containers:
         - image: oryd/kratos:v0.9.0-alpha.2
-          imagePullPolicy: Always
           name: kratos
           volumeMounts:
             - name: kratos-config-map

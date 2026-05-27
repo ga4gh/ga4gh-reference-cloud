@@ -14,7 +14,6 @@ spec:
     spec:
       containers:
         - image: ga4gh/ga4gh-starter-kit-passport-ui-node:0.0.2
-          imagePullPolicy: Always
           name: passport-ui-node
           ports:
             - containerPort: 4455

@@ -14,7 +14,6 @@ spec:
     spec:
       containers:
         - image: oryd/mailslurper:latest-smtps
-          imagePullPolicy: Always
           name: mail-slurper
           ports:
             - containerPort: 4436

@@ -14,7 +14,6 @@ spec:
     spec:
       containers:
         - image: oryd/hydra-login-consent-node:v1.11.8
-          imagePullPolicy: Always
           name: passport-ui-hydra
           ports:
             - containerPort: 3000

@@ -18,7 +18,6 @@ spec:
             name: hydra-config-map
       containers:
         - image: oryd/hydra:v1.11.7
-          imagePullPolicy: Always
           name: hydra
           volumeMounts:
             - name: hydra-config-map
