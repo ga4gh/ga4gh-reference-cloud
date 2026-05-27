@@ -18,8 +18,6 @@ spec:
           name: passport-broker 
           ports:
             - containerPort: 4500
-              hostPort: 4500
             - containerPort: 4501
-              hostPort: 4501
       imagePullSecrets:
         - name: ecr-registry-key

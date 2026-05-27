@@ -18,7 +18,6 @@ spec:
           name: passport-ui-hydra
           ports:
             - containerPort: 3000
-              hostPort: 3000
           env:
             - name: HYDRA_ADMIN_URL
               value: http://hydra:4445/

@@ -18,6 +18,4 @@ spec:
           name: mail-slurper
           ports:
             - containerPort: 4436
-              hostPort: 4436
             - containerPort: 4437
-              hostPort: 4437

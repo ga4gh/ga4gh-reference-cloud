@@ -18,7 +18,6 @@ spec:
           name: passport-ui-node
           ports:
             - containerPort: 4455
-              hostPort: 4455
           env:
             - name: KRATOS_PUBLIC_URL
               value: http://kratos:80/

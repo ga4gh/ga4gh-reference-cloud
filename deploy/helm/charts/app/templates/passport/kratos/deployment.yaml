@@ -27,9 +27,7 @@ spec:
           command: ["kratos", "-c", "/etc/config/kratos.yaml", "serve", "--dev", "--watch-courier"]
           ports:
             - containerPort: 4433
-              hostPort: 4433
             - containerPort: 4434
-              hostPort: 4434
           env:
             - name: PSQL_USER
               valueFrom:

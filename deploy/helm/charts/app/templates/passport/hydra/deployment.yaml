@@ -27,11 +27,8 @@ spec:
           command: ["hydra", "-c", "/etc/config/hydra.yaml", "serve", "all", "--dangerous-force-http"]
           ports:
             - containerPort: 4444
-              hostPort: 4444
             - containerPort: 4445
-              hostPort: 4445
             - containerPort: 5555
-              hostPort: 5555
           env:
             - name: PSQL_USER
               valueFrom:
