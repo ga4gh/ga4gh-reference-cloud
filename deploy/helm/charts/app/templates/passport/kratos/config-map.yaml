@@ -13,18 +13,18 @@ data:
 
     serve:
       public:
-        base_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/
+        base_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/
         cors:
           enabled: true
           allowed_origins:
-            - http://{{ .Values.ga4gh.referenceCloud.baseURL }}
+            - https://{{ .Values.ga4gh.referenceCloud.baseURL }}
       admin:
         base_url: http://kratos:4434/
 
     selfservice:
-      default_browser_return_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/
+      default_browser_return_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/
       allowed_return_urls:
-        - http://{{ .Values.ga4gh.referenceCloud.baseURL }}
+        - https://{{ .Values.ga4gh.referenceCloud.baseURL }}
 
       methods:
         password:
@@ -32,33 +32,33 @@ data:
 
       flows:
         error:
-          ui_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/error
+          ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/error
 
         settings:
-          ui_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/settings
+          ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/settings
           privileged_session_max_age: 15m
 
         recovery:
           enabled: true
-          ui_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/recovery
+          ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/recovery
 
         verification:
           enabled: true
-          ui_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/verification
+          ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/verification
           after:
-            default_browser_return_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/
+            default_browser_return_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/
 
         logout:
           after:
-            default_browser_return_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/login
+            default_browser_return_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/login
 
         login:
-          ui_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/login
+          ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/login
           lifespan: 10m
 
         registration:
           lifespan: 10m
-          ui_url: http://{{ .Values.ga4gh.referenceCloud.baseURL }}/registration
+          ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/registration
           after:
             password:
               hooks:
