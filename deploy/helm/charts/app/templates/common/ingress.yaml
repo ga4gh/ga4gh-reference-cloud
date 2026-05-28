@@ -41,3 +41,13 @@ spec:
                 name: passport-ui-node
                 port:
                   number: 80
+    - host: drs.{{ .Values.ga4gh.referenceCloud.baseURL }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: drs
+                port:
+                  number: 80

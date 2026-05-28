@@ -17,7 +17,8 @@ Helm chart for the GA4GH Reference Cloud
  ```
 * edit your `/etc/hosts` file with the following line(s) to point the ingress URLs to localhost:
   ```
-  127.0.0.1	refcloud.ga4gh.local
+  127.0.0.1 refcloud.ga4gh.local
+  127.0.0.1 drs.refcloud.ga4gh.local
   ```
 * Create an SSL certificate for `refcloud.ga4gh.local` and subdomains:
   * **NOTE:** Do this in a secure folder on your machine. DO NOT commit cert/key files to GitHub
