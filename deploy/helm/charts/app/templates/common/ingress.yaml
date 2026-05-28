@@ -34,20 +34,17 @@ spec:
                 name: kratos
                 port:
                   number: 80
+          - path: /ga4gh/drs/v1/
+            pathType: Prefix
+            backend:
+              service:
+                name: drs
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: passport-ui-node
-                port:
-                  number: 80
-    - host: drs.{{ .Values.ga4gh.referenceCloud.baseURL }}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: drs
                 port:
                   number: 80
