@@ -18,7 +18,6 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
 
   // Render a generic text input field.
   return (
-    <>
     <TextInput
       title={node.meta.label?.text}
       onClick={onClick}
@@ -43,6 +42,5 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
         </>
       }
     />
-    </>
   )
 }
