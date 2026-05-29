@@ -31,7 +31,7 @@ export function LogoutLink(deps?: DependencyList) {
     if (logoutToken) {
       ory
         .updateLogoutFlow({ token: logoutToken })
-        .then(() => router.push("/login"))
+        .then(() => router.push("/"))
         .then(() => router.reload())
     }
   }

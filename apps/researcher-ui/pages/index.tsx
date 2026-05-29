@@ -4,9 +4,10 @@ import type { NextPage } from "next"
 import Head from "next/head"
 import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
-
 import { DocsButton, MarginCard, LogoutLink } from "../pkg"
 import ory from "../pkg/sdk"
+import HomeLoggedIn from "../components/home/HomeLoggedIn"
+import HomeLoggedOut from "../components/home/HomeLoggedOut"
 
 const Home: NextPage = () => {
   const [session, setSession] = useState<string>(
@@ -43,123 +44,7 @@ const Home: NextPage = () => {
       })
   }, [router])
 
-  return (
-    <div className={"container-fluid"}>
-      <h1 className="text-5xl font-bold text-red-600 p-8 underline">
-        Tailwind is working!
-      </h1>
-      <Head>
-        <title>Ory NextJS Integration Example</title>
-        <meta name="description" content="NextJS + React + Vercel + Ory" />
-      </Head>
-
-      <MarginCard wide>
-        <CardTitle>Welcome to Ory!</CardTitle>
-        <P>
-          Welcome to the Ory Managed UI. This UI implements a run-of-the-mill
-          user interface for all self-service flows (login, registration,
-          recovery, verification, settings). The purpose of this UI is to help
-          you get started quickly. In the long run, you probably want to
-          implement your own custom user interface.
-        </P>
-        <div className="row">
-          <div className="col-md-4 col-xs-12">
-            <div className="box">
-              <H3>Documentation</H3>
-              <P>
-                Here are some useful documentation pieces that help you get
-                started.
-              </P>
-              <div className="row">
-                <DocsButton
-                  title="Get Started"
-                  href="https://www.ory.com/docs/get-started"
-                  testid="get-started"
-                />
-                <DocsButton
-                  title="User Flows"
-                  href="https://www.ory.com/docs/concepts/self-service"
-                  testid="user-flows"
-                />
-                <DocsButton
-                  title="Identities"
-                  href="https://www.ory.com/docs/concepts/identity"
-                  testid="identities"
-                />
-                <DocsButton
-                  title="Sessions"
-                  href="https://www.ory.com/docs/concepts/session"
-                  testid="sessions"
-                />
-                <DocsButton
-                  title="Bring Your Own UI"
-                  href="https://www.ory.com/docs/guides/bring-your-user-interface"
-                  testid="customize-ui"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="col-md-8 col-xs-12">
-            <div className="box">
-              <H3>Session Information</H3>
-              <P>
-                Below you will find the decoded Ory Session if you are logged
-                in.
-              </P>
-              <CodeBox data-testid="session-content" code={session} />
-            </div>
-          </div>
-        </div>
-      </MarginCard>
-
-      <Card wide>
-        <H2>Other User Interface Screens</H2>
-        <div className={"row"}>
-          <DocsButton
-            unresponsive
-            testid="login"
-            href="/login"
-            disabled={hasSession}
-            title={"Login"}
-          />
-          <DocsButton
-            unresponsive
-            testid="sign-up"
-            href="/registration"
-            disabled={hasSession}
-            title={"Sign Up"}
-          />
-          <DocsButton
-            unresponsive
-            testid="recover-account"
-            href="/recovery"
-            disabled={hasSession}
-            title="Recover Account"
-          />
-          <DocsButton
-            unresponsive
-            testid="verify-account"
-            href="/verification"
-            title="Verify Account"
-          />
-          <DocsButton
-            unresponsive
-            testid="account-settings"
-            href="/settings"
-            disabled={!hasSession}
-            title={"Account Settings"}
-          />
-          <DocsButton
-            unresponsive
-            testid="logout"
-            onClick={onLogout}
-            disabled={!hasSession}
-            title={"Logout"}
-          />
-        </div>
-      </Card>
-    </div>
-  )
+  return hasSession ? <HomeLoggedIn /> : <HomeLoggedOut />
 }
 
 export default Home
