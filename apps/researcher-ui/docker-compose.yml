@@ -1,0 +1,43 @@
+version: "3.7"
+
+networks:
+  intranet:
+
+services:
+  kratos-migrate:
+    image: oryd/kratos:v0.9.0-alpha.2
+    environment:
+      DSN: postgres://kratos:secret@host.docker.internal:5432/kratos?sslmode=disable
+    command: -c /etc/config/kratos/kratos.yml migrate sql -e --yes
+    volumes:
+      - type: bind
+        source: ./contrib/kratos
+        target: /etc/config/kratos
+    restart: on-failure
+    networks:
+      - intranet
+
+  kratos:
+    image: oryd/kratos:v0.9.0-alpha.2
+    depends_on:
+      - kratos-migrate
+    ports:
+      - "4433:4433" # public
+      - "4434:4434" # admin
+    environment:
+      DSN: postgres://kratos:secret@host.docker.internal:5432/kratos?sslmode=disable
+      LOG_LEVEL: trace
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    volumes:
+      - type: bind
+        source: ./contrib/kratos
+        target: /etc/config/kratos
+    restart: unless-stopped
+    networks:
+      - intranet
+
+  mailslurper:
+    image: oryd/mailslurper:latest-smtps
+    ports:
+      - "4436:4436"
+      - "4437:4437"
