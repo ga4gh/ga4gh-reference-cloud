@@ -182,6 +182,7 @@ export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
       // and the filter did not match any elements!
       return null
     }
+    console.log("NODES", nodes)
 
     return (
       <form
@@ -193,6 +194,8 @@ export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
         {nodes.map((node, k) => {
           const id = getNodeId(node) as keyof Values
           return (
+            <>
+            <h1>hello world</h1>
             <Node
               key={`${id}-${k}`}
               disabled={isLoading}
@@ -214,6 +217,7 @@ export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
                 })
               }
             />
+            </>
           )
         })}
       </form>
