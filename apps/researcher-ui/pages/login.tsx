@@ -1,5 +1,4 @@
 import { LoginFlow, UpdateLoginFlowBody } from "@ory/client"
-import { CardTitle } from "@ory/themes"
 import { AxiosError } from "axios"
 import type { NextPage } from "next"
 import Head from "next/head"
@@ -7,8 +6,9 @@ import Link from "next/link"
 import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 
-import { ActionCard, CenterLink, LogoutLink, MarginCard } from "../pkg"
+import { ActionCard, CenterLink, LogoutLink } from "../pkg"
 import { Flow } from "../pkg/ui-ga4gh"
+// import { Flow } from "../pkg"
 import { handleGetFlowError, handleFlowError } from "../pkg/errors"
 import ory from "../pkg/sdk"
 
@@ -94,34 +94,6 @@ const Login: NextPage = () => {
             return Promise.reject(err)
           }),
       )
-  
-  /*
-  return (
-    <div className="hero bg-base-200 min-h-screen">
-      <div className="hero-content flex-col lg:flex-row-reverse">
-        <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
-          <form className="card-body">
-            <h2 className="card-title">
-              {(() => {
-                if (flow?.refresh) {
-                  return "Confirm Action"
-                } else if (flow?.requested_aal === "aal2") {
-                  return "Two-Factor Authentication"
-                }
-                return "Sign In"
-              })()}
-            </h2>
-            <Flow onSubmit={onSubmit} flow={flow} />
-            <div className="flex w-full flex-col">
-              <div className="divider" />
-            </div>
-            <p>New user? <a className="link link-secondary" href="/register">Sign up</a></p>
-          </form>
-        </div>
-      </div>
-    </div>
-  )
-  */
 
   return (
     <>
