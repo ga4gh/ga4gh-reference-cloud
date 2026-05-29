@@ -5,7 +5,6 @@ export function NodeInputHidden<T>({ attributes }: NodeInputProps) {
 
   return (
     <>
-    <h1>HELLO I AM A HIDDEN PROP</h1>
     <input
       type={attributes.type}
       name={attributes.name}

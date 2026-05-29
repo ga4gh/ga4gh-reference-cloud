@@ -19,7 +19,6 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
   // Render a generic text input field.
   return (
     <>
-    <h1>HELLO I AM A DEFAULT NODE INPUT</h1>
     <TextInput
       title={node.meta.label?.text}
       onClick={onClick}

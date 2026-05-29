@@ -7,7 +7,8 @@ import Link from "next/link"
 import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 
-import { ActionCard, CenterLink, LogoutLink, Flow, MarginCard } from "../pkg"
+import { ActionCard, CenterLink, LogoutLink, MarginCard } from "../pkg"
+import { Flow } from "../pkg/ui-ga4gh"
 import { handleGetFlowError, handleFlowError } from "../pkg/errors"
 import ory from "../pkg/sdk"
 

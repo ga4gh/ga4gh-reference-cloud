@@ -195,7 +195,6 @@ export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
           const id = getNodeId(node) as keyof Values
           return (
             <>
-            <h1>hello world</h1>
             <Node
               key={`${id}-${k}`}
               disabled={isLoading}
