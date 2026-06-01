@@ -5,7 +5,11 @@ Main planning & issue tracking repo for the GA4GH Reference Cloud project.
 * [Roadmap](https://github.com/ga4gh/ga4gh-reference-cloud/milestones)
 * [Project Board](https://github.com/orgs/ga4gh/projects/33)
 
-## Other Repositories
+## Documentation
+
+* [Design Document](./DESIGN.md)
+
+## Repositories
 
 Repositories for microservices and other components involved in the reference cloud.
 
