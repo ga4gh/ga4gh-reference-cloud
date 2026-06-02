@@ -123,7 +123,30 @@ The refcloud production instance will be reachable at https://refcloud.ga4gh.org
 
 ## User Interface
 
-TBD
+The refcloud UI (which will be available at https://refcloud.ga4gh.org) will serve as the main user entrypoint to the platform. Upon initial visit, users will be presented with a registration form that they can fill out to sign up and get access. When a new user is created, it should be noted that they will not automatically have access to the data. They will need to request access for different datasets individually.
+
+Once a user registers for the platform (or returns and logs back in), they will be presented with the interface for logged in users.
+
+List of UI pages/views for logged in users:
+* **Dataset browser:** user can view the name, description, and metadata of all datasets registered on the platform. Users will be able to see their visa status with each dataset (e.g. not requested, requested, approved, revoked). Users will be able to click through the dataset to submit a data access request.
+* **Passport browser:** user can view their passport token (as JSON and as JWT). They can add visas from one or more datasets to their token and then "mint" it for use in downstream services (e.g. DRS)
+
+(TBD - add mockups/screenshots)
+
+## Documentation Site
+
+Alongside the refcloud itself, we will host a documentation site to support user onboarding, outlining basic functionality and common GA4GH-related use cases, such as:
+* How to browse datasets available on the platform
+* How to request access to a dataset
+* How to obtain passport token and use it to access controlled resources (e.g. DRS objects, Beacon variants, etc.)
+
+The documentation site will be developed using **Docusaurus** or **MkDocs** and will be available at https://docs.refcloud.ga4gh.org
+
+New use cases will be added to the documentation site as they become available via the refcloud.
+
+## Key Demos and Use Cases
+
+(TBD - need others to inform use case roadmap)
 
 # Non-Functional Details
 
