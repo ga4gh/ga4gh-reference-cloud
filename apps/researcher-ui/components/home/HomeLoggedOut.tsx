@@ -16,7 +16,7 @@ const HomeLoggedOut: NextPage = () => {
               <div className="divider" />
             </div>
             <p>Already registered? <a className="link link-secondary" href="/login">Log in</a></p>
-            <p>New user? <a className="link link-secondary" href="/register">Sign up</a></p>
+            <p>New user? <a className="link link-secondary" href="/registration">Sign up</a></p>
             <p>Want to learn more about the platform? <a className="link link-secondary" href="/docs">View docs</a></p>
           </div>
         </div>

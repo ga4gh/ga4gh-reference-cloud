@@ -124,16 +124,11 @@ const Login: NextPage = () => {
                 </ActionCard>
               ) : (
                 <>
-                  <ActionCard>
-                    <Link href="/registration" passHref>
-                      <CenterLink>Create account</CenterLink>
-                    </Link>
-                  </ActionCard>
-                  <ActionCard>
-                    <Link href="/recovery" passHref>
-                      <CenterLink>Recover your account</CenterLink>
-                    </Link>
-                  </ActionCard>
+                  <div className="flex w-full flex-col">
+                    <div className="divider" />
+                  </div>
+                  <p>New user? <a className="link link-secondary" href="/registration">Sign up</a></p>
+                  <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
                 </>
               )}
             </div>
