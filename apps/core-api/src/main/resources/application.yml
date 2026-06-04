@@ -6,3 +6,11 @@ spring:
   logging:
     level:
       root: DEBUG
+  datasource:
+    url: jdbc:postgresql://localhost:5432/refcloudapi
+    username: refcloudapi
+    password: secret
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
