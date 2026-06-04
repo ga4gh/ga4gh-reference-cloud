@@ -12,10 +12,12 @@ Core API for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-referenc
   * Java v25+ (we recommend installing the `25.0.3-amzn` candidate via [sdkman](https://sdkman.io/))
   * Gradle v9.1+ (we recommend installing the `9.5.1` candidate via [sdkman](https://sdkman.io/))
   * PostgreSQL v18+
+* Run the dev server: `./gradlew bootRun`
+* Access the dev server via API testing tool (e.g. Postman) using a base URL of `http://localhost:8080/` (e.g. `http://localhost:8080/actuator/health`)
 
 ## Configuration
 
-Configure the UI app via the following environment variables
+Configure the API app via the following environment variables
 
 | Variable Name| Description |
 |--------------|-------------|
