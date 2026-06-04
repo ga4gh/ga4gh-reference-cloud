@@ -6,7 +6,6 @@ import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 import { DocsButton, MarginCard, LogoutLink } from "../pkg"
 import ory from "../pkg/sdk"
-import HomeLoggedIn from "../components/home/HomeLoggedIn"
 import HomeLoggedOut from "../components/home/HomeLoggedOut"
 
 const Home: NextPage = () => {
@@ -23,6 +22,7 @@ const Home: NextPage = () => {
       .then(({ data }) => {
         setSession(JSON.stringify(data, null, 2))
         setHasSession(true)
+        router.push("/datasets")
       })
       .catch((err: AxiosError) => {
         switch (err.response?.status) {
@@ -44,7 +44,7 @@ const Home: NextPage = () => {
       })
   }, [router])
 
-  return hasSession ? <HomeLoggedIn /> : <HomeLoggedOut />
+  return !hasSession ? <HomeLoggedOut /> : <></>
 }
 
 export default Home
