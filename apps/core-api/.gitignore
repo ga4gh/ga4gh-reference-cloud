@@ -41,3 +41,5 @@ gradle.properties
 config.yml
 # Mac OS files
 **/.DS_Store
+
+*.bak
