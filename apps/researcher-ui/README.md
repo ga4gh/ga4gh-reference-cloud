@@ -7,6 +7,8 @@ UI for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-reference-clou
 * Prerequisites (ensure these are installed on your machine)
   * Docker
   * Node.js (developed using v24.15.0)
+* Install dependencies: `npm install`
+* Set the `ORY_SDK_URL` environment variable to `http://localhost:4433/`, i.e. `export ORY_SDK_URL=http://localhost:4433/`
 * Run services used by the UI: `docker-compose up -d`
 * Run the dev server: `npm run dev`
 * Access the dev server via browser at `http://localhost:3000`
@@ -17,6 +19,7 @@ Configure the UI app via the following environment variables
 
 | Variable Name | Description |
 |---------------|-------------|
+| `ORY_SDK_URL` | base URL to the Ory Kratos Public API |
 | `NEXT_PUBLIC_REFCLOUD_DOCS_URL` | link to reference cloud documentation site (linked to from multiple places in the UI) |
 
 ## Issues
