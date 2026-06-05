@@ -17,7 +17,7 @@ const HomeLoggedOut: NextPage = () => {
             </div>
             <p>Already registered? <a className="link link-secondary" href="/login">Log in</a></p>
             <p>New user? <a className="link link-secondary" href="/registration">Sign up</a></p>
-            <p>Want to learn more about the platform? <a className="link link-secondary" href="/docs">View docs</a></p>
+            <p>Want to learn more about the platform? <a className="link link-secondary" href={process.env.NEXT_PUBLIC_REFCLOUD_DOCS_URL}>View docs</a></p>
           </div>
         </div>
       </div>

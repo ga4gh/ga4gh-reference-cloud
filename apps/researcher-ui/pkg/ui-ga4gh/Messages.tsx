@@ -6,12 +6,22 @@ interface MessageProps {
 }
 
 export const Message = ({ message }: MessageProps) => {
+  const divStyle = {
+    marginBottom: "10px",
+  }
+
+  const messageStyle = {
+    fontSize: "0.75rem",
+    fontWeight: "500",
+    color: "#374151",
+  }
+
   return (
-    <Alert severity={message.type === "error" ? "error" : "info"}>
-      <AlertContent data-testid={`ui/message/${message.id}`}>
+    <div style={divStyle}>
+      <p data-testid={`ui/message/${message.id}`} style={messageStyle}>
         {message.text}
-      </AlertContent>
-    </Alert>
+      </p>
+    </div>
   )
 }
 

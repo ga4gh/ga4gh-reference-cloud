@@ -1,5 +1,4 @@
 import { RegistrationFlow, UpdateRegistrationFlowBody } from "@ory/client"
-import { CardTitle } from "@ory/themes"
 import { AxiosError } from "axios"
 import type { NextPage } from "next"
 import Head from "next/head"
@@ -7,9 +6,7 @@ import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 
 // Import render helpers
-import { ActionCard, CenterLink, MarginCard } from "../pkg"
 import { Flow } from "../pkg/ui-ga4gh"
-// import { Flow } from "../pkg/ui"
 import { handleFlowError } from "../pkg/errors"
 // Import the SDK
 import ory from "../pkg/sdk"
@@ -103,18 +100,26 @@ const Registration: NextPage = () => {
   return (
     <>
       <Head>
-        <title>Create account - Ory NextJS Integration Example</title>
-        <meta name="description" content="NextJS + React + Vercel + Ory" />
+        <title>Sign up</title>
+        <meta name="description" content="Sign up - GA4GH Reference Cloud" />
       </Head>
-      <MarginCard>
-        <CardTitle>Create account</CardTitle>
-        <Flow onSubmit={onSubmit} flow={flow} />
-      </MarginCard>
-      <ActionCard>
-        <CenterLink data-testid="cta-link" href="/login">
-          Sign in
-        </CenterLink>
-      </ActionCard>
+      <div className="hero bg-base-200 min-h-screen">
+        <div className="hero-content flex-col lg:flex-row-reverse">
+          <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+            <div className="card-body">
+              <h2 className="card-title">Sign up</h2>
+              <Flow onSubmit={onSubmit} flow={flow} />
+              <div className="flex w-full flex-col">
+                <div className="divider" />
+              </div>
+              <p>Already registered? <a className="link link-secondary" href="/login">Log in</a></p>
+              { /* TODO: hiding recovery link until password recovery flow is working
+                <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
+              */ }
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   )
 }

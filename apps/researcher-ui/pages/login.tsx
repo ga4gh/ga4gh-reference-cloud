@@ -128,7 +128,9 @@ const Login: NextPage = () => {
                     <div className="divider" />
                   </div>
                   <p>New user? <a className="link link-secondary" href="/registration">Sign up</a></p>
-                  <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
+                  { /* TODO: hiding recovery link until password recovery flow is working
+                    <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
+                  */ }
                 </>
               )}
             </div>

@@ -1,5 +1,3 @@
-import TextInput from './components/TextInput'
-
 import { NodeInputProps } from "./helpers"
 
 export function NodeInputDefault<T>(props: NodeInputProps) {
@@ -41,11 +39,17 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
   const labelLookup: { [key: string]: string } = {
     "identifier": "Email",
     "password": "Password",
+    "traits.email": "Email",
+    "traits.name.first": "First name",
+    "traits.name.last": "Last name",
   }
 
   const placeholderLookup: { [key: string]: string } = {
     "identifier": "email",
     "password": "password",
+    "traits.email": "email",
+    "traits.name.first": "first name",
+    "traits.name.last": "last name",
   }
 
   // Render a generic text input field.
@@ -67,19 +71,6 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
           name={attributes.name}
           value={value}
           disabled={attributes.disabled || disabled}
-          // help={node.messages.length > 0}
-          // state={
-          //   node.messages.find(({ type }) => type === "error") ? "error" : undefined
-          // }
-          // subtitle={
-          //   <>
-          //     {node.messages.map(({ text, id }, k) => (
-          //       <span key={`${id}-${k}`} data-testid={`ui/message/${id}`}>
-          //         {text}
-          //       </span>
-          //     ))}
-          //   </>
-          // }
         />
       </div>
     </>
