@@ -75,3 +75,6 @@ INSERT INTO drs_object_checksum(drs_object_id, checksum, type) VALUES
     ('drs.id.0', 'e2425c6f57b2aa4ddb08f472d98221d0', 'md5'),
     ('drs.id.0', '9dddead4e1b13471784e536824ffed3c6137126a', 'sha1'),
     ('drs.id.0', '718f74b48fd739c9305bbf6c3d4b29ef3c9d62fcb1c16eaae61dbfd0c5db60d5', 'sha256');
+
+INSERT INTO aws_s3_access_object(drs_object_id, region, bucket, key) VALUES
+    ('drs.id.0', 'us-east-1', '1000genomes', '/phase3/data/HG00096/alignment/HG00096.chrom11.ILLUMINA.bwa.GBR.low_coverage.20120522.bam');

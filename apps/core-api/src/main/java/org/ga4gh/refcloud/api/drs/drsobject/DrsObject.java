@@ -4,9 +4,9 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import org.ga4gh.refcloud.api.core.dataset.Dataset;
+import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3AccessObject;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAlias;
 import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsObjectChecksum;
-
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -54,6 +54,10 @@ public class DrsObject {
     @OneToMany(mappedBy = "drsObject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     private Set<DrsObjectChecksum> checksums = new HashSet<>();
+
+    @OneToMany(mappedBy = "drsObject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @Builder.Default
+    private Set<AwsS3AccessObject> awsS3AccessObjects = new HashSet<>();
 
     @OneToMany(mappedBy = "drsObject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
