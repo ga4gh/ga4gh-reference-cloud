@@ -19,3 +19,22 @@ ga4gh:
   refcloud:
     drs:
       host-domain: localhost:8080
+      service-info:
+        id: org.ga4gh.refcloud.drs.local
+        name: GA4GH Reference Cloud DRS Service (Local Dev Environment)
+        type:
+          group: org.ga4gh
+          artifact: drs
+          version: 1.5
+        description: GA4GH reference implementation of the Data Repository Service (DRS) specification
+        organization:
+          name: Global Alliance for Genomics and Health (GA4GH)
+          url: https://ga4gh.org
+        contact-url: info@ga4gh.org
+        documentation-url: https://github.com/ga4gh/ga4gh-reference-cloud
+        created-at: 2026-06-05T20:00:00Z
+        updated-at: 2026-06-05T20:00:00Z
+        environment: dev
+        version: v0.1.0
+        drs:
+          max-bulk-length-request: 1
