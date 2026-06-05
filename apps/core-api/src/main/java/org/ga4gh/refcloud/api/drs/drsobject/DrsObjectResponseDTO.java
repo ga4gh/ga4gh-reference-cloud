@@ -1,7 +1,7 @@
 package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.time.LocalDateTime;
-
+import java.util.Set;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
 
@@ -17,6 +17,6 @@ public record DrsObjectResponseDTO (
     String mimeType,
     // checksums
     // access methods
-    String description
-    // aliases
+    String description,
+    Set<String> aliases
 ) {}

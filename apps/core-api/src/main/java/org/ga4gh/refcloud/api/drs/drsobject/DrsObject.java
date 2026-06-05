@@ -1,12 +1,17 @@
 package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import org.ga4gh.refcloud.api.core.dataset.Dataset;
+import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAlias;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,4 +48,8 @@ public class DrsObject {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dataset_id", nullable = false) 
     private Dataset dataset;
+
+    @OneToMany(mappedBy = "drsObject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @Builder.Default
+    private Set<DrsObjectAlias> aliases = new HashSet<>();
 }
