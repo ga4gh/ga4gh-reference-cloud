@@ -26,19 +26,19 @@ public class DrsObject {
     @Id
     private String id;
 
-    private String description;
-
-    private LocalDateTime createdTime;
-
-    private String mimeType;
-
     private String name;
 
     private Long size;
 
+    private LocalDateTime createdTime;
+
     private LocalDateTime updatedTime;
-    
+
     private String version;
+
+    private String mimeType;
+
+    private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dataset_id", nullable = false) 

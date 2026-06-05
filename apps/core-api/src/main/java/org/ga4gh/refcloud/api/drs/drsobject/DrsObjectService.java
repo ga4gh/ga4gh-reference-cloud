@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.drs.drsobject;
 
+import org.ga4gh.refcloud.api.drs.DrsConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -8,8 +9,11 @@ public class DrsObjectService {
 
     private final DrsObjectRepository drsObjectRepository;
 
-    public DrsObjectService(DrsObjectRepository drsObjectRepository) {
+    private final DrsConfig drsConfig;
+
+    public DrsObjectService(DrsObjectRepository drsObjectRepository, DrsConfig drsConfig) {
         this.drsObjectRepository = drsObjectRepository;
+        this.drsConfig = drsConfig;
     }
 
     @Transactional(readOnly = true)
@@ -24,13 +28,18 @@ public class DrsObjectService {
     private DrsObjectResponseDTO convertToResponseDTO(DrsObject drsObject) {
         return new DrsObjectResponseDTO(
             drsObject.getId(),
-            drsObject.getDescription(),
-            drsObject.getCreatedTime(),
-            drsObject.getMimeType(),
             drsObject.getName(),
+            generateDrsUri(drsObject.getId()),
             drsObject.getSize(),
+            drsObject.getCreatedTime(),
             drsObject.getUpdatedTime(),
-            drsObject.getVersion()
+            drsObject.getVersion(),
+            drsObject.getMimeType(),
+            drsObject.getDescription()
         );
+    }
+
+    private String generateDrsUri(String id) {
+        return "drs://" + drsConfig.hostDomain() + "/" + id;
     }
 }

@@ -14,3 +14,8 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+ga4gh:
+  refcloud:
+    drs:
+      host-domain: localhost:8080
