@@ -70,3 +70,8 @@ INSERT INTO drs_object (id, description, created_time, mime_type, name, size, up
 INSERT INTO drs_object_alias (drs_object_id, alias) VALUES
     ('drs.id.0', 'HG00096 chr11 BAM'),
     ('drs.id.0', 'HG00096 chr11 BAM file');
+
+INSERT INTO drs_object_checksum(drs_object_id, checksum, type) VALUES
+    ('drs.id.0', 'e2425c6f57b2aa4ddb08f472d98221d0', 'md5'),
+    ('drs.id.0', '9dddead4e1b13471784e536824ffed3c6137126a', 'sha1'),
+    ('drs.id.0', '718f74b48fd739c9305bbf6c3d4b29ef3c9d62fcb1c16eaae61dbfd0c5db60d5', 'sha256');

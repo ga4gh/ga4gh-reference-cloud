@@ -2,10 +2,10 @@ package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import org.ga4gh.refcloud.api.drs.DrsConfig;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAlias;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAliasId;
+import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsObjectChecksumResponseDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +31,12 @@ public class DrsObjectService {
     }
 
     private DrsObjectResponseDTO convertToResponseDTO(DrsObject drsObject) {
-        Set<String> aliases = drsObject.getAliases()
+        Set<DrsObjectChecksumResponseDTO> checksumDtos = drsObject.getChecksums()
+            .stream()
+            .map(checksum -> new DrsObjectChecksumResponseDTO(checksum.getChecksum(), checksum.getType()))
+            .collect(Collectors.toSet());
+
+        Set<String> aliasDtos = drsObject.getAliases()
                 .stream()
                 .map(DrsObjectAlias::getId)
                 .map(DrsObjectAliasId::getAlias)
@@ -46,8 +51,9 @@ public class DrsObjectService {
             drsObject.getUpdatedTime(),
             drsObject.getVersion(),
             drsObject.getMimeType(),
+            checksumDtos,
             drsObject.getDescription(),
-            aliases
+            aliasDtos
         );
     }
 
