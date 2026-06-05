@@ -1,5 +1,4 @@
 import { LoginFlow, UpdateLoginFlowBody } from "@ory/client"
-import { CardTitle } from "@ory/themes"
 import { AxiosError } from "axios"
 import type { NextPage } from "next"
 import Head from "next/head"
@@ -7,7 +6,9 @@ import Link from "next/link"
 import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 
-import { ActionCard, CenterLink, LogoutLink, Flow, MarginCard } from "../pkg"
+import { ActionCard, CenterLink, LogoutLink } from "../pkg"
+import { Flow } from "../pkg/ui-ga4gh"
+// import { Flow } from "../pkg"
 import { handleGetFlowError, handleFlowError } from "../pkg/errors"
 import ory from "../pkg/sdk"
 
@@ -97,42 +98,43 @@ const Login: NextPage = () => {
   return (
     <>
       <Head>
-        <title>Sign in - Ory NextJS Integration Example</title>
-        <meta name="description" content="NextJS + React + Vercel + Ory" />
+        <title>Log in</title>
+        <meta name="description" content="Log in - GA4GH Reference Cloud" />
       </Head>
-      <MarginCard>
-        <CardTitle>
-          {(() => {
-            if (flow?.refresh) {
-              return "Confirm Action"
-            } else if (flow?.requested_aal === "aal2") {
-              return "Two-Factor Authentication"
-            }
-            return "Sign In"
-          })()}
-        </CardTitle>
-        <Flow onSubmit={onSubmit} flow={flow} />
-      </MarginCard>
-      {aal || refresh ? (
-        <ActionCard>
-          <CenterLink data-testid="logout-link" onClick={onLogout}>
-            Log out
-          </CenterLink>
-        </ActionCard>
-      ) : (
-        <>
-          <ActionCard>
-            <Link href="/registration" passHref>
-              <CenterLink>Create account</CenterLink>
-            </Link>
-          </ActionCard>
-          <ActionCard>
-            <Link href="/recovery" passHref>
-              <CenterLink>Recover your account</CenterLink>
-            </Link>
-          </ActionCard>
-        </>
-      )}
+      <div className="hero bg-base-200 min-h-screen">
+        <div className="hero-content flex-col lg:flex-row-reverse">
+          <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+            <div className="card-body">
+              <h2 className="card-title">
+                {(() => {
+                  if (flow?.refresh) {
+                    return "Confirm Action"
+                  } else if (flow?.requested_aal === "aal2") {
+                    return "Two-Factor Authentication"
+                  }
+                  return "Log in"
+                })()}
+              </h2>
+              <Flow onSubmit={onSubmit} flow={flow} />
+              {aal || refresh ? (
+                <ActionCard>
+                  <CenterLink data-testid="logout-link" onClick={onLogout}>
+                    Log out
+                  </CenterLink>
+                </ActionCard>
+              ) : (
+                <>
+                  <div className="flex w-full flex-col">
+                    <div className="divider" />
+                  </div>
+                  <p>New user? <a className="link link-secondary" href="/registration">Sign up</a></p>
+                  <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   )
 }

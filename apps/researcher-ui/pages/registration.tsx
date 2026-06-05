@@ -7,7 +7,9 @@ import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 
 // Import render helpers
-import { ActionCard, CenterLink, Flow, MarginCard } from "../pkg"
+import { ActionCard, CenterLink, MarginCard } from "../pkg"
+import { Flow } from "../pkg/ui-ga4gh"
+// import { Flow } from "../pkg/ui"
 import { handleFlowError } from "../pkg/errors"
 // Import the SDK
 import ory from "../pkg/sdk"
