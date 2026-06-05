@@ -63,3 +63,6 @@ INSERT INTO dataset_tag (dataset_id, tag_id) VALUES
     ('ds11', '22'),
     ('ds12', '23'),
     ('ds12', '24');
+
+INSERT INTO drs_object (id, description, created_time, mime_type, name, size, updated_time, version, dataset_id) VALUES
+    ('drs.id.0', '1000 Genomes Phase3 WGS alignment BAM: HG00096 chr11', '2015-05-13 03:10:08', 'application/x-bam', 'HG00096.chrom11.ILLUMINA.bwa.GBR.low_coverage.20120522.bam', 692760649, '2015-05-13 03:10:08', 'v1', 'ds1');
