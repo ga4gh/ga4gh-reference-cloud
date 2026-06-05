@@ -15,36 +15,9 @@ buildscript {
 plugins {
     id 'java'
     id 'base'
-    id 'org.springframework.boot' version '4.0.0'
+    id 'org.springframework.boot' version '4.0.6'
     id 'io.spring.dependency-management' version '1.1.7'
-
-
-    // Apply the java-library plugin to add support for Java Library
-    /*
-    id 'java-library'
-
-    // Apply the plugins to add support for Spring Boot
-    id 'org.springframework.boot' version '2.5.0'
-    id 'io.spring.dependency-management' version '1.0.7.RELEASE'
-
-    // Apply the plugin to add support for jacoco test coverage report
-    id 'jacoco'
-
-    id 'io.codearte.nexus-staging' version '0.30.0'
-
-    id 'war'
-    */
 }
-
-/*
-configurations.all {
-  resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-    if (details.requested.group == 'org.apache.logging.log4j') {
-      details.useVersion '2.16.0'
-    }
-  }
-}
-*/
 
 base {
     archivesName = 'refcloud-api'
@@ -65,40 +38,6 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
-
-    /*
-    compileOnly 'org.projectlombok:lombok:1.18.22'
-    annotationProcessor 'org.projectlombok:lombok:1.18.22'
-
-    implementation 'com.google.guava:guava:28.1-jre'
-    implementation 'org.springframework.boot:spring-boot-starter-web:2.5.0'
-    implementation 'commons-cli:commons-cli:1.4'
-    implementation 'commons-io:commons-io:2.8.0'
-    implementation 'commons-codec:commons-codec:1.15'
-    implementation 'com.fasterxml.jackson.core:jackson-core:2.12.1'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.11.1'
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.9.4'
-    implementation 'org.hibernate:hibernate-core:5.4.11.Final'
-    implementation 'org.springframework:spring-orm:5.1.6.RELEASE'
-    implementation 'org.hibernate.javax.persistence:hibernate-jpa-2.1-api:1.0.0.Final'
-    implementation 'org.hibernate:hibernate-core:5.4.11.Final'
-    implementation 'org.postgresql:postgresql:42.2.10'
-    implementation 'javax.xml.bind:jaxb-api:2.2.8'
-    implementation 'org.springdoc:springdoc-openapi-ui:1.2.33'
-    implementation 'org.xerial:sqlite-jdbc:3.43.0.0'
-    implementation 'com.mysql:mysql-connector-j:8.0.33'
-    implementation 'com.auth0:java-jwt:3.19.1'
-    implementation 'org.ga4gh:ga4gh-starter-kit-common:0.5.6'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.22'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.22'
-
-    testImplementation 'org.testng:testng:7.7.0'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.5.0'
-    testImplementation 'org.springframework.security:spring-security-test'
-
-    //implementation fileTree(dir: 'libs', include: ['*.jar'])
-    */
 }
 
 jar {
@@ -116,19 +55,3 @@ test {
     // Use TestNG for unit tests
     useTestNG()
 }
-
-/*
-jacoco {
-    toolVersion = '0.8.5'
-    reportsDir = file("$buildDir/reports/jacoco")
-}
-*/
-
-/*
-jacocoTestReport {
-    reports {
-        xml.enabled = true
-        html.enabled = true
-    }
-}
-*/
