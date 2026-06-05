@@ -8,12 +8,13 @@ Main planning & issue tracking repo for the GA4GH Reference Cloud project.
 ## Documentation
 
 * [Design Document](./DESIGN.md)
+* [Architectural Decision Record (ADR)](./ADR.md)
 
 ## Repositories
 
 Repositories for microservices and other components involved in the reference cloud.
 
 * [`ga4gh-reference-cloud-helm`](https://github.com/ga4gh/ga4gh-reference-cloud-helm) - helm chart for the entire reference cloud
-* [`ga4gh-starter-kit-passport-broker`](https://github.com/ga4gh/ga4gh-starter-kit-passport-broker) - backend for visa management
-* [`ga4gh-starter-kit-passport-ui`](https://github.com/ga4gh/ga4gh-starter-kit-passport-ui) - user interface for registration, data access requests, and profile management
-* [`ga4gh-starter-kit-drs`](https://github.com/ga4gh/ga4gh-starter-kit-drs) - DRS API
+* [`refcloud-api`](https://github.com/ga4gh/refcloud-api) - backend app implementing multiple GA4GH APIs
+* [`refcloud-ui`](https://github.com/ga4gh/refcloud-ui) - UI app for registration, login, data access request, etc.
+* [`refcloud-docs`](https://github.com/ga4gh/refcloud-docs) - documentation site
