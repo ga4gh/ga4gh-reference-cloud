@@ -1,10 +1,5 @@
-package org.ga4gh.refcloud.api.dataset;
+package org.ga4gh.refcloud.api.core.dataset;
 
-import org.ga4gh.refcloud.api.dataset.DatasetResponseDTO;
-import org.ga4gh.refcloud.api.dataset.DatasetService;
-import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -15,7 +10,6 @@ public class DatasetPublicController {
 
     private final DatasetService datasetService;
 
-    @Autowired
     public DatasetPublicController(DatasetService datasetService) {
         this.datasetService = datasetService;
     }

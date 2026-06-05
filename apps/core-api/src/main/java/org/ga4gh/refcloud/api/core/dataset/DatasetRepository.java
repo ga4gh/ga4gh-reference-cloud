@@ -1,4 +1,4 @@
-package org.ga4gh.refcloud.api.dataset;
+package org.ga4gh.refcloud.api.core.dataset;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

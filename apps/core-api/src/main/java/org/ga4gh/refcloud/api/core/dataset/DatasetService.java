@@ -1,33 +1,20 @@
-package org.ga4gh.refcloud.api.dataset;
+package org.ga4gh.refcloud.api.core.dataset;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.ga4gh.refcloud.api.core.tag.Tag;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.ga4gh.refcloud.api.tag.Tag;
 
 @Service
 public class DatasetService {
 
     private final DatasetRepository datasetRepository;
 
-    @Autowired
     public DatasetService(DatasetRepository datasetRepository) {
         this.datasetRepository = datasetRepository;
     }
-
-    // @Transactional
-    // public DatasetResponseDTO saveDataset(DatasetRequestDTO dto) {
-    //     Dataset dataset = new Dataset();
-    //     dataset.setName(dto.name());
-    //     dataset.setDescription(dto.description());
-    //     dataset.setRowCount(dto.rowCount());
-
-    //     Dataset saved = datasetRepository.save(dataset);
-    //     return new DatasetResponseDTO(saved.getId(), saved.getName(), saved.getDescription(), saved.getRowCount());
-    // }
 
     @Transactional(readOnly = true)
     public List<DatasetResponseDTO> getAllDatasets() {

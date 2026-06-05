@@ -1,4 +1,4 @@
-package org.ga4gh.refcloud.api.dataset;
+package org.ga4gh.refcloud.api.core.dataset;
 
 import java.util.Set;
 
