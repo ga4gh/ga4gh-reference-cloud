@@ -1,6 +1,7 @@
 package org.ga4gh.refcloud.api.drs.drsobject;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +18,7 @@ public class DrsObjectPublicController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessObject(authentication, #id)")
     public ResponseEntity<DrsObjectResponseDTO> getDrsObjectById(@PathVariable String id) {
         DrsObjectResponseDTO drsObject = drsObjectService.getDrsObjectById(id);
         return ResponseEntity.ok(drsObject);
