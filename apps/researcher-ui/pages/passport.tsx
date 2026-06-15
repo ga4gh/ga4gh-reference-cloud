@@ -2,6 +2,7 @@ import type { NextPage } from 'next'
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import AppLayout from 'components/layout/AppLayout';
+import PassportTokenDisplay from 'components/passport/PassportTokenDisplay';
 
 const Passport: NextPage = () => {
   const router = useRouter();
@@ -65,7 +66,9 @@ const Passport: NextPage = () => {
   return (
     <>
       <AppLayout>
-        <h1 className="mb-5 text-5xl font-bold">Passport</h1>
+        <h1 className="mb-5 text-5xl font-bold">View Passport Token</h1>
+        <h2 className="mb-4 text-2xl">Use your passport token to access data via GA4GH APIs</h2>
+        {flowComplete ? <PassportTokenDisplay encodedToken="foo" /> : <h2 className="mb-4 text-2xl">Preparing passport token</h2>}
       </AppLayout>
     </>
   )
