@@ -21,6 +21,7 @@ public class GA4GHPassportTokenEvaluator {
 
         // 2. Extract user identity and incoming GA4GH visas from Ory Hydra
         String userId = jwt.getSubject();
+        System.out.println(userId);
         List<String> incomingVisas = jwt.getClaimAsStringList("ga4gh_visas_v1");
 
         // 3. Database Check Logic

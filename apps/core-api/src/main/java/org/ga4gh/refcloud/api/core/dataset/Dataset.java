@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,7 +21,7 @@ import lombok.Setter;
 import java.util.Set;
 import org.ga4gh.refcloud.api.core.tag.Tag;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
-
+import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
 
 @Entity
 @Table(name = "dataset")
@@ -50,6 +51,9 @@ public class Dataset {
     @OneToMany(mappedBy = "dataset", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<DrsObject> drsObjects = new ArrayList<>();
+
+    @OneToOne(mappedBy = "dataset")
+    private PassportVisa passportVisa;
 
     // Helper methods to keep both sides synchronized
 
