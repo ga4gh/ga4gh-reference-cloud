@@ -79,6 +79,21 @@ INSERT INTO passport_visa (id, name, description, dataset_id) VALUES
     ('visa.ds.12', 'Visa: 100K Pathogen Genomes Project', 'Visa for dataset: 100K Pathogen Genomes Project', 'ds12');
 
 
+INSERT INTO passport_visa (id, name, description, dataset_id) VALUES
+    ('visa.ds.1', 'Visa: 1000 Genomes Project Phase 3', 'Visa for dataset: 1000 Genomes Project Phase 3', 'ds1'),
+    ('visa.ds.2', 'Visa: The Cancer Genome Atlas (TCGA) - Breast Invasive Carcinoma', 'Visa for dataset: The Cancer Genome Atlas (TCGA) - Breast Invasive Carcinoma', 'ds2'),
+    ('visa.ds.3', 'Visa: gnomAD (Genome Aggregation Database) v4.1', 'Visa for dataset: gnomAD (Genome Aggregation Database) v4.1', 'ds3'),
+    ('visa.ds.4', 'Visa: ENCODE Registry of Candidate Cis-Regulatory Elements', 'Visa for dataset: ENCODE Registry of Candidate Cis-Regulatory Elements', 'ds4'),
+    ('visa.ds.5', 'Visa: GTEx (Genotype-Tissue Expression) v8', 'Visa for dataset: GTEx (Genotype-Tissue Expression) v8', 'ds5'),
+    ('visa.ds.6', 'Visa: UK Biobank WES 450K Dataset', 'Visa for dataset: UK Biobank WES 450K Dataset', 'ds6'),
+    ('visa.ds.7', 'Visa: Mouse Genome Informatics (MGI) Strain Database', 'Visa for dataset: Mouse Genome Informatics (MGI) Strain Database', 'ds7'),
+    ('visa.ds.8', 'Visa: ClinVar Human Variation Database', 'Visa for dataset: ClinVar Human Variation Database', 'ds8'),
+    ('visa.ds.9', 'Visa: SARS-CoV-2 Genomic Surveillance Sequences', 'Visa for dataset: SARS-CoV-2 Genomic Surveillance Sequences', 'ds9'),
+    ('visa.ds.10', 'Visa: Single-Cell RNA-Seq of Human PBMC (10x Genomics)', 'Visa for dataset: Single-Cell RNA-Seq of Human PBMC (10x Genomics)', 'ds10'),
+    ('visa.ds.11', 'Visa: HmtVar Human Mitochondrial Genome Database', 'Visa for dataset: HmtVar Human Mitochondrial Genome Database', 'ds11'),
+    ('visa.ds.12', 'Visa: 100K Pathogen Genomes Project', 'Visa for dataset: 100K Pathogen Genomes Project', 'ds12');
+
+
 INSERT INTO drs_object (id, description, created_time, mime_type, name, size, updated_time, version, dataset_id) VALUES
     ('drs.id.0', '1000 Genomes Phase3 WGS alignment BAM: HG00096 chr11', '2015-05-13 03:10:08', 'application/x-bam', 'HG00096.chrom11.ILLUMINA.bwa.GBR.low_coverage.20120522.bam', 692760649, '2015-05-13 03:10:08', 'v1', 'ds1');
 
