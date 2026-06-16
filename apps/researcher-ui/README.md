@@ -16,7 +16,7 @@ UI for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-reference-clou
   export NEXT_PUBLIC_HYDRA_PUBLIC_API_BASE_URL="http://127.0.0.1:4444"
   export HYDRA_ADMIN_API_BASE_URL="http://127.0.0.1:4445"
   export NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID="ga4gh-reference-cloud-researcher-client"
-  export HYDRA_RESEARCHER_CLIENT_SECRET="<client-secret>"
+  export HYDRA_RESEARCHER_CLIENT_SECRET="secret"
   ```
 * Run services used by the UI: `docker-compose up -d`
 * Run the dev server: `npm run dev`
@@ -34,7 +34,7 @@ Configure the UI app via the following environment variables
 | `NEXT_PUBLIC_HYDRA_PUBLIC_API_BASE_URL` | base URL to Ory Hydra Public API | `http://127.0.0.1:4444` |
 | `HYDRA_ADMIN_API_BASE_URL` | base URL to the Ory Hydra Admin API | `http://127.0.0.1:4445` |
 | `NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID` | client ID registered in Ory Hydra | `ga4gh-reference-cloud-researcher-client` |
-| `HYDRA_RESEARCHER_CLIENT_SECRET` | client secret registered in Ory Hydra | `secure-string` |
+| `HYDRA_RESEARCHER_CLIENT_SECRET` | client secret registered in Ory Hydra | `secret` |
 | `NEXT_PUBLIC_REFCLOUD_DOCS_URL` | link to reference cloud documentation site (linked to from multiple places in the UI) | `https://docs.refcloud.ga4gh.org` |
 
 ## Issues
