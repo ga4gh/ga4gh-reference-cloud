@@ -1,4 +1,6 @@
 import React, {useState, useEffect } from 'react';
+import PassportCopyButton from './PassportCopyButton';
+import PassportIsCopiedButton from './PassportIsCopiedButton';
 
 const base64Decode = (base64Url: string) => {
   // Replace Base64Url characters with standard Base64 characters
@@ -23,12 +25,13 @@ const base64Decode = (base64Url: string) => {
 };
 
 const PassportTokenDisplay = () => {
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState("");
   const [encodedHeader, setEncodedHeader] = useState(null);
   const [encodedPayload, setEncodedPayload] = useState(null);
   const [encodedSignature, setEncodedSignature] = useState(null);
   const [decodedHeader, setDecodedHeader] = useState<string | null>(null);
   const [decodedPayload, setDecodedPayload] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     fetch('/api/oauth/my-passport-token', {
@@ -48,11 +51,24 @@ const PassportTokenDisplay = () => {
       .catch((err) => console.error("Error:", err));
   }, [])
 
+  const copyEncodedJwtToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(token)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 3000)
+    } catch (err) {
+      console.error('Failed to copy text: ', err)
+    }
+  }
+
   return (
     <>
       <div className="card bg-base-100 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title">Encoded JWT</h2>
+          <h2 className="card-title">
+            Encoded JWT (copy token to use in GA4GH APIs)
+            {isCopied ? <PassportIsCopiedButton /> : <PassportCopyButton copyEncodedJwtToClipboard={copyEncodedJwtToClipboard} />}
+          </h2>
           <p className="font-mono bg-base-200 p-4 rounded-box break-all">
             <code><span className="text-primary">{encodedHeader}</span>.<span className="text-secondary">{encodedPayload}</span>.<span className="text-accent">{encodedSignature}</span></code>
           </p>
