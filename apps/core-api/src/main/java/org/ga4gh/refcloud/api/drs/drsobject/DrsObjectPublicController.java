@@ -18,7 +18,7 @@ public class DrsObjectPublicController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessObject(authentication, #id)")
+    @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessDrsObject(authentication, #id)")
     public ResponseEntity<DrsObjectResponseDTO> getDrsObjectById(@PathVariable String id) {
         DrsObjectResponseDTO drsObject = drsObjectService.getDrsObjectById(id);
         return ResponseEntity.ok(drsObject);
