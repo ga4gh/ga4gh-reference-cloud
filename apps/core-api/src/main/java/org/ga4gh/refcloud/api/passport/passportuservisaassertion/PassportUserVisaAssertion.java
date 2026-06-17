@@ -1,8 +1,11 @@
 package org.ga4gh.refcloud.api.passport.passportuservisaassertion;
 
+import java.time.LocalDateTime;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
 import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
-
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -37,4 +40,10 @@ public class PassportUserVisaAssertion {
     @MapsId("passportVisaId")
     @JoinColumn(name = "visa_id")
     private PassportVisa passportVisa;
+
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "current_status")
+    private PassportVisaAssertionStatus currentStatus;
+
+    private LocalDateTime currentStatusAt;
 }

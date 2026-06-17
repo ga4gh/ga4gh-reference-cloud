@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectService;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertion;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionService;
+import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportVisaAssertionStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import java.util.Optional;
@@ -34,12 +35,11 @@ public class GA4GHPassportTokenEvaluator {
         System.out.println(optionalAssertion);
         if (optionalAssertion.isPresent()) {
             PassportUserVisaAssertion assertion = optionalAssertion.get();
-            // TODO: check assertion status and allow/deny based on that
-
-        } else {
-            return false; // no record found in assertion table, deny access
+            if (assertion.getCurrentStatus() == PassportVisaAssertionStatus.Approved) {
+                return true; // if status is "Approved" allow user to view the object
+            }
         }
         
-        return false;
+        return false; // do not allow user to view the object if no record found in assertion table, or if status is anything other than "Approved"
     }
 }
