@@ -5,7 +5,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import org.ga4gh.refcloud.api.security.KratosSessionResponse.Identity;
-
+import org.springframework.web.bind.annotation.PostMapping;
 
 @RestController
 @RequestMapping("/datasets")
@@ -26,6 +26,12 @@ public class DatasetPublicController {
     @GetMapping("/{datasetId}")
     public ResponseEntity<DatasetResponseDTO> getDatasetById(@AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
         DatasetResponseDTO dataset = datasetService.getDatasetById(identity.getId(), datasetId);
+        return ResponseEntity.ok(dataset);
+    }
+
+    @PostMapping("/{datasetId}/request-access")
+    public ResponseEntity<DatasetResponseDTO> requestAccessToDatasetById(@AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
+        DatasetResponseDTO dataset = datasetService.requestAccessToDatasetById(identity.getId(), datasetId);
         return ResponseEntity.ok(dataset);
     }
 }
