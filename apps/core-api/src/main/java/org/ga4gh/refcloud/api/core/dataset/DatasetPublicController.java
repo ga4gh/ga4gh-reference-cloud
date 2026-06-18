@@ -1,8 +1,11 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import org.ga4gh.refcloud.api.security.KratosSessionResponse.Identity;
+
 
 @RestController
 @RequestMapping("/datasets")
@@ -15,8 +18,8 @@ public class DatasetPublicController {
     }
 
     @GetMapping
-    public ResponseEntity<List<DatasetResponseDTO>> getAllDatasets() {
-        List<DatasetResponseDTO> datasets = datasetService.getAllDatasets();
+    public ResponseEntity<List<DatasetWithUserAssertionResponseDTO>> getAllDatasets(@AuthenticationPrincipal Identity identity) {
+        List<DatasetWithUserAssertionResponseDTO> datasets = datasetService.getAllDatasetsWithUserAssertions(identity.getId());
         return ResponseEntity.ok(datasets);
     }
 

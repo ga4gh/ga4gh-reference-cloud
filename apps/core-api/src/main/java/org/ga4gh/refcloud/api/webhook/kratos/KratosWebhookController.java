@@ -20,12 +20,9 @@ public class KratosWebhookController {
 
     @PostMapping("/registration")
     public ResponseEntity<Void> registerPassportUser(@RequestBody KratosRegistrationPayload payload) {
-        System.out.println("***");
-        System.out.println("You have hit the register user endpoint");
         PassportUser passportUser = new PassportUser();
         passportUser.setId(payload.id());
         passportUserService.savePassportUser(passportUser);
-        System.out.println("***");
         return ResponseEntity.noContent().build();
     }
     

@@ -23,8 +23,9 @@ spring:
 ga4gh:
   refcloud:
     security:
-      webhook:
-        kratos:
+      kratos:
+        public-base-url: "http://127.0.0.1:4433"
+        webhook:
           username: kratos_webhook_user
           password: secret
     drs:
