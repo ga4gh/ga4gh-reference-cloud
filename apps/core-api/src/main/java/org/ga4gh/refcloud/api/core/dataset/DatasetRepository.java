@@ -17,4 +17,7 @@ public interface DatasetRepository extends JpaRepository<Dataset, String> {
 
     @Query("SELECT d FROM Dataset d LEFT JOIN FETCH d.tags WHERE d.id = :id")
     Optional<Dataset> findByIdWithTags(@Param("id") String id);
+
+    @Query("SELECT d FROM Dataset d LEFT JOIN FETCH d.tags LEFT JOIN FETCH d.passportVisa WHERE d.id = :id")
+    Optional<Dataset> findByIdWithTagsAndVisas(@Param("id") String id);
 }

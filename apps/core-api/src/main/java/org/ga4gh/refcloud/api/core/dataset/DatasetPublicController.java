@@ -18,14 +18,14 @@ public class DatasetPublicController {
     }
 
     @GetMapping
-    public ResponseEntity<List<DatasetWithUserAssertionResponseDTO>> getAllDatasets(@AuthenticationPrincipal Identity identity) {
-        List<DatasetWithUserAssertionResponseDTO> datasets = datasetService.getAllDatasetsWithUserAssertions(identity.getId());
+    public ResponseEntity<List<DatasetResponseDTO>> getAllDatasets(@AuthenticationPrincipal Identity identity) {
+        List<DatasetResponseDTO> datasets = datasetService.getAllDatasets(identity.getId());
         return ResponseEntity.ok(datasets);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<DatasetResponseDTO> getDatasetById(@PathVariable String id) {
-        DatasetResponseDTO dataset = datasetService.getDatasetById(id);
+    @GetMapping("/{datasetId}")
+    public ResponseEntity<DatasetResponseDTO> getDatasetById(@AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
+        DatasetResponseDTO dataset = datasetService.getDatasetById(identity.getId(), datasetId);
         return ResponseEntity.ok(dataset);
     }
 }
