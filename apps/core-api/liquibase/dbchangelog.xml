@@ -31,7 +31,7 @@
             <column name="dataset_id" type="TEXT">
                 <constraints nullable="false" primaryKey="true" primaryKeyName="dataset_tag_pkey"/>
             </column>
-            <column name="tag_id" type="TEXT">
+            <column name="tag_id" type="BIGINT">
                 <constraints nullable="false" primaryKey="true" primaryKeyName="dataset_tag_pkey"/>
             </column>
         </createTable>
