@@ -1,5 +1,7 @@
 package org.ga4gh.refcloud.api.security;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +13,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
@@ -18,6 +24,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final OrySessionFilter orySessionFilter;
+
+    private static final List<RequestMatcher> PUBLIC_ENDPOINTS = List.of(
+        // DRS API
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info")
+    );
 
     public SecurityConfig(OrySessionFilter orySessionFilter) {
         this.orySessionFilter = orySessionFilter;
@@ -45,28 +58,33 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .securityMatcher("/datasets/**")
-
-            // Protect endpoints
             .authorizeHttpRequests(auth -> auth
                 .anyRequest().authenticated() // endpoints that require kratos session token
             )
-            
-            // Add our custom Ory filter
             .addFilterBefore(orySessionFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     @Bean
-    @Order(3) // rest of web app
+    @Order(3) // Public Endpoints
+    public SecurityFilterChain publicEndpointsFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher(new OrRequestMatcher(PUBLIC_ENDPOINTS))
+            .authorizeHttpRequests(authorize -> authorize
+                .anyRequest().permitAll()
+            )
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.disable());
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(4) // Fallback: Ensure everything else requires a valid Ory Hydra token
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                // public paths (no auth required)
-                .requestMatchers("/**/service-info").permitAll()
-
-                
-                // Fallback: Ensure everything else requires a valid Ory Hydra token
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
