@@ -15,7 +15,7 @@
     </changeSet>
     <changeSet author="jadams" id="create-table-tag">
         <createTable tableName="tag">
-            <column name="id" type="TEXT">
+            <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints nullable="false" primaryKey="true" primaryKeyName="tag_pkey"/>
             </column>
             <column name="tag" type="TEXT">
