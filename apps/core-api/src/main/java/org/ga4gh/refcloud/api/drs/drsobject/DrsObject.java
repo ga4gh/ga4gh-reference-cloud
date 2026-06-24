@@ -7,7 +7,10 @@ import org.ga4gh.refcloud.api.core.dataset.Dataset;
 import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3AccessObject;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAlias;
 import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsObjectChecksum;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -20,6 +23,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import tools.jackson.databind.JsonNode;
 
 @Entity
 @Table(name = "drs_object")
@@ -46,6 +50,12 @@ public class DrsObject {
     private String mimeType;
 
     private String description;
+
+    private Boolean isManifest;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "manifest_content", columnDefinition = "jsonb")
+    private JsonNode manifestContent;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dataset_id", nullable = false) 

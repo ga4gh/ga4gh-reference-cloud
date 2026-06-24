@@ -169,4 +169,14 @@
     <changeSet author="jadams" id="fkconstraint-tb-passport-user-visa-assertion-column-visa-id-refs-passport-visa">
         <addForeignKeyConstraint baseColumnNames="visa_id" baseTableName="passport_user_visa_assertion" constraintName="passport_user_visa_assertion_visa_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="passport_visa" validate="true"/>
     </changeSet>
+    <changeSet author="jadams" id="add-manifest-columns-to-drs-objects">
+        <addColumn tableName="drs_object">
+            <column name="is_manifest" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="manifest_content" type="jsonb">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>
