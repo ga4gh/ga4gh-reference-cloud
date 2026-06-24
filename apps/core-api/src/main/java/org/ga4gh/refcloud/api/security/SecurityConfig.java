@@ -1,8 +1,6 @@
 package org.ga4gh.refcloud.api.security;
 
 import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -28,8 +26,14 @@ public class SecurityConfig {
     private static final List<RequestMatcher> PUBLIC_ENDPOINTS = List.of(
         // DRS API
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info")
+    );
+
+    private static final List<RequestMatcher> CUSTOM_SECURITY_ENDPOINTS = List.of(
+        // DRS API
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects/{id}"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects")
     );
 
     public SecurityConfig(OrySessionFilter orySessionFilter) {
@@ -81,7 +85,21 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(4) // Fallback: Ensure everything else requires a valid Ory Hydra token
+    @Order(4) // Endpoints that will be secured by "@PreAuthorize" annotation, indicating custom security method
+    public SecurityFilterChain customSecurityEndpointsFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher(new OrRequestMatcher(CUSTOM_SECURITY_ENDPOINTS))
+            .authorizeHttpRequests(authorize -> authorize
+                .anyRequest().permitAll()
+            )
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.disable());
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(5) // Fallback: Ensure everything else requires a valid Ory Hydra token
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
@@ -89,7 +107,5 @@ public class SecurityConfig {
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
         return http.build();
-
     }
-    
 }

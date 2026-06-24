@@ -8,7 +8,7 @@ import tools.jackson.databind.annotation.JsonNaming;
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record MultiDrsObjectAuthInfoRequestDTO(
 
-    @NotEmpty(message = "bulk_object_ids cannot be null or empty")
+    @NotEmpty(message = "'bulk_object_ids' property cannot be null or empty")
     List<String> bulkObjectIds
 
 ) {}
