@@ -1,6 +1,7 @@
 import click
 from refcloud.handlers.dataset.init import dataset_init
 from refcloud.handlers.dataset.onboard import dataset_onboard
+from refcloud.handlers.dataset.delete import dataset_delete
 
 @click.group()
 def main() -> None:
@@ -13,11 +14,18 @@ def dataset():
     pass
 
 @dataset.command()
-def init():
+@click.option('--dataset-id', '-d', required=True, help="Dataset ID")
+def init(dataset_id):
     """Initialize a new empty dataset in the database"""
-    dataset_init()
+    dataset_init(dataset_id)
 
 @dataset.command()
 def onboard():
     """Register data objects to an existing dataset"""
     dataset_onboard()
+
+@dataset.command()
+@click.option('--dataset-id', '-d', required=True, help="Dataset ID")
+def delete(dataset_id):
+    """Delete an existing dataset from the database"""
+    dataset_delete(dataset_id)

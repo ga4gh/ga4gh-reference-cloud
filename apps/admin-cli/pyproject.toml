@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "click>=8.4.2",
+    "psycopg>=3.3.4",
+    "sqlalchemy>=2.0.51",
 ]
 
 [project.scripts]
