@@ -20,9 +20,10 @@ def init(dataset_id):
     dataset_init(dataset_id)
 
 @dataset.command()
-def onboard():
+@click.option('--dataset-id', '-d', required=True, help="Dataset ID")
+def onboard(dataset_id):
     """Register data objects to an existing dataset"""
-    dataset_onboard()
+    dataset_onboard(dataset_id)
 
 @dataset.command()
 @click.option('--dataset-id', '-d', required=True, help="Dataset ID")

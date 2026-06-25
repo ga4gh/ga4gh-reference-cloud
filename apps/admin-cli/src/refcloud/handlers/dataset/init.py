@@ -16,8 +16,8 @@ def dataset_init(dataset_id):
         click.echo(f"error: dataset with id ({dataset_id}) already exists in the database. exiting")
         raise SystemExit(1)
 
-    dataset_name, dataset_description = itemgetter("dataset_name", "dataset_description")(SUPPORTED_DATASETS[dataset_id])
-    visa_id, visa_name, visa_description = itemgetter("visa_id", "visa_name", "visa_description")(SUPPORTED_DATASETS[dataset_id])
+    dataset_name, dataset_description = itemgetter("name", "description")(SUPPORTED_DATASETS[dataset_id]["dataset"])
+    visa_id, visa_name, visa_description = itemgetter("id", "name", "description")(SUPPORTED_DATASETS[dataset_id]["visa"])
 
     database_engine.insert_dataset(dataset_id, dataset_name, dataset_description)
     database_engine.insert_passport_visa(visa_id, visa_name, visa_description, dataset_id)

@@ -18,6 +18,17 @@ class DatabaseEngine:
 
         self._dataset_table = self._metadata.tables['dataset']
         self._passport_visa_table = self._metadata.tables['passport_visa']
+        self._drs_object_table = self._metadata.tables['drs_object']
+        self._drs_object_alias_table = self._metadata.tables['drs_object_alias']
+        self._drs_object_checksum_table = self._metadata.tables['drs_object_checksum']
+        self._aws_s3_access_object_table = self._metadata.tables['aws_s3_access_object']
+
+    def _insert(self, table, **kwargs):
+        stmt = insert(table).values(**kwargs)
+        with self._engine.connect() as conn:
+            conn.execute(stmt)
+            conn.commit()
+
 
     def list_datasets(self):
         stmt = select(self._dataset_table)
@@ -46,3 +57,18 @@ class DatabaseEngine:
         with self._engine.connect() as conn:
             conn.execute(stmt)
             conn.commit()
+
+    def insert_drs_object(self, **kwargs):
+        stmt = insert(self._drs_object_table).values(**kwargs)
+        with self._engine.connect() as conn:
+            conn.execute(stmt)
+            conn.commit()
+
+    def insert_drs_object_alias(self, **kwargs):
+        self._insert(self._drs_object_alias_table, **kwargs)
+
+    def insert_drs_object_checksum(self, **kwargs):
+        self._insert(self._drs_object_checksum_table, **kwargs)
+
+    def insert_aws_s3_access_object(self, **kwargs):
+        self._insert(self._aws_s3_access_object_table, **kwargs)
