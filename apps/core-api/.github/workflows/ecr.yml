@@ -9,7 +9,7 @@ on:
 permissions:
   id-token: write
 jobs:
-  build-push-deploy:
+  build-push:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -21,14 +21,8 @@ jobs:
       - name: save command output
         id: save-command-output
         run: |
-          echo "DOCKER_REPO=ga4gh-starter-kit-drs" >> $GITHUB_ENV
+          echo "DOCKER_REPO=refcloud-api" >> $GITHUB_ENV
           echo "DOCKER_TAG=$(git describe --tags)" >> $GITHUB_ENV
-          source ci/set-docker-image-version.sh
-          echo "version=${DOCKER_IMG_VER}" >> $GITHUB_ENV
-
-      - name: build docker image
-        id: build-docker-image
-        run: docker build --build-arg VERSION=${{ env.version }} -t ${{ env.DOCKER_REPO }}:${{ env.DOCKER_TAG }} -t ${{ env.DOCKER_REPO }}:latest -t ${{ env.DOCKER_REPO }}:develop .
 
       - name: configure aws credentials
         id: configure-aws-credentials
@@ -37,10 +31,28 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: push to ecr
-        id: push-to-ecr
-        uses: jwalton/gh-ecr-push@v2
+      - name: Set up QEMU
+        id: set-up-qemu
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        id: set-up-docker-buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Amazon ECR
+        id: login-to-amazon-ecr
+        uses: docker/login-action@v3
         with:
-          region: ${{ secrets.AWS_REGION }}
-          local-image: ${{ env.DOCKER_REPO }}:${{ env.DOCKER_TAG }}
-          image: ${{ env.DOCKER_REPO }}:${{ env.DOCKER_TAG }}, ${{ env.DOCKER_REPO }}:latest, ${{ env.DOCKER_REPO }}:develop
+          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Build and push to ECR
+        id: build-and-push-to-ecr
+        uses: docker/build-push-action@v6
+        with:
+          context: liquibase
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.DOCKER_REPO }}-liquibase:${{ env.DOCKER_TAG }}
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.DOCKER_REPO }}-liquibase:develop
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.DOCKER_REPO }}-liquibase:latest
