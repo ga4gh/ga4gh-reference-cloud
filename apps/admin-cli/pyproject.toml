@@ -1,0 +1,19 @@
+[project]
+name = "refcloud"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Jeremy Adams", email = "jeremy.adams@ga4gh.org" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "click>=8.4.2",
+]
+
+[project.scripts]
+refcloud = "refcloud:main"
+
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12.0"]
+build-backend = "uv_build"
