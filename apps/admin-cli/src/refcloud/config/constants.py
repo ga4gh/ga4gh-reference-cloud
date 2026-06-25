@@ -3,6 +3,7 @@ from refcloud.custom_onboarding.onboard_1000_genomes import onboard_1000_genomes
 SUPPORTED_DATASETS = {
     "aws.opendata.registry.1000-genomes": {
         "dataset": {
+            "id": "aws.opendata.registry.1000-genomes",
             "name": "1000 Genomes",
             "description": "The 1000 Genomes Project is an international collaboration which has established the most detailed catalogue of human genetic variation, including SNPs, structural variants, and their haplotype context. The final phase of the project sequenced more than 2500 individuals from 26 different populations around the world and produced an integrated set of phased haplotypes with more than 80 million variants for these individuals."
         },
@@ -11,6 +12,10 @@ SUPPORTED_DATASETS = {
             "name": "GA4GH Visa: 1000 Genomes",
             "description": "GA4GH Visa required to access data from the 1000 Genomes dataset",
         },
+        "tags": [
+            "Variant Calling",
+            "Whole Genome"
+        ],
         "data_source": {
             "type": "s3",
             "s3info": {
