@@ -18,10 +18,15 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://127.0.0.1:4444/
+          issuer-uri: http://127.0.0.1:4444
 
 ga4gh:
   refcloud:
+    security:
+      webhook:
+        kratos:
+          username: kratos_webhook_user
+          password: secret
     drs:
       host-domain: localhost:8080
       service-info:

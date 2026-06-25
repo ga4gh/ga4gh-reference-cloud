@@ -2,6 +2,8 @@ package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.ga4gh.refcloud.api.core.dataset.Dataset;
 import org.ga4gh.refcloud.api.drs.DrsConfig;
 import org.ga4gh.refcloud.api.drs.accessmethod.AccessMethodResponseDTO;
 import org.ga4gh.refcloud.api.drs.accessmethod.AccessMethodType;
@@ -9,6 +11,7 @@ import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3AccessObject;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAlias;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAliasId;
 import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsObjectChecksumResponseDTO;
+import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.regions.Region;
@@ -38,6 +41,15 @@ public class DrsObjectService {
             return null;
         }
         return convertToResponseDTO(drsObject);
+    }
+
+    @Transactional(readOnly = true)
+    public String getVisaIdByDrsObjectId(String id) {
+        DrsObject drsObject = drsObjectRepository.findById(id).orElse(null);
+        if (drsObject == null) {
+            return null;
+        }
+        return drsObject.getDataset().getPassportVisa().getId();
     }
 
     private DrsObjectResponseDTO convertToResponseDTO(DrsObject drsObject) {
