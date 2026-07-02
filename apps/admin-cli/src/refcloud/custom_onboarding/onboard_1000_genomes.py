@@ -147,10 +147,10 @@ def process_subject_level_exome_directory(s3_client, exome_directory):
                 drs_object_set["file_objs"][file_key] = drs_object_metadata
 
                 if suffix == "bam":
-                    drs_object_set["manifest_obj"]["drs_object"]["id"] = f"{file_name}.manifest",
-                    drs_object_set["manifest_obj"]["drs_object"]["description"] = f"{subject} whole-exome file manifest",
+                    drs_object_set["manifest_obj"]["drs_object"]["id"] = f"{file_name}.manifest"
+                    drs_object_set["manifest_obj"]["drs_object"]["description"] = f"{subject} whole-exome file manifest"
                     drs_object_set["manifest_obj"]["drs_object"]["created_time"] = obj['LastModified'].strftime("%Y-%m-%d %H:%M:%S")
-                    drs_object_set["manifest_obj"]["drs_object"]["name"] = f"{file_name}.manifest",
+                    drs_object_set["manifest_obj"]["drs_object"]["name"] = f"{file_name}.manifest"
                     drs_object_set["manifest_obj"]["drs_object"]["updated_time"] = obj['LastModified'].strftime("%Y-%m-%d %H:%M:%S")
                     drs_object_set["manifest_obj"]["aliases"].append(f"{subject} whole-exome file manifest")
 
