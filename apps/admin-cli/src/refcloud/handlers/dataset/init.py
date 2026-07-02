@@ -23,4 +23,11 @@ def dataset_init(dataset_id):
     database_engine.insert_dataset(**dataset)
     database_engine.insert_passport_visa(**visa)
 
+    for tag_name in SUPPORTED_DATASETS[dataset_id].get("tags", []):
+        tag = database_engine.get_tag(tag_name)
+        if not tag:
+            database_engine.insert_tag(tag=tag_name)
+        tag = database_engine.get_tag(tag_name)
+        database_engine.insert_dataset_tag(dataset_id=dataset["id"], tag_id=tag.id)
+
     click.echo(f"done: successfully added new dataset ({dataset_id}) and associated visa to the database")

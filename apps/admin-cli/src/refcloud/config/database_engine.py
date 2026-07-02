@@ -18,7 +18,7 @@ class DatabaseEngine:
 
         self._dataset_table = self._metadata.tables['dataset']
         self._tag_table = self._metadata.tables['tag']
-        self._dataset_tag_table = self._metadata.tables['tag']
+        self._dataset_tag_table = self._metadata.tables['dataset_tag']
         self._passport_visa_table = self._metadata.tables['passport_visa']
         self._drs_object_table = self._metadata.tables['drs_object']
         self._drs_object_alias_table = self._metadata.tables['drs_object_alias']
@@ -42,6 +42,17 @@ class DatabaseEngine:
         stmt = select(self._dataset_table).where(self._dataset_table.c.id == id)
         with self._engine.connect() as conn:
             return conn.execute(stmt).first()
+
+    def get_tag(self, tag):
+        stmt = select(self._tag_table).where(self._tag_table.c.tag == tag)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def insert_tag(self, **kwargs):
+        return self._insert(self._tag_table, **kwargs)
+
+    def insert_dataset_tag(self, **kwargs):
+        return self._insert(self._dataset_tag_table, **kwargs)
 
     def insert_dataset(self, **kwargs):
         return self._insert(self._dataset_table, **kwargs)
