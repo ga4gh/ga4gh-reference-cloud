@@ -1,63 +1,24 @@
-##################################################
-# BUILDER CONTAINER
-##################################################
+FROM gradle:9.5.1-jdk25-corretto AS builder
 
-FROM openjdk:11.0.12 as builder
+WORKDIR /home/gradle/project
 
-USER root
+COPY --chown=gradle:gradle build.gradle* settings.gradle* ./
+COPY --chown=gradle:gradle src ./src
 
-WORKDIR /usr/src/dependencies
+RUN gradle build -x test --no-daemon
 
-# INSTALL MAKE
-RUN apt update \
-    && apt install build-essential -y
+FROM amazoncorretto:25.0.3-alpine
 
-# INSTALL SQLITE3
-RUN wget https://www.sqlite.org/2021/sqlite-autoconf-3340100.tar.gz \
-    && tar -zxf sqlite-autoconf-3340100.tar.gz \
-    && cd sqlite-autoconf-3340100 \
-    && ./configure \
-    && make \
-    && make install
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# USER 'make' and 'sqlite3' to create the dev database
-COPY Makefile Makefile
-COPY database/sqlite database/sqlite
-RUN make sqlite-db-refresh
+WORKDIR /app
 
-##################################################
-# GRADLE CONTAINER
-##################################################
+COPY --from=builder /home/gradle/project/build/libs/*.jar app.jar
 
-FROM gradle:7.3.3-jdk11 as gradleimage
+RUN chown -R appuser:appgroup /app
 
-WORKDIR /home/gradle/source
+USER appuser
 
-COPY build.gradle build.gradle
-COPY gradlew gradlew
-COPY settings.gradle settings.gradle
-COPY src src
-COPY src/main/resources/application.yml /app/application.yml
+EXPOSE 8080
 
-RUN gradle wrapper
-
-RUN ./gradlew bootJar
-
-##################################################
-# FINAL CONTAINER
-##################################################
-
-FROM adoptopenjdk/openjdk12:jre-12.0.2_10-alpine
-
-USER root
-
-ARG VERSION
-
-WORKDIR /usr/src/app
-
-# copy jar, dev db, and dev resource files
-COPY --from=gradleimage /home/gradle/source/build/libs/ga4gh-starter-kit-drs-${VERSION}.jar ga4gh-starter-kit-drs.jar
-COPY --from=builder /usr/src/dependencies/ga4gh-starter-kit.dev.db ga4gh-starter-kit.dev.db
-COPY src/test/resources/ src/test/resources/
-
-ENTRYPOINT ["java", "-jar", "ga4gh-starter-kit-drs.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
