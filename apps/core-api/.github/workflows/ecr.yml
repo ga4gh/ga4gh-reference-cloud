@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - develop
+      - ja-iss-14-drs-manifests # remove after confirming this works
 permissions:
   id-token: write
 jobs:
@@ -45,8 +46,20 @@ jobs:
         with:
           registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-      - name: Build and push to ECR
-        id: build-and-push-to-ecr
+      - name: Build and push app to ECR
+        id: build-and-push-app-to-ecr
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.DOCKER_REPO }}:${{ env.DOCKER_TAG }}
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.DOCKER_REPO }}:develop
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.DOCKER_REPO }}:latest
+
+      - name: Build and push liquibase to ECR
+        id: build-and-push-liquibase-to-ecr
         uses: docker/build-push-action@v6
         with:
           context: liquibase
