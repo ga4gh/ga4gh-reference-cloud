@@ -2,6 +2,7 @@ package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -175,6 +176,15 @@ public class DrsObjectService {
 
     public boolean bulkRequestWithinLimit(List<String> bulkObjectIds) {
         return bulkObjectIds.size() <= drsConfig.serviceInfo().drs().maxBulkLengthRequest();
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getDrsObjectManifestContent(String drsObjectId) {
+        DrsObject drsObject = loadDrsObject(drsObjectId);
+        if (!drsObject.getIsManifest()) {
+            throw new ResourceNotFoundException("DRS Object with ID: " + drsObjectId + " is not a manifest");
+        }
+        return drsObject.getManifestContent();
     }
 
     @Transactional(readOnly = true)

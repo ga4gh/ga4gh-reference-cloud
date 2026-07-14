@@ -3,6 +3,7 @@ package org.ga4gh.refcloud.api.core.dataset;
 import org.ga4gh.refcloud.api.core.tag.Tag;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectRepository;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectService;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUserRepository;

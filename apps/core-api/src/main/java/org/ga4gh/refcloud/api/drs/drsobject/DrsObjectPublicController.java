@@ -1,5 +1,7 @@
 package org.ga4gh.refcloud.api.drs.drsobject;
 
+import java.util.Map;
+
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoRequestDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoResponseDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectRequestDTO;
@@ -55,5 +57,12 @@ public class DrsObjectPublicController {
     @PreAuthorize("@GA4GHPassportTokenEvaluator.validateAllPassports(authentication, #requestBody)")
     public ResponseEntity<MultiDrsObjectResponseDTO> getMultipleDrsObjects(@Valid @RequestBody MultiDrsObjectRequestDTO requestBody) {
         return ResponseEntity.ok(drsObjectService.getMultiDrsObjects(requestBody.passports(), requestBody.bulkObjectIds()));
+    }
+
+    @GetMapping("/{id}/manifest-content")
+    @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessDrsObject(authentication, #id)")
+    public ResponseEntity<Map<String, Object>> getDrsObjectManifestContent(@PathVariable String id) {
+        Map<String, Object> manifestContent = drsObjectService.getDrsObjectManifestContent(id);
+        return ResponseEntity.ok(manifestContent);
     }
 }
