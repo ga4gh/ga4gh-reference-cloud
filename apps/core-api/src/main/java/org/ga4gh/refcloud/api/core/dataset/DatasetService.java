@@ -1,13 +1,21 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
 import org.ga4gh.refcloud.api.core.tag.Tag;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectRepository;
+import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUserRepository;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertion;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionRepository;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionResponseDTO;
+import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionService;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportVisaAssertionStatus;
 import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisaResponseDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
@@ -23,14 +31,20 @@ public class DatasetService {
 
     private final DatasetRepository datasetRepository;
 
+    private final PassportUserVisaAssertionService passportUserVisaAssertionService;
+
     private final PassportUserRepository passportUserRepository;
 
     private final PassportUserVisaAssertionRepository passportUserVisaAssertionRepository;
 
-    public DatasetService(DatasetRepository datasetRepository, PassportUserRepository passportUserRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository) {
+    private final DrsObjectRepository drsObjectRepository;
+
+    public DatasetService(DatasetRepository datasetRepository, PassportUserVisaAssertionService passportUserVisaAssertionService, PassportUserRepository passportUserRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository, DrsObjectRepository drsObjectRepository) {
         this.datasetRepository = datasetRepository;
+        this.passportUserVisaAssertionService = passportUserVisaAssertionService;
         this.passportUserRepository = passportUserRepository;
         this.passportUserVisaAssertionRepository = passportUserVisaAssertionRepository;
+        this.drsObjectRepository = drsObjectRepository;
     }
 
     @Transactional(readOnly = true)
@@ -79,6 +93,12 @@ public class DatasetService {
         return convertToResponseDto(dataset, assertion);
     }
 
+    @Transactional(readOnly = true)
+    public String getVisaIdByDatasetId(String id) {
+        Dataset dataset = loadDataset(id);
+        return dataset.getPassportVisa().getId();
+    }
+
     @Transactional
     public DatasetResponseDTO requestAccessToDatasetById(String userId, String datasetId) {
         // retrieve dataset & visa object from db
@@ -107,6 +127,45 @@ public class DatasetService {
         passportUserVisaAssertionRepository.save(assertion);
 
         return convertToResponseDto(dataset, assertion);
+    }
+
+    @Transactional
+    public Page<ManifestResponseDTO> getDrsObjectManifestsForDataset(String datasetId, int page, int size, String sortBy, String direction) {
+        Sort sort = direction.equalsIgnoreCase("desc") ?
+                    Sort.by(sortBy).descending() :
+                    Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<DrsObject> drsObjectsPage = drsObjectRepository.findDrsObjectManifestsByDatasetId(datasetId, pageable);
+        Page<ManifestResponseDTO> manifestDtoPage = drsObjectsPage.map(drsObject -> new ManifestResponseDTO(
+            drsObject.getId(),
+            drsObject.getName(),
+            drsObject.getSize(),
+            drsObject.getCreatedTime(),
+            drsObject.getUpdatedTime(),
+            drsObject.getVersion(),
+            drsObject.getMimeType(),
+            drsObject.getDescription(),
+            drsObject.getIsManifest(),
+            drsObject.getManifestContent()
+        ));
+        return manifestDtoPage;
+    }
+
+    public boolean validateUserIsAuthorizedForDataset(String userId, String datasetId) {
+        String visaId = getVisaIdByDatasetId(datasetId);
+        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId);
+        if (optionalAssertion.isPresent()) {
+            PassportUserVisaAssertion assertion = optionalAssertion.get();
+            if (assertion.getCurrentStatus() == PassportVisaAssertionStatus.Approved) {
+                return true; // if status is "Approved" allow user to view the object
+            }
+        }
+
+        return false; // do not allow user to view the object if no record found in assertion table, or if status is anything other than "Approved"
+    }
+
+    private Dataset loadDataset(String id) {
+        return datasetRepository.findByIdWithTagsAndVisas(id).orElseThrow(() -> new ResourceNotFoundException("No Dataset with ID: " + id));
     }
 
     private DatasetResponseDTO convertToResponseDto(Dataset dataset, PassportUserVisaAssertion assertion) {

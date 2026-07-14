@@ -45,8 +45,8 @@ public class DrsObjectPublicController {
         return ResponseEntity.ok(drsObjectService.getDrsObjectById(id));
     }
 
-    @PreAuthorize("@GA4GHPassportTokenEvaluator.validateBulkAuthInfoRequest(authentication, #requestBody)")
     @RequestMapping(method=RequestMethod.OPTIONS)
+    @PreAuthorize("@GA4GHPassportTokenEvaluator.validateBulkAuthInfoRequest(authentication, #requestBody)")
     public ResponseEntity<MultiDrsObjectAuthInfoResponseDTO> getMultipleDrsObjectsAuthInfo(@Valid @RequestBody MultiDrsObjectAuthInfoRequestDTO requestBody) {
         return ResponseEntity.ok(drsObjectService.getMultiDrsObjectsAuthInfo(requestBody.bulkObjectIds()));
     }

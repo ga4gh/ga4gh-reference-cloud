@@ -2,6 +2,7 @@ package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import org.ga4gh.refcloud.api.core.dataset.Dataset;
 import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3AccessObject;
@@ -55,7 +56,7 @@ public class DrsObject {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "manifest_content", columnDefinition = "jsonb")
-    private JsonNode manifestContent;
+    private Map<String, Object> manifestContent;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dataset_id", nullable = false) 

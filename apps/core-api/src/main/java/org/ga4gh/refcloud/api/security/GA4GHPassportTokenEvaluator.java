@@ -1,6 +1,7 @@
 package org.ga4gh.refcloud.api.security;
 
 import org.springframework.stereotype.Component;
+import org.ga4gh.refcloud.api.core.dataset.DatasetService;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoRequestDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectRequestDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.SingleDrsObjectRequestDTO;
@@ -19,13 +20,24 @@ public class GA4GHPassportTokenEvaluator {
 
     private final DrsObjectService drsObjectService;
 
-    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService) {
+    private final DatasetService datasetService;
+
+    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService, DatasetService datasetService) {
         this.jwtDecoder = jwtDecoder;
         this.drsObjectService = drsObjectService;
+        this.datasetService = datasetService;
+    }
+
+    public boolean canAccessDataset(Authentication authentication, String datasetId) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
+            return false;
+        }
+
+        String userId = jwt.getSubject();
+        return datasetService.validateUserIsAuthorizedForDataset(userId, datasetId);
     }
 
     public boolean canAccessDrsObject(Authentication authentication, String objectId) {
-        // Sanity check the authentication context
         if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
             return false;
         }

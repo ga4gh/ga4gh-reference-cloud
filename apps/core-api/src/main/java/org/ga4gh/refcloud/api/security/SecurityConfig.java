@@ -23,14 +23,20 @@ public class SecurityConfig {
 
     private final OrySessionFilter orySessionFilter;
 
+    private static final List<RequestMatcher> ORY_KRATOS_SESSION_ENDPOINTS = List.of(
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets/{datasetId}"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets/{datasetId}/request-access")
+    );
+
     private static final List<RequestMatcher> PUBLIC_ENDPOINTS = List.of(
-        // DRS API
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info")
     );
 
     private static final List<RequestMatcher> CUSTOM_SECURITY_ENDPOINTS = List.of(
-        // DRS API
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets/{datasetId}/manifests"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects")
@@ -61,7 +67,7 @@ public class SecurityConfig {
             // Disable standard CSRF/sessions since we are an API validated by Ory Kratos tokens
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .securityMatcher("/datasets/**")
+            .securityMatcher(new OrRequestMatcher(ORY_KRATOS_SESSION_ENDPOINTS))
             .authorizeHttpRequests(auth -> auth
                 .anyRequest().authenticated() // endpoints that require kratos session token
             )
@@ -92,6 +98,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 .anyRequest().permitAll()
             )
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.disable());
 
