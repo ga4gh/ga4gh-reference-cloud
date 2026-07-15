@@ -1,5 +1,4 @@
 import React, {useState, useEffect } from 'react';
-import { Dataset, PassportVisaAssertionStatus } from '../../pages/datasets';
 
 type DrsObject = {
   id: string,
@@ -19,6 +18,7 @@ interface DrsManifestTableProps {
 
 const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
   const [page, setPage] = useState(0)
+  const [finalPage, setFinalPage] = useState(0)
   const [size, setSize] = useState(10)
   const [manifestSubFileTableKeysAndHeaders, setManifestSubFileTableKeysAndHeaders] = useState<[string, string][]>([])
   const [tableData, setTableData] = useState<DrsObject[]>([])
@@ -34,6 +34,11 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
     "csra_file": "CSRA File DRS ID"
   }
 
+  const changeSizeHandler = (newSize: number) => {
+    setSize(newSize)
+    setPage(0)
+  }
+
   useEffect(() => {
     const loadTableData = async () => {
       try {
@@ -43,6 +48,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           throw new Error('datasets API response was not ok');
         }
 
+        // update the table data
         const pageResult = await response.json()
         const newTableData = pageResult.content
         setTableData(newTableData)
@@ -64,6 +70,9 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
         })
 
         setManifestSubFileTableKeysAndHeaders(newManifestSubFileTableKeysAndHeaders);
+
+        // update the final page number
+        setFinalPage(pageResult.totalPages - 1)
       } catch (error) {
         console.error("Failed to fetch table data:", error)
       }
@@ -75,37 +84,91 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
   return (
     <>
       <div className="overflow-x-auto mt-8">
-        <div className="flex items-center gap-1">
-          <p className="text-1xl">Results Per Page:</p>
-          {sizeValues.map((sizeValue) => (
-            sizeValue === size ? (
-              <button className="btn btn-outline btn-active">{sizeValue}</button>
-             ) : (
-              <button className="btn btn-outline" onClick={() => setSize(sizeValue)}>{sizeValue}</button>
-             )
-          ))}
-        </div>
-        <table className="table table-zebra table-xs mt-4">
-          {/* head */}
-          <thead>
-            <tr>
-              <th></th>
-              <th>Manifest DRS ID</th>
-              <th>Manifest Description</th>
-              {manifestSubFileTableKeysAndHeaders.map((tuple) => <th>{tuple[1]}</th> )}
-            </tr>
-          </thead>
-          <tbody>
-            {tableData.map((drsobject, i) => (
-              <tr>
-                <th>{i}</th>
-                <td>{drsobject.id}</td>
-                <td>{drsobject.description}</td>
-                {manifestSubFileTableKeysAndHeaders.map((tuple) => <td>{drsobject.manifest_content[tuple[0]]}</td> )}
-              </tr>
+        <div className="flex w-full justify-between items-center p-4 bg-base-200 rounded-box">
+          <div className="flex items-center gap-1">
+            <p className="text-1xl">Results Per Page:</p>
+            {sizeValues.map((sizeValue) => (
+              sizeValue === size ? (
+                <button className="btn btn-outline btn-active">{sizeValue}</button>
+              ) : (
+                <button className="btn btn-outline" onClick={() => changeSizeHandler(sizeValue)}>{sizeValue}</button>
+              )
             ))}
-          </tbody>
-        </table>
+          </div>
+          <div className="flex items-center gap-1">
+            <p className="text-1xl">Page:</p>
+
+            {/* first page button if not on first page */}
+            {page > 0 ? (
+              <>
+                <button className="btn btn-circle" onClick={() => setPage(page - 1)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+                <button className="btn btn-outline" onClick={() => setPage(0)}>1</button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-circle btn-disabled" aria-disabled="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+              </>
+            )}
+
+            {page > 0 + 1 ? <p>...</p> : null}
+
+            {/* current page button */}
+            <button className="btn btn-outline btn-active">{page+1}</button>
+
+            {page < finalPage - 1 ? <p>...</p> : null}
+
+            {/* final page button if not on final page */}
+            {page < finalPage ? (
+              <>
+                <button className="btn btn-outline" onClick={() => setPage(finalPage)}>{finalPage+1}</button>
+                <button className="btn btn-circle" onClick={() => setPage(page + 1)}>
+                  <svg xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </>
+            )  : (
+              <>
+                <button className="btn btn-circle btn-disabled" aria-disabled="true">
+                  <svg xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" className="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        <div>
+          <table className="table table-zebra table-xs mt-4">
+            {/* head */}
+            <thead>
+              <tr>
+                <th></th>
+                <th>Manifest DRS ID</th>
+                <th>Manifest Description</th>
+                {manifestSubFileTableKeysAndHeaders.map((tuple) => <th>{tuple[1]}</th> )}
+              </tr>
+            </thead>
+            <tbody>
+              {tableData.map((drsobject, i) => (
+                <tr>
+                  <th>{i}</th>
+                  <td>{drsobject.id}</td>
+                  <td>{drsobject.description}</td>
+                  {manifestSubFileTableKeysAndHeaders.map((tuple) => <td>{drsobject.manifest_content[tuple[0]]}</td> )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   )
