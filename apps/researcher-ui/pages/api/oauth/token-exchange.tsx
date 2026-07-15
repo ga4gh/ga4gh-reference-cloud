@@ -6,7 +6,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { code } = req.body;
+  const { code, redirect_uri } = req.body;
 
   if (!code) {
     return res.status(400).json({ error: 'Missing authorization code parameter' });
@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL}/passport`,
+        redirect_uri: redirect_uri,
         client_id: `${process.env.NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID}`,
         client_secret: `${process.env.HYDRA_RESEARCHER_CLIENT_SECRET}`
       }),
