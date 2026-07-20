@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // 2. Perform the backchannel code-to-token swap with Ory Hydra
     // This is where you pass your client_secret safely out of browser sight.
-    const hydraTokenRes = await fetch(`${process.env.NEXT_PUBLIC_HYDRA_PUBLIC_API_BASE_URL}/oauth2/token`, {
+    const hydraTokenRes = await fetch(`${process.env.HYDRA_PUBLIC_API_SERVER_SIDE_BASE_URL}/oauth2/token`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/x-www-form-urlencoded' 
@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         grant_type: 'authorization_code',
         code: code,
         redirect_uri: redirect_uri,
-        client_id: `${process.env.NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID}`,
+        client_id: `${process.env.PUB_HYDRA_RESEARCHER_CLIENT_ID}`,
         client_secret: `${process.env.HYDRA_RESEARCHER_CLIENT_SECRET}`
       }),
     });

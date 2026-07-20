@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import AppLayout from 'components/layout/AppLayout';
 import DrsManifestTable from 'components/drs/DrsManifestTable';
 import { Dataset, PassportVisaAssertionStatus } from './datasets';
+import { useEnv } from '@/context/EnvContext'
 
 const DRS: NextPage = () => {
+  const env = useEnv();
   const router = useRouter();
   const { code, state } = router.query;
   const [isProcessingExchange, setIsProcessingExchange] = useState(false);
@@ -36,7 +38,7 @@ const DRS: NextPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code,
-          redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL}/drs`
+          redirect_uri: `${env.UI_BASE_URL}/drs`
         })
       })
       .then((res) => res.json())
@@ -58,11 +60,11 @@ const DRS: NextPage = () => {
     if (!flowComplete && !code) {
       console.log("No token or code found. Transitioning window control to Ory Hydra...");
 
-      const hydraAuthUrl = new URL(`${process.env.NEXT_PUBLIC_HYDRA_PUBLIC_API_BASE_URL}/oauth2/auth`);
-      hydraAuthUrl.searchParams.append('client_id', `${process.env.NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID}`);
+      const hydraAuthUrl = new URL(`${env.HYDRA_PUBLIC_API_BROWSER_SIDE_BASE_URL}/oauth2/auth`);
+      hydraAuthUrl.searchParams.append('client_id', `${env.HYDRA_RESEARCHER_CLIENT_ID}`);
       hydraAuthUrl.searchParams.append('response_type', 'code');
       hydraAuthUrl.searchParams.append('scope', 'openid offline_access profile');
-      hydraAuthUrl.searchParams.append('redirect_uri', `${process.env.NEXT_PUBLIC_BASE_URL}/drs`);
+      hydraAuthUrl.searchParams.append('redirect_uri', `${env.UI_BASE_URL}/drs`);
       hydraAuthUrl.searchParams.append('state', (state as string) || crypto.randomUUID());
 
       // Transfer window execution entirely out of Next.js state engine
