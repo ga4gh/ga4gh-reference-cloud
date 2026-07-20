@@ -33,18 +33,25 @@ spec:
               service:
                 name: kratos
                 port:
-                  number: 80
+                  number: 4433
+          - path: /oauth2/
+            pathType: Prefix
+            backend:
+              service:
+                name: hydra
+                port:
+                  number: 4444
           - path: /ga4gh/drs/v1/
             pathType: Prefix
             backend:
               service:
-                name: drs
+                name: refcloud-api
                 port:
-                  number: 80
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: passport-ui-node
+                name: refcloud-ui
                 port:
-                  number: 80
+                  number: 3000

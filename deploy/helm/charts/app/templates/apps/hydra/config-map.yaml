@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hydra-config-map
+data:
+  hydra.yaml: |
+    serve:
+      cookies:
+        same_site_mode: Lax
+
+    secrets:
+      system: <SECRET>
+
+    urls:
+      self:
+        issuer: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
+      consent: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/api/oauth/consent
+      login: https://{{ .Values.ga4gh.referenceCloud.baseURL }}//api/oauth/login
+      logout: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/api/oauth/logout
+
+    oidc:
+      subject_identifiers:
+        supported_types:
+          - pairwise
+          - public
+        pairwise:
+          salt: <SECRET>
+
+    strategies:
+      access_token: jwt

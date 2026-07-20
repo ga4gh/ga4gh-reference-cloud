@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: refcloud-ui
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: refcloud-ui
+    spec:
+      containers:
+        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-ui:v0.1.0-1-ge0ffe6b
+          name: refcloud-ui
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PUB_UI_BASE_URL
+              value: "https://{{ .Values.ga4gh.referenceCloud.baseURL }}"
+            - name: PUB_HYDRA_PUBLIC_API_BROWSER_SIDE_BASE_URL
+              value: "https://{{ .Values.ga4gh.referenceCloud.baseURL }}"
+            - name: PUB_HYDRA_RESEARCHER_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-ui-hydra-researcher-client
+                  key: id
+            - name: HYDRA_RESEARCHER_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-ui-hydra-researcher-client
+                  key: secret
+            - name: PUB_REFCLOUD_DOCS_URL
+              value: "https://docs.{{ .Values.ga4gh.referenceCloud.baseURL }}"
+            - name: ORY_SDK_URL
+              value: http://kratos:4433/
+            - name: KRATOS_PUBLIC_API_BASE_URL
+              value: http://kratos:4433
+            - name: HYDRA_PUBLIC_API_SERVER_SIDE_BASE_URL
+              value: http://hydra:4444
+            - name: HYDRA_ADMIN_API_BASE_URL
+              value: http://hydra:4445
+            - name: REFCLOUD_API_BASE_URL
+              value: http://refcloud-api:8080
+      imagePullSecrets:
+        - name: ecr-registry-key

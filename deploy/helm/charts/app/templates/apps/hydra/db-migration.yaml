@@ -11,7 +11,7 @@ spec:
             name: hydra-config-map
       containers:
         - name: hydra-db-migration
-          image: oryd/hydra:v1.11.7
+          image: oryd/hydra:v26.2.0
           volumeMounts:
             - name: hydra-config-map
               mountPath: /etc/config

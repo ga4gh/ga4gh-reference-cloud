@@ -8,7 +8,7 @@ spec:
     app.kubernetes.io/name: kratos
   ports:
     - name: public
-      port: 80
+      port: 4433
       targetPort: 4433
       protocol: TCP
     - name: admin

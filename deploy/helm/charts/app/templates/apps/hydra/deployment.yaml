@@ -17,13 +17,13 @@ spec:
           configMap:
             name: hydra-config-map
       containers:
-        - image: oryd/hydra:v1.11.7
+        - image: oryd/hydra:v26.2.0
           name: hydra
           volumeMounts:
             - name: hydra-config-map
               mountPath: /etc/config
               readOnly: true
-          command: ["hydra", "-c", "/etc/config/hydra.yaml", "serve", "all", "--dangerous-force-http"]
+          command: ["hydra", "-c", "/etc/config/hydra.yaml", "serve", "all", "--dev"]
           ports:
             - containerPort: 4444
             - containerPort: 4445

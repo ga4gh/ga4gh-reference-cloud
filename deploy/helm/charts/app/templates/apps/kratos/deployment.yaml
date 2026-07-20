@@ -60,3 +60,13 @@ spec:
                 secretKeyRef:
                   name: kratos-secrets
                   key: cipher
+            - name: SELFSERVICE_FLOWS_REGISTRATION_AFTER_PASSWORD_HOOKS_0_CONFIG_AUTH_CONFIG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-kratos-webhook
+                  key: username
+            - name: SELFSERVICE_FLOWS_REGISTRATION_AFTER_PASSWORD_HOOKS_0_CONFIG_AUTH_CONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-kratos-webhook
+                  key: password
