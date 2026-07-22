@@ -6,6 +6,7 @@ import "react-toastify/dist/ReactToastify.css"
 import { ThemeProvider } from "styled-components"
 import { createGlobalStyle } from "styled-components"
 import { EnvProvider } from "@/context/EnvContext"
+import Head from "next/head"
 
 const GlobalStyle = createGlobalStyle((props: ThemeProps) =>
   globalStyles(props),
@@ -13,7 +14,11 @@ const GlobalStyle = createGlobalStyle((props: ThemeProps) =>
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <html lang="en" data-theme="nord">
+    <html lang="en" data-theme="ga4gh">
+      <Head>
+        <title>GA4GH Reference Cloud</title>
+        <meta name="description" content="Reference implementation of multiple GA4GH standards" />
+      </Head>
       <div data-testid="app-react">
         <EnvProvider>
           <ThemeProvider theme={theme}>
