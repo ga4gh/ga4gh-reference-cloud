@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: refcloud-docs
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-docs
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: refcloud-docs
+    spec:
+      containers:
+        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-docs:v0.1.0-1-g2cef043
+          name: refcloud-docs
+          ports:
+            - containerPort: 80
+      imagePullSecrets:
+        - name: ecr-registry-key

@@ -62,3 +62,13 @@ spec:
                 name: refcloud-ui
                 port:
                   number: 3000
+    - host: docs.{{ .Values.ga4gh.referenceCloud.baseURL }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-docs
+                port:
+                  number: 80
