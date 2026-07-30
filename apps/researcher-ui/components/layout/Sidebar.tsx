@@ -25,7 +25,7 @@ const Sidebar = ({children}: SidebarProps) => {
           {/* Sidebar content here */}
           <li className="menu-title">Data Access</li>
           <li><a className="link link-primary" href="/datasets">Browse Datasets</a></li>
-          <li><a className="link link-primary" href="/passport">Configure Passport Token</a></li>
+          <li><a className="link link-primary" href="/passport">View Passport Token</a></li>
           <div className="flex w-full flex-col">
             <div className="divider" />
           </div>
