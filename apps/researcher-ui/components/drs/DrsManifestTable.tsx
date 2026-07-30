@@ -195,20 +195,20 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           </div>
         </div>
 
-        <div className="w-full overflow-x-auto border border-base-300 rounded-box">
+        <div className="w-full max-h-[60vh] overflow-x-auto border border-base-300 rounded-box">
           <table className="table table-zebra table-xs whitespace-nowrap w-full">
             <thead>
               <tr>
-                <th></th>
-                <th>Manifest DRS ID</th>
-                <th>Manifest Description</th>
-                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th key={idx}>{tuple[1]}</th> )}
+                <th className="sticky top-0 left-0 z-30 bg-base-100 shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
+                <th className="sticky top-0 z-10 bg-base-100">Manifest DRS ID</th>
+                <th className="sticky top-0 z-10 bg-base-100">Manifest Description</th>
+                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-100" key={idx}>{tuple[1]}</th> )}
               </tr>
             </thead>
             <tbody>
               {tableData.map((drsobject, i) => (
                 <tr key={drsobject.id || i}>
-                  <th>{i}</th>
+                  <th className={`sticky left-0 z-10 ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{i}</th>
                   <td>{drsobject.id}</td>
                   <td>{drsobject.description}</td>
                   {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => (
