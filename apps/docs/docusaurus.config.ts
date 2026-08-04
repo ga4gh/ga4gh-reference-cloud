@@ -5,8 +5,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
+  title: 'GA4GH Reference Cloud Docs',
+  tagline: 'Reference implementations of GA4GH standards for cloud-based genomics',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -75,23 +75,45 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'My Site',
+      title: 'GA4GH Reference Cloud Docs',
       logo: {
-        alt: 'My Site Logo',
-        src: 'img/logo.svg',
+        alt: 'GA4GH Logo',
+        src: 'img/logo-ga4gh.svg',
       },
       items: [
         {
-          type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          type: 'doc',
+          docId: 'getting-started/start-here',
           position: 'left',
-          label: 'Tutorial',
+          label: 'Start Here'
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/facebook/docusaurus',
-          label: 'GitHub',
+          type: 'doc',
+          docId: 'interactive-demos/intro-to-interactive-demos',
+          position: 'left',
+          label: 'Demos'
+        },
+        {
+          type: 'doc',
+          docId: 'deployment/deploying-the-reference-cloud',
+          position: 'left',
+          label: 'Deployment'
+        },
+        {
+          type: 'doc',
+          docId: 'api-reference/drs-api-reference',
+          position: 'left',
+          label: 'API Reference'
+        },
+        {
+          href: 'https://refcloud.ga4gh.org',
           position: 'right',
+          label: 'Go to App'
+        },
+        {
+          href: 'https://github.com/ga4gh/ga4gh-reference-cloud',
+          position: 'right',
+          label: 'GitHub'
         },
       ],
     },
@@ -102,25 +124,20 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/docs/intro',
-            },
-          ],
-        },
-        {
-          title: 'Community',
-          items: [
-            {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+              label: 'Start Here',
+              to: '/docs/getting-started/start-here',
             },
             {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
+              label: 'Demos',
+              to: '/docs/interactive-demos/intro-to-interactive-demos',
             },
             {
-              label: 'X',
-              href: 'https://x.com/docusaurus',
+              label: 'Deployment',
+              to: '/docs/deployment/deploying-the-reference-cloud',
+            },
+            {
+              label: 'API Reference',
+              to: '/docs/api-reference/drs-api-reference',
             },
           ],
         },
@@ -128,17 +145,17 @@ const config: Config = {
           title: 'More',
           items: [
             {
-              label: 'Blog',
-              to: '/blog',
+              label: 'Go to App',
+              href: 'https://refcloud.ga4gh.org',
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/facebook/docusaurus',
+              href: 'https://github.com/ga4gh/ga4gh-reference-cloud',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Global Alliance for Genomics and Health.`,
     },
     prism: {
       theme: prismThemes.github,
