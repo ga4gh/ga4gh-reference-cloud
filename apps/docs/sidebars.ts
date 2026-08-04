@@ -49,6 +49,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'API Reference',
       items: [
+        'api-reference/api-reference-overview',
         'api-reference/drs-api-reference',
       ],
     },

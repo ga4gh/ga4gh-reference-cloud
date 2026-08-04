@@ -7,34 +7,29 @@ import htsgetImg from '../../../static/img/htsget-min.png'
 
 const FeatureList = [
   {
-    title: 'Deploy Anywhere',
+    title: 'Explore GA4GH APIs in Action',
     image: htsgetImg,
     description: (
       <>
-        Starter Kit services are unopinionated about where they can be run.
-        Deploy a service network on your local laptop, a high performance compute
-        cluster, or a public cloud provider.
+        Interact with live, hands-on implementations of core standards to see exactly how they function in a real-world cloud environment.
       </>
     ),
   },
   {
-    title: 'Modular Design',
+    title: 'Interoperable GA4GH Ecosystem',
     image: tesImg,
     description: (
       <>
-        Each microservice in the Starter Kit suite implements a single GA4GH
-        specification. Deploy only the required services for your data sharing
-        needs.
+        Explore common genomics workflows in a pre-integrated stack where data discovery, access, and computation operate in one unified system.
       </>
     ),
   },
   {
-    title: 'Explore Federated Genomics',
+    title: 'Your Open Source Starter Kit for Federated Genomics',
     image: networksImg,
     description: (
       <>
-        Quickly set up networks of GA4GH services to explore how GA4GH standards
-        work together to facilitate federated genomic data sharing. 
+        Spin up your own instance of the reference cloud and begin sharing your genomic datasets with collaborators around the world.
       </>
     ),
   },

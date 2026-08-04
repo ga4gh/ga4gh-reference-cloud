@@ -101,7 +101,7 @@ const config: Config = {
         },
         {
           type: 'doc',
-          docId: 'api-reference/drs-api-reference',
+          docId: 'api-reference/api-reference-overview',
           position: 'left',
           label: 'API Reference'
         },
@@ -137,7 +137,7 @@ const config: Config = {
             },
             {
               label: 'API Reference',
-              to: '/docs/api-reference/drs-api-reference',
+              to: '/docs/api-reference/api-reference-overview',
             },
           ],
         },
