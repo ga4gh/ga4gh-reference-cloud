@@ -32,7 +32,6 @@ public class GA4GHPassportTokenEvaluator {
         String visaId = drsObjectService.getVisaIdByDrsObjectId(objectId);
 
         Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId);
-        System.out.println(optionalAssertion);
         if (optionalAssertion.isPresent()) {
             PassportUserVisaAssertion assertion = optionalAssertion.get();
             if (assertion.getCurrentStatus() == PassportVisaAssertionStatus.Approved) {

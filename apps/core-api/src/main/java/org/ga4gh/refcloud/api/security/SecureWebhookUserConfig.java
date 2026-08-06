@@ -13,10 +13,10 @@ import org.springframework.security.core.userdetails.User;
 @Configuration
 public class SecureWebhookUserConfig {
 
-    @Value("${ga4gh.refcloud.security.webhook.kratos.username}")
+    @Value("${ga4gh.refcloud.security.kratos.webhook.username}")
     private String kratosWebhookUsername;
 
-    @Value("${ga4gh.refcloud.security.webhook.kratos.password}")
+    @Value("${ga4gh.refcloud.security.kratos.webhook.password}")
     private String kratosWebhookPassword;
 
     @Bean
