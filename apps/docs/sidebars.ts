@@ -50,14 +50,13 @@ const sidebars: SidebarsConfig = {
       label: 'API Reference',
       items: [
         'api-reference/api-reference-overview',
-        'api-reference/drs-api-reference',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Additional Resources',
-      items: [
-        require('./docs/petstore/sidebar.ts')
+        {
+          type: 'category',
+          label: 'DRS API Reference',
+          items: [
+            require('./docs/api-reference/drs/sidebar.ts')
+          ]
+        }
       ],
     }
   ],

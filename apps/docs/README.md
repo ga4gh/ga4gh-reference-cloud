@@ -41,3 +41,10 @@ GIT_USER=<Your GitHub username> npm run deploy
 ```
 
 If you are using GitHub Pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+
+## Rebuild GA4GH OpenAPI Documentation
+
+```bash
+npm run clear
+npx docusaurus gen-api-docs all
+```

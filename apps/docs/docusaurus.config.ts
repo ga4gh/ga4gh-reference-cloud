@@ -41,6 +41,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
+          docItemComponent: '@theme/ApiItem',
         },
         blog: {
           showReadingTime: true,
@@ -166,11 +167,11 @@ const config: Config = {
         id: "api",
         docsPluginId: "classic",
         config: {
-          petstore: {
-            specPath: "openapi/petstore.yaml", // Path to your OpenAPI file
-            outputDir: "docs/petstore",        // Where generated MDX files will go
+          drs: {
+            specPath: "https://raw.githubusercontent.com/ga4gh/data-repository-service-schemas/gh-pages/preview/release/drs-1.5.0/openapi.yaml",
+            outputDir: "docs/api-reference/drs",
             sidebarOptions: {
-              groupPathsBy: "tag",             // Group your sidebar items by tag
+              groupPathsBy: "tag",
             },
           }
         }

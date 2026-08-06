@@ -1,0 +1,67 @@
+---
+id: options-bulk-object
+title: "Get Authorization info about multiple DrsObjects."
+description: "Returns a structure that contains for each DrsObjects a list of `Authorizations` that can be used to determine how to authorize requests to `GetObject` or `PostObject` (or bulk equivalents)."
+sidebar_label: "Get Authorization info about multiple DrsObjects."
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "options api-method"
+info_path: docs/api-reference/drs/data-repository-service
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get Authorization info about multiple DrsObjects."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"options"}
+  path={"/objects"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns a structure that contains for each DrsObjects a list of `Authorizations` that can be used to determine how to authorize requests to `GetObject` or `PostObject` (or bulk equivalents).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./options-bulk-object.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./options-bulk-object.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

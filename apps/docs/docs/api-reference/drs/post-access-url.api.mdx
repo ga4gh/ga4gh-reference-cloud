@@ -1,0 +1,71 @@
+---
+id: post-access-url
+title: "Get a URL for fetching bytes through POST'ing a Passport"
+description: "Returns a URL that can be used to fetch the bytes of a `DrsObject`."
+sidebar_label: "Get a URL for fetching bytes through POST'ing a Passport"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/drs/data-repository-service
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a URL for fetching bytes through POST'ing a Passport"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/objects/{object_id}/access/{access_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns a URL that can be used to fetch the bytes of a `DrsObject`.
+This method only needs to be called when using an `AccessMethod` that contains an `access_id` (e.g., for servers that use signed URLs for fetching object bytes).
+Method is a POST to accommodate a JWT GA4GH Passport sent in the formData in order to authorize access.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./post-access-url.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./post-access-url.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./post-access-url.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

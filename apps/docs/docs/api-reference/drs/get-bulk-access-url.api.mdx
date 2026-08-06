@@ -1,0 +1,69 @@
+---
+id: get-bulk-access-url
+title: "Get URLs for fetching bytes from multiple objects with an optional Passport(s)."
+description: "Returns an array of URL objects that can be used to fetch the bytes of multiple `DrsObject`s."
+sidebar_label: "Get URLs for fetching bytes from multiple objects with an optional Passport(s)."
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/drs/data-repository-service
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get URLs for fetching bytes from multiple objects with an optional Passport(s)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/objects/access"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns an array of URL objects that can be used to fetch the bytes of multiple `DrsObject`s.
+This method only needs to be called when using an `AccessMethod` that contains an `access_id` (e.g., for servers that use signed URLs for fetching object bytes).
+Currently this is limited to use passports (one or more) or a single bearer token, so make sure your bulk request is for objects that all use the same passports/token.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-bulk-access-url.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-bulk-access-url.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
