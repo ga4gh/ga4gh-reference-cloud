@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"User deleted"},"400":{"description":"Invalid username supplied"},"404":{"description":"User not found"},"default":{"description":"Unexpected error"}}}

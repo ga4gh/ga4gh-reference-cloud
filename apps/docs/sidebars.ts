@@ -53,6 +53,13 @@ const sidebars: SidebarsConfig = {
         'api-reference/drs-api-reference',
       ],
     },
+    {
+      type: 'category',
+      label: 'Additional Resources',
+      items: [
+        require('./docs/petstore/sidebar.ts')
+      ],
+    }
   ],
 };
 

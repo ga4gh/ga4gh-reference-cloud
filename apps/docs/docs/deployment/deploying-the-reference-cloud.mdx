@@ -1,1 +1,16 @@
 # Deploying the Reference Cloud
+
+So far, we have focused primarily on the **researcher** experience, that is, how one can use the reference cloud and the GA4GH APIs implemented therein to consume data for a particular workload. However, you may also be interested in acting as a **data steward**, by publishing your own datasets for others to use. If this is the case, the reference cloud can provide a good starting point for you to begin sharing your data using secure GA4GH access methods and protocols.
+
+At the time of writing this article, we do not have much automation that allows for the rapid deployment of the reference cloud in other environments. As such, there will be significant manual work to get it running in your environment. **We will release more automation tooling (e.g. terraform modules, helm charts) to the community as they become available.**
+
+The Reference Cloud codebase is stored across the following GitHub repositories. You may use these to create your own docker images and deployments:
+
+| GitHub Repository | Description |
+|-------------------|-------------|
+| [`refcloud-api`](https://github.com/ga4gh/refcloud-api) | reference cloud backend API server |
+| [`refcloud-ui`](https://github.com/ga4gh/refcloud-ui) | reference cloud frontend user interface |
+| [`refcloud-cli`](https://github.com/ga4gh/refcloud-cli) | command line utility for managing datasets |
+| [`ga4gh-reference-cloud-helm`](https://github.com/ga4gh/ga4gh-reference-cloud-helm) | helm chart bundling the API, UI, and other dependencies into a single module that can be deployed on kubernetes |
+
+If you would still like to deploy your own instance of the reference cloud, please contact Jeremy Adams (jeremy.adams@ga4gh.org) for guidance on how to do so.

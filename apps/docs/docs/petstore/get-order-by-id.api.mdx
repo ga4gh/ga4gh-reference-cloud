@@ -1,0 +1,69 @@
+---
+id: get-order-by-id
+title: "Find purchase order by ID."
+description: "For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions."
+sidebar_label: "Find purchase order by ID."
+hide_title: true
+hide_table_of_contents: true
+api: eJztV91v2zYQ/1dufGkDyFKadMsmbMOyphuMDUsxpw9DEhQ0dbLYSiRLnmJrhv/34SgpVuqgHy972Z4s8+543787bgXJVRD5tQhkPYrbRGxmYS1XK/Qzb1tCP1PWkLd1jV7k4tIX6F/sTxJRYFBeO9LWiFz8Yj3cyVoX4DE4awIC+Q60IVyhh/lFgLWminlahO9/gK/BevgRnh2ncEkV+p7CXHUNKzToJSHgRmFUEVKRCOv4VFszL0QuVkjRqp+7eSES4aSXDRJ6dmsrjGxQ5MIyR6RrNtNJqg5sn1+ALSFyAlWSwCAWAcjCEqFEUhXyBR7ft9pjIXLyLSYiqAobKfKtoM6xrsFZkYjS+kZSf/TNc7Hb3bJ4H5fAEifHx/zz0I7QKoUhlG0N956KRHAe0BDzS+dqrSIhextYaDsx4yCDjS2wZitsOlBShxQznkZaGgMoktEDu3yLijiYni0g3Vuri8/xMhG4kY2rUeTPjneJcEjzLxb87tuzs5NdIt630pCm7pPypydT+bNdIkKl3YUknIgG8tqsppKFJJyRblCwBElqw2P8DxMUowWLnnuilfPi7V2sEjRtw33laqniwYRWYK3vkEvodsd5ZekHdi6trVEasdslYtPUTJnWMdtKmqLKPnPMOC2KQej/mvhP1wSzPn8MYeamx+j5BYSWywYLEXmfH/L2jhlLUNrWRL4CS9nWdMj72uDGoSIsAL23fV3ihtAExu4IyO+wE/lHp0wi4gx4ZNowfjZIlR1wP8I9VSIXWazcLIYi2w5ovxOJCOjvxlnQeq74isiFPMvGcj+9bwBtM+l0dncaFQVUrdfULbiJ+mIfRd7IlrXe58byfy62srbrvi0abkbdo3VLlfX679iarz9tQ7wtG6WQnVDW9RasvSbMWUzkorGFLjvgf6ANdLb1IJWyraE4p2QxcvJ3T48HfWlIp9/EbNz7IZ3+DTuRjJU1cgxTs0I5go02pY2CQ8ktevPh1eAQzODSoTl/NYfT9PigW64qHUAHkBBin7AcLKLgIiYMljJgAdYAVTi9CoJDpcsB6FKAv2wLShootSnAtgQN3yKXtqUbM5olCa7HmO8jffv08OwohXmvlCrtC9A0TGDeDfjYIUF0MYE1PrlDCGsdVwNeFJihwKBXbI8PBLHDpaq+ujGjocauocLaQRtANxEAohw7uK4wLkGangRYdtDId9qsQFXSrDDsNZTa6GiUpoA1Ly0jTdkC0xtzxfvLWnZJv24xmrG90YAPlWozLFp1AtIUgBtnA0KwDY5OG1xDiZJaj7HULs8Xp+mNuTELZmoD8rJSa/Mu5DdmBtdX1TSlHp0Nmqzv9hFfaaraZapsMwZ/xr03fo+NcXR/XbCtV73BE/9L9nyq7Is1ZMvaLrNGBkKfBa+yRmqTeez1hcw6NNLptJNNfcTjEH0TLksuU61w0suTDo482bCzSRVRABup676nCGXz056dIbXWCk3ACaqfO6kqhJPYPQ+Ra71epzKSU+tX2SAbst/nL17+sXg5O0mP04qami9m8Ot77ll6nJ6c8ZmzgRppJsp+4eZxrVeVDDiswMsO5hfph6273e+h/86yP0AT4YYyV0tt2IMYj+0A/uPjJRkmYSLycd2/TURlAzHPdsuQ8trXux0fv2/RdyK/vuVp47VcMoxdb0WhA38XIi9lHfAj3j/9c3gIHMFnvhwedWWEXtNNBp9Ihjk5OrLjrWDA3/0UPVccqYncwcPgwcT89eWV2O3+AQ/Sz8I=
+sidebar_class_name: "get api-method"
+info_path: docs/petstore/swagger-petstore-openapi-3-0
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Find purchase order by ID."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/store/order/{orderId}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+For valid response try integer IDs with value &lt; 5 or > 10. Other values will generate exceptions.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-order-by-id.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-order-by-id.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-order-by-id.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
