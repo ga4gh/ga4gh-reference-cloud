@@ -1,12 +1,16 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
 import org.ga4gh.refcloud.api.core.tag.Tag;
+import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
+import org.ga4gh.refcloud.api.passport.passportuser.PassportUserRepository;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertion;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionRepository;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionResponseDTO;
+import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportVisaAssertionStatus;
 import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisaResponseDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,10 +23,13 @@ public class DatasetService {
 
     private final DatasetRepository datasetRepository;
 
+    private final PassportUserRepository passportUserRepository;
+
     private final PassportUserVisaAssertionRepository passportUserVisaAssertionRepository;
 
-    public DatasetService(DatasetRepository datasetRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository) {
+    public DatasetService(DatasetRepository datasetRepository, PassportUserRepository passportUserRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository) {
         this.datasetRepository = datasetRepository;
+        this.passportUserRepository = passportUserRepository;
         this.passportUserVisaAssertionRepository = passportUserVisaAssertionRepository;
     }
 
@@ -68,6 +75,36 @@ public class DatasetService {
         if (optionalAssertion.isPresent()) {
             assertion = optionalAssertion.get();
         }
+
+        return convertToResponseDto(dataset, assertion);
+    }
+
+    @Transactional
+    public DatasetResponseDTO requestAccessToDatasetById(String userId, String datasetId) {
+        // retrieve dataset & visa object from db
+        Dataset dataset = datasetRepository.findByIdWithTagsAndVisas(datasetId).orElse(null);
+        if (dataset == null) {
+            return null;
+        }
+
+        // retrieve user object from db
+        Optional<PassportUser> user = passportUserRepository.findById(userId);
+        if (user.isEmpty()) {
+            return null;
+        }
+
+        // check if an assertion object alredy exists. If it does, do not attempt to save to db
+        Optional<PassportUserVisaAssertion> existingAssertion = passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(userId, dataset.getPassportVisa().getId());
+        if (existingAssertion.isPresent()) {
+            return null;
+        }
+
+        PassportUserVisaAssertion assertion = new PassportUserVisaAssertion();
+        assertion.setPassportVisa(dataset.getPassportVisa());
+        assertion.setPassportUser(user.get());
+        assertion.setCurrentStatus(PassportVisaAssertionStatus.Requested);
+        assertion.setCurrentStatusAt(LocalDateTime.now());
+        passportUserVisaAssertionRepository.save(assertion);
 
         return convertToResponseDto(dataset, assertion);
     }
