@@ -23,6 +23,20 @@ spring:
 ga4gh:
   refcloud:
     security:
+      cors:
+        allowed-origins:
+          - http://127.0.0.1:3000
+        allowed-methods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+        allowed-headers:
+          - "*"
+        exposed-headers:
+          - "Authorization"
+        allow-credentials: true
+        max-age: 3600
       kratos:
         public-base-url: "http://127.0.0.1:4433"
         webhook:
