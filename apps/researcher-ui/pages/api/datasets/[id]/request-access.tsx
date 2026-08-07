@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ message: 'Internal Server Error' })
     }
 
-    if (! sessionToken) {
+    if (!sessionToken) {
       return res.status(401).json({ message: 'Unauthorized' })
     }
 
