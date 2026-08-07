@@ -7,6 +7,9 @@ UI for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-reference-clou
 * Prerequisites (ensure these are installed on your machine)
   * Docker
   * Node.js (developed using v24.15.0)
+* Clone the [`refcloud-api`](https://github.com/ga4gh/refcloud-api) repo. In the `refcloud-api` directory:
+  * run `docker-compose up -d` to spin up dependency services (Ory Kratos and Hydra)
+  * run `./gradlew bootRun` to start the `refcloud-api` server
 * Install dependencies: `npm install`
 * Set the following environment variables:
   ```
@@ -17,10 +20,10 @@ UI for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-reference-clou
   export HYDRA_ADMIN_API_BASE_URL="http://127.0.0.1:4445"
   export NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID="ga4gh-reference-cloud-researcher-client"
   export HYDRA_RESEARCHER_CLIENT_SECRET="secret"
+  export REFCLOUD_API_BASE_URL="http://127.0.0.1:8080"
   ```
-* Run services used by the UI: `docker-compose up -d`
-* Run the dev server: `npm run dev`
-* Access the dev server via browser at `http://localhost:3000`
+* Run the UI server in dev mode: `npm run dev`
+* Access the UI server via browser at `http://127.0.0.1:3000`
 
 ## Configuration
 
@@ -35,6 +38,7 @@ Configure the UI app via the following environment variables
 | `HYDRA_ADMIN_API_BASE_URL` | base URL to the Ory Hydra Admin API | `http://127.0.0.1:4445` |
 | `NEXT_PUBLIC_HYDRA_RESEARCHER_CLIENT_ID` | client ID registered in Ory Hydra | `ga4gh-reference-cloud-researcher-client` |
 | `HYDRA_RESEARCHER_CLIENT_SECRET` | client secret registered in Ory Hydra | `secret` |
+| `REFCLOUD_API_BASE_URL` | base URL to the Reference Cloud backend API | `http://127.0.0.1:8080` |
 | `NEXT_PUBLIC_REFCLOUD_DOCS_URL` | link to reference cloud documentation site (linked to from multiple places in the UI) | `https://docs.refcloud.ga4gh.org` |
 
 ## Issues
