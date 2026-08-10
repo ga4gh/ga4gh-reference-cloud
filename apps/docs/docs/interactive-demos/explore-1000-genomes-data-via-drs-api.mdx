@@ -1,1 +1,88 @@
+import CenteredImage from '@site/src/components/CenteredImage';
+import OneThousandGenomesDatasetCardImage from '@site/static/img/refcloud-1000-genomes-dataset-card.jpg';
+import OneThousandGenomesDrsObjectTableImage from '@site/static/img/refcloud-1000-genomes-drs-object-table.jpg';
+
 # Explore 1000 Genomes Data Via DRS API
+
+In this demo, you will explore API-based controlled data access in a standardized GA4GH environment. You will inspect and download files from the 1000 Genomes dataset via the Reference Cloud's **DRS API**, using your **Passport** token to obtain authorization. You will explore all endpoints of the DRS API, using both single-object and bulk-object requests to access the underyling data.
+
+This demo assumes you have familiarity with:
+* Your local machine's command line
+* HTTP
+* REST APIs
+
+If you have not already done so, please install a REST API testing tool on your local machine (we recommend [Postman](https://www.postman.com/))
+
+## Obtaining Access to the 1000 Genomes Dataset
+
+To begin, log in to the [reference cloud](https://refcloud.ga4gh.org) and visit the **Browse Datasets** page. You **must** be approved to access the **1000 Genomes** dataset to continue with the demo (this will be indicated by an "Approved" badge beside "Access Status").
+
+<CenteredImage src={OneThousandGenomesDatasetCardImage} alt="1000 Genomes dataset card" maxWidth="250px" />
+
+If you do not yet have access, click the **Request Access** button to submit your data access request. Next, please notify Jeremy Adams (jeremy.adams@ga4gh.org) directly by email to expedite your approval (Jeremy is currently acting as the primary data custodian for the live instance of the reference cloud).
+
+## Obtaining DRS IDs
+
+DRS acts strictly as a **data access** API. When a researcher has a specific **DRS ID**, they may provide that ID to the DRS API to obtain file metadata as well as access methods to download the file. However, DRS is not a **discovery** API, meaning that it does not provide any way for researchers to search for new DRS IDs. Typically, DRS ID discovery is handled by other GA4GH APIs, such as Beacon or Data Connect (this will be explored in future demos).
+
+Fortunately, the reference cloud has a built-in way to discover DRS IDs. Navigate to the [DRS page](https://refcloud.ga4gh.org/drs) and select **1000 Genomes** from the dropdown menu to render a table of DRS IDs. Each row represents all DRS Objects associated with the exome sequencing files for a single individual (BAM, BAI, CRAM, CRAI, etc).
+
+<CenteredImage src={OneThousandGenomesDrsObjectTableImage} alt="1000 Genomes DRS Object Table" maxWidth="75%" />
+
+In the next step, we will supply some of these IDs to the DRS API to obtain metadata and access methods for each file. Please keep the table of DRS IDs open in your browser as we will refer back to it.
+
+## DRS Part 1: Locating the DRS API and Service Info
+
+To begin, select one DRS ID from the table. We recommend choosing the ID for the BAM File in the first row, as that's what we'll be using for this section. That ID is:
+
+> `HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam`
+
+Now we're ready to begin using DRS. The base URL for the reference cloud's DRS API is:
+
+> `https://refcloud.ga4gh.org/ga4gh/drs/v1`
+
+Confirm you can reach the DRS API by making a `GET` request to the **Service Info** endpoint, which is available at:
+
+> `https://refcloud.ga4gh.org/ga4gh/drs/v1/service-info`
+
+You should receive a response with a `200 OK` status, and a JSON payload that looks like this:
+
+```
+{
+    "id": "org.ga4gh.refcloud.drs",
+    "name": "GA4GH Reference Cloud DRS Service",
+    "type": {
+        "group": "org.ga4gh",
+        "artifact": "drs",
+        "version": "1.5"
+    },
+    "description": "GA4GH reference implementation of the Data Repository Service (DRS) specification",
+    "organization": {
+        "name": "Global Alliance for Genomics and Health",
+        "url": "https://ga4gh.org"
+    },
+    "contactUrl": "mailto:jeremy.adams@ga4gh.org",
+    "documentationUrl": "https://github.com/ga4gh/ga4gh-reference-cloud",
+    "createdAt": "2026-07-20T12:00:00Z",
+    "updatedAt": "2026-07-20T12:00:00Z",
+    "environment": "production",
+    "version": "0.1.0",
+    "drs": {
+        "maxBulkLengthRequest": 10
+    }
+}
+```
+
+This payload provides basic metadata about the DRS service itself, including the service name, description, and the organization maintaining it. Most importantly, it indicates which version of the DRS specification that it has implemented (1.5)! This information provides researchers with a clear indication of what operations and request types the service supports!
+
+**Note:** Service Info is another GA4GH specification that provides standardized metadata about running web services . All GA4GH API specifications (e.g. DRS, WES, TRS, Beacon, refget, etc.)
+
+## DRS Part 2: Authorization Info
+
+## DRS Part 3: Single-Object Requests
+
+## DRS Part 4: Bulk-Object Requests
+
+
+
+ 
