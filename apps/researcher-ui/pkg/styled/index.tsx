@@ -8,12 +8,12 @@ import cn from "classnames"
 import styled from "styled-components"
 
 export const MarginCard = styled(Card)`
-  margin-top: 70px;
-  margin-bottom: 18px;
+  margin-top: 4.5rem;
+  margin-bottom: 1rem;
 `
 
 export const ActionCard = styled(Card)`
-  margin-bottom: 18px;
+  margin-bottom: 1rem;
 `
 
 export const CenterLink = styled.a`

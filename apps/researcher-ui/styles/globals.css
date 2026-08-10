@@ -1,4 +1,447 @@
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&family=Figtree:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 @import "./flexboxgrid.css";
+
+@layer base {
+  :root {
+    --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
+    --text-lg: clamp(1.1rem, 1.3vw, 1.4rem);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: theme('fontFamily.heading');
+    font-weight: 700;
+  }
+
+  h1 {
+    color: #1b75bb;
+  }
+}
+
+/* GA4GH footer, matching new_ga4gh's layout/_footer.scss + abstracts/_breakpoints.scss $max-site-width */
+@layer components {
+  .ga4gh-footer-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 1rem;
+    width: 100%;
+    max-width: 1440px;
+    margin-inline: auto;
+  }
+
+  .f-logo {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    text-align: left;
+  }
+
+  .f-logo p {
+    max-width: 32rem;
+  }
+
+  .f-social {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+}
+
+/* GA4GH footer social buttons, matching components/_buttons.scss .btn/.btn-light
+   (as used by footer.php's btn-icon-youtube/btn-icon-linkedin markup) */
+@layer components {
+  .ga4gh-btn-light {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: clamp(40px, 10vw, 50px);
+    aspect-ratio: 270 / 60;
+    padding-inline: clamp(1rem, 2cqw, 2rem);
+    padding-block: 0;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.46);
+    color: #ffffff;
+    transition: color 0.3s ease;
+  }
+
+  .ga4gh-btn-light::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: calc(100% - 2px);
+    width: 100%;
+    height: 2px;
+    background-color: #ffffff;
+    transition: all 0.3s ease;
+  }
+
+  .ga4gh-btn-light:hover::after,
+  .ga4gh-btn-light:focus-visible::after {
+    top: 0;
+    height: 100%;
+  }
+
+  .ga4gh-btn-light:hover,
+  .ga4gh-btn-light:focus-visible {
+    color: #363636;
+  }
+
+  .ga4gh-btn-light svg {
+    position: relative;
+    z-index: 1;
+    fill: currentColor;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .ga4gh-btn-light .btn-text {
+    position: relative;
+    z-index: 1;
+    font-family: theme('fontFamily.heading');
+    font-weight: 700;
+    font-size: var(--text-base);
+    text-transform: uppercase;
+  }
+}
+
+/* GA4GH anchor menu, matching new_ga4gh's components/_lists.scss .anchor-menu-list */
+@layer components {
+  .anchor-menu-link {
+    display: block;
+    padding: 0.5rem 1rem;
+    margin-left: 1rem;
+    color: #363636;
+    font-family: theme('fontFamily.sans');
+    font-weight: 700;
+    font-size: var(--text-base);
+    line-height: 1.71;
+    transition: color 0.3s ease;
+  }
+
+  .anchor-menu-link:hover,
+  .anchor-menu-link:focus-visible {
+    color: #1b75bb;
+    background-color: transparent;
+    cursor: pointer;
+  }
+
+  .anchor-menu-list .menu-title {
+    color: #363636;
+    font-family: theme('fontFamily.heading');
+    font-weight: 700;
+    font-size: var(--text-lg);
+    line-height: 1.71;
+    opacity: 1;
+  }
+}
+
+/* GA4GH box-shadow-base/box-shadow-card mixins (abstracts/_mixins.scss) */
+@layer utilities {
+  .box-shadow-base {
+    box-shadow: 0 12px 10px -12px #262626;
+  }
+
+  .box-shadow-card {
+    box-shadow: 0 5px 12px 0 rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* GA4GH login form, matching components/_buttons.scss .btn/.btn-dark */
+@layer components {
+  .ga4gh-btn-dark {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: clamp(40px, 10vw, 50px);
+    aspect-ratio: 270 / 60;
+    padding-inline: clamp(1rem, 2cqw, 2rem);
+    padding-block: 0;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    overflow: hidden;
+    background-color: #efefef;
+    box-shadow: inset 0 -2.6px 0 #363636;
+  }
+
+  .ga4gh-btn-dark::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: calc(100% - 2px);
+    width: 100%;
+    height: 2px;
+    background-color: #363636;
+    transition: all 0.3s ease;
+  }
+
+  .ga4gh-btn-dark:hover::after,
+  .ga4gh-btn-dark:focus-visible::after {
+    top: 0;
+    height: 100%;
+  }
+
+  .ga4gh-btn-dark .btn-text {
+    position: relative;
+    z-index: 1;
+    font-family: theme('fontFamily.heading');
+    font-weight: 700;
+    font-size: var(--text-base);
+    text-transform: uppercase;
+    text-align: center;
+    color: #363636;
+    transition: color 0.3s ease;
+  }
+
+  .ga4gh-btn-dark svg {
+    position: relative;
+    z-index: 1;
+    color: #363636;
+    transition: color 0.3s ease;
+  }
+
+  .ga4gh-btn-dark:hover .btn-text,
+  .ga4gh-btn-dark:focus-visible .btn-text,
+  .ga4gh-btn-dark:hover svg,
+  .ga4gh-btn-dark:focus-visible svg {
+    color: #ffffff;
+  }
+
+  .ga4gh-btn-dark:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .ga4gh-label {
+    font-family: theme('fontFamily.sans');
+    font-weight: 700;
+    font-size: var(--text-base);
+    color: #363636;
+  }
+
+  .ga4gh-input {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    font-family: theme('fontFamily.sans');
+    font-size: var(--text-base);
+    color: #363636;
+    border: 1.5px solid #dcdcdc;
+    border-radius: 0;
+    outline: none;
+    transition: border-color 0.2s ease-in-out;
+  }
+
+  .ga4gh-input:focus {
+    border-color: #1b75bb;
+  }
+}
+
+/* GA4GH filter dropdown, matching components/_list-filters.scss .list-filter (extends .label) */
+@layer components {
+  .ga4gh-select {
+    display: inline-block;
+    font-family: theme('fontFamily.label');
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 1.41;
+    text-transform: uppercase;
+    height: clamp(40px, 10vw, 50px);
+    padding: 0.5rem 1rem;
+    border: none;
+    border-bottom: 2px solid #efefef;
+    border-radius: 0;
+    background-color: #ffffff;
+    color: #363636;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+  }
+
+  .ga4gh-select:hover,
+  .ga4gh-select:active,
+  .ga4gh-select:focus {
+    color: #363636;
+    background-color: #efefef;
+    border-bottom-color: #363636;
+  }
+}
+
+/* GA4GH cta label, matching base/_typography.scss .cta */
+@layer components {
+  .ga4gh-cta {
+    font-family: theme('fontFamily.heading');
+    font-weight: 700;
+    font-size: clamp(1rem, 1.1vw, 1.1rem);
+    line-height: 1.33;
+    text-transform: uppercase;
+    color: #363636;
+  }
+}
+
+/* GA4GH tags, matching layout/_article-page.scss .category-tags box + base/_typography.scss .label type */
+@layer components {
+  .ga4gh-tag {
+    display: inline-block;
+    color: #363636;
+    background-color: #efefef;
+    border: solid 1px #767676;
+    padding: 0.5rem;
+    font-family: theme('fontFamily.label');
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 1.41;
+    text-transform: uppercase;
+  }
+}
+
+/* GA4GH status pills, matching components/_status-badges.scss .status + $pdap-status-colours/$faint-status-colours */
+@layer components {
+  .ga4gh-status {
+    display: inline-block;
+    border-radius: 100px;
+    padding: 0.5rem 1rem;
+    border: 2px solid transparent;
+    font-weight: 800;
+    font-size: var(--text-base);
+    white-space: nowrap;
+    color: #363636;
+  }
+
+  .ga4gh-status--approved {
+    border-color: #8cc63e;
+    background-color: #8cc63e50;
+  }
+
+  .ga4gh-status--requested {
+    border-color: #faa633;
+    background-color: #faa63350;
+  }
+
+  .ga4gh-status--denied {
+    border-color: #e34a3a;
+    background-color: #e34a3a50;
+  }
+
+  .ga4gh-status--not-requested {
+    border-color: #767676;
+    background-color: #efefef;
+  }
+}
+
+/* GA4GH pagination, matching components/_list-filters.scss .pagination */
+@layer components {
+  .ga4gh-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .ga4gh-pagination-item {
+    position: relative;
+    display: inline-block;
+    min-width: 1.25rem;
+    padding: 0 0.5rem;
+    font-family: theme('fontFamily.heading');
+    font-weight: 700;
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+    color: #ffffff;
+    text-align: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+
+  .ga4gh-pagination-item::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -3px;
+    height: 3px;
+    background-color: transparent;
+  }
+
+  .ga4gh-pagination-item:hover,
+  .ga4gh-pagination-item.active {
+    opacity: 1;
+  }
+
+  .ga4gh-pagination-item:hover::after,
+  .ga4gh-pagination-item.active::after {
+    background-color: #1b75bb;
+  }
+
+  .ga4gh-pagination-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    color: #ffffff;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .ga4gh-pagination-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+/* GA4GH $lightgrey-grey gradient, matching base/_colours.scss */
+@layer components {
+  .ga4gh-bg-lightgrey-grey {
+    background: linear-gradient(270deg, #767676 0%, #efefef 100%);
+  }
+}
+
+/* GA4GH default link treatment, matching components/_links.scss's global `a` rule */
+@layer components {
+  .ga4gh-link {
+    color: #1b75bb;
+    font-weight: 700;
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+
+  .ga4gh-link:hover,
+  .ga4gh-link:focus-visible {
+    color: #4faedc;
+    cursor: pointer;
+  }
+}
+
+/* GA4GH hero background: darkened greyscale pattern, floored at $dark (#363636) */
+@layer components {
+  .ga4gh-hero-bg {
+    width: 100%;
+    height: 100%;
+    background-image: url(https://ga4gh-reference-cloud-public-assets.s3.us-east-2.amazonaws.com/images/gradient-geometric-background.webp);
+    background-size: cover;
+    background-position: center;
+    filter: grayscale(100%) brightness(0.412);
+  }
+}

@@ -131,8 +131,8 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
   return (
     <>
       <div className="w-full max-w-full min-w-0 mt-8 space-y-4">
-        <div className="flex flex-col md:flex-row w-full justify-between items-center gap-4 p-4 bg-base-200 rounded-box">
-          <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-col md:flex-row w-full justify-between items-center gap-4 p-4 ga4gh-bg-lightgrey-grey rounded-none">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold">Results Per Page:</p>
             {sizeValues.map((sizeValue) => (
               sizeValue === size ? (
@@ -143,60 +143,39 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1">
-            <p className="text-sm font-semibold">Page:</p>
+          <div className="ga4gh-pagination">
+            <p className="text-sm font-semibold mr-2 text-white">Page:</p>
 
-            {/* first page button if not on first page */}
-            {page > 0 ? (
-              <>
-                <button className="btn btn-sm btn-circle" onClick={() => setPage(page - 1)}>
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                  </svg>
-                </button>
-                <button className="btn btn-sm btn-outline" onClick={() => setPage(0)}>1</button>
-              </>
-            ) : (
-              <>
-                <button className="btn btn-sm btn-circle btn-disabled" aria-disabled="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                  </svg>
-                </button>
-              </>
-            )}
+            {/* previous page arrow */}
+            <button className="ga4gh-pagination-arrow" onClick={() => setPage(page - 1)} disabled={page <= 0}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
 
-            {page > 1 ? <span className="px-1 text-sm">...</span> : null}
+            {page > 0 ? <button className="ga4gh-pagination-item" onClick={() => setPage(0)}>1</button> : null}
+
+            {page > 1 ? <span className="ga4gh-pagination-item" style={{ cursor: 'default', opacity: 1 }}>...</span> : null}
 
             {/* current page button */}
-            <button className="btn btn-sm btn-outline btn-active">{page+1}</button>
+            <button className="ga4gh-pagination-item active">{page+1}</button>
 
-            {page < finalPage - 1 ? <span className="px-1 text-sm">...</span> : null}
+            {page < finalPage - 1 ? <span className="ga4gh-pagination-item" style={{ cursor: 'default', opacity: 1 }}>...</span> : null}
 
             {/* final page button if not on final page */}
-            {page < finalPage ? (
-              <>
-                <button className="btn btn-sm btn-outline" onClick={() => setPage(finalPage)}>{finalPage+1}</button>
-                <button className="btn btn-sm btn-circle" onClick={() => setPage(page + 1)}>
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </button>
-              </>
-            )  : (
-              <>
-                <button className="btn btn-sm btn-circle btn-disabled" aria-disabled="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                  </svg>
-                </button>
-              </>
-            )}
+            {page < finalPage ? <button className="ga4gh-pagination-item" onClick={() => setPage(finalPage)}>{finalPage+1}</button> : null}
+
+            {/* next page arrow */}
+            <button className="ga4gh-pagination-arrow" onClick={() => setPage(page + 1)} disabled={page >= finalPage}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        <div className="w-full max-h-[60vh] overflow-x-auto border border-base-300 rounded-box">
-          <table className="table table-zebra table-xs whitespace-nowrap w-full">
+        <div className="w-full overflow-x-auto border border-base-300 rounded-none">
+          <table className="table table-zebra table-xs whitespace-nowrap w-full rounded-none">
             <thead>
               <tr>
                 <th className="sticky top-0 left-0 z-30 bg-base-100 shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
@@ -216,7 +195,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
                       <span className="link link-primary cursor-pointer" onClick={() => drsIdClickHandler(drsobject.manifest_content[tuple[0]])} >
                         {drsobject.manifest_content[tuple[0]]}
                       </span>
-                    </td> 
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -227,16 +206,18 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
         <dialog ref={modalRef} id="drs_object_modal" className="modal">
           <div className="modal-box w-11/12 max-w-7xl bg-neutral text-neutral-content">
             <h3 className="text-lg font-bold mb-4">Inspecting DRS Object with ID: {modalDrsId}</h3>
-            <div className="card bg-base-100 shadow-xl">
+            <div className="card bg-base-100 box-shadow-card">
               <div className="card-body">
-                <div className="pl-0 w-full text-left bg-base-300 text-base-content max-h-[70vh] rounded-xl overflow-auto">
+                <div className="pl-0 w-full text-left bg-base-300 text-base-content max-h-[70vh] rounded-none overflow-auto">
                   <pre className="p-2"><code>{JSON.stringify(modalDrsObject, null, 2)}</code></pre>
                 </div>
               </div>
             </div>
             <div className="modal-action">
               <DrsObjectDownloadButton fileUrlString={modalDrsObject?.access_methods?.[0]?.access_url?.url} />
-              <button className="mx-2 btn" onClick={closeModal}>Close</button>
+              <button className="ga4gh-btn-dark aspect-auto mx-2" onClick={closeModal}>
+                <span className="btn-text">Close</span>
+              </button>
             </div>
           </div>
         </dialog>

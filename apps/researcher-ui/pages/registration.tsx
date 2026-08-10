@@ -104,18 +104,20 @@ const Registration: NextPage = () => {
         <title>Sign up</title>
         <meta name="description" content="Sign up - GA4GH Reference Cloud" />
       </Head>
-      <div className="hero bg-base-200 min-h-screen">
+      <div className="hero min-h-screen">
+        <div className="ga4gh-hero-bg"></div>
+        <div className="hero-overlay bg-[#363636]/60"></div>
         <div className="hero-content flex-col lg:flex-row-reverse">
-          <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+          <div className="card bg-base-100 w-full max-w-sm shrink-0 box-shadow-card">
             <div className="card-body">
               <h2 className="card-title">Sign up</h2>
               <Flow onSubmit={onSubmit} flow={flow} />
               <div className="flex w-full flex-col">
                 <div className="divider" />
               </div>
-              <p>Already registered? <Link href="/login"><span className="link link-secondary">Log in</span></Link></p>
+              <p>Already registered? <Link href="/login"><span className="ga4gh-link">Log in</span></Link></p>
               { /* TODO: hiding recovery link until password recovery flow is working
-                <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
+                <p>Forgot password? <a className="ga4gh-link" href="/recovery">Recover account</a></p>
               */ }
             </div>
           </div>

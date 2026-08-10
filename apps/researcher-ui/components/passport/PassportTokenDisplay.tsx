@@ -63,7 +63,7 @@ const PassportTokenDisplay = () => {
 
   return (
     <>
-      <div className="card bg-base-100 shadow-xl">
+      <div className="card bg-base-100 box-shadow-card">
         <div className="card-body">
           <h2 className="card-title">
             Encoded JWT (copy token to use in GA4GH APIs)
@@ -77,7 +77,7 @@ const PassportTokenDisplay = () => {
       <div className="flex w-full flex-col">
         <div className="divider" />
       </div>
-      <div className="card bg-base-100 shadow-xl">
+      <div className="card bg-base-100 box-shadow-card">
         <div className="card-body">
           <h2 className="card-title">Decoded JWT Header</h2>
           <p className="font-mono bg-base-200 p-4 rounded-box break-all">
@@ -90,7 +90,7 @@ const PassportTokenDisplay = () => {
       <div className="flex w-full flex-col">
         <div className="divider" />
       </div>
-      <div className="card bg-base-100 shadow-xl">
+      <div className="card bg-base-100 box-shadow-card">
         <div className="card-body">
           <h2 className="card-title">Decoded JWT Payload</h2>
           <p className="font-mono bg-base-200 p-4 rounded-box break-all">

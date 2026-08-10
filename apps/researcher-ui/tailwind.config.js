@@ -3,9 +3,16 @@ module.exports = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
+    "./pkg/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        heading: ['"Work Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        label: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
+    },
   },
   plugins: [
     require('@tailwindcss/typography'),
@@ -19,22 +26,23 @@ module.exports = {
       {
         ga4gh: {
           ...require("daisyui/src/theming/themes")["nord"],
-          'primary': '#1b76bb',
+          'primary': '#1b75bb',
           'primary-content': '#ffffff',
-          'secondary': '#50aedb',
+          'secondary': '#4faedc',
           'secondary-content': '#ffffff',
-          'accent': '#f9a434',
+          'accent': '#faa633',
           'accent-content': '#ffffff',
-          'neutral': '#2b323c',
+          'neutral': '#363636',
           'neutral-content': '#ffffff',
-          'base-100': '#fcfcfc',
-          'base-200': '#f1f3f5',
-          'base-300': '#e5e8eb',
-          'base-content': '#2b323c',
-          'info': '#46ade3',
-          'success': '#2ab47a',
-          'warning': '#ccae1d',
-          'error': '#ee3a55',
+          'base-100': '#ffffff',
+          'base-200': '#efefef',
+          'base-300': '#dcdcdc',
+          'base-content': '#363636',
+          'info': '#4faedc',
+          'success': '#8cc63e',
+          'warning': '#faa633',
+          'error': '#e34a3a',
+          '--rounded-box': '1rem',
         }
       }
     ],

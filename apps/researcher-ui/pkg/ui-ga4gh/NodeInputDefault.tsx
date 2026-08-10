@@ -15,25 +15,9 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
   }
 
   const inputGroupStyle = {
-    gap: "8px",
-    marginBottom: "20px",
+    gap: "0.5rem",
+    marginBottom: "1.5rem",
     display: "grid"
-  }
-
-  const labelStyle = {
-    fontSize: "0.9rem",
-    fontWeight: "500",
-    color: "#374151",
-  }
-
-  const inputStyle = {
-    width: "100%",
-    padding: "12px 16px",
-    fontSize: "1rem",
-    border: "1.5px solid #d1d5db", /* Light gray border */
-    borderRadius: "8px", /* Smooth rounded corners */
-    outline: "none",
-    transition: "all 0.2s ease-in-out", /* Smooth transition for interaction */
   }
 
   const labelLookup: { [key: string]: string } = {
@@ -56,11 +40,11 @@ export function NodeInputDefault<T>(props: NodeInputProps) {
   return (
     <>
       <div style={inputGroupStyle}>
-        <label className="label" style={labelStyle}>
+        <label className="ga4gh-label">
           {labelLookup[attributes.name] || attributes.name}
         </label>
         <input
-          style={inputStyle}
+          className="ga4gh-input"
           title={node.meta.label?.text}
           onClick={onClick}
           onChange={(e) => {
