@@ -12,6 +12,15 @@ const config: Config = {
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    // v4's fasterByDefault turns on the Rspack bundler, which currently
+    // panics on `npm run start` ("Dependency with ID DependencyId(4) not
+    // found" in rspack_core's module_graph) - production builds go
+    // through a different code path and are unaffected, so this only
+    // needs to fall back to webpack for the dev server.
+    faster: {
+      rspackBundler: false,
+      rspackPersistentCache: false,
+    },
   },
 
   // Set the production url of your site here
@@ -69,13 +78,18 @@ const config: Config = {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'light',
+      disableSwitch: true,
+      respectPrefersColorScheme: false,
     },
     navbar: {
-      title: 'GA4GH Reference Cloud Docs',
+      // Title is rendered by the swizzled src/theme/Navbar/Logo (split
+      // "GA4GH" / rest coloring, matching refcloud-ui's Navbar.tsx) -
+      // this field isn't read by that component, so it's omitted here
+      // rather than left as unused/misleading config.
       logo: {
-        alt: 'GA4GH Logo',
-        src: 'img/logo-ga4gh.svg',
+        alt: 'The Global Alliance for Genomics and Health',
+        src: 'https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-color.svg',
       },
       items: [
         {
@@ -105,17 +119,23 @@ const config: Config = {
         {
           href: 'https://refcloud.ga4gh.org',
           position: 'right',
-          label: 'Go to App'
+          label: 'Go to App',
         },
         {
           href: 'https://github.com/ga4gh/ga4gh-reference-cloud',
           position: 'right',
-          label: 'GitHub'
+          label: 'GitHub',
         },
       ],
     },
     footer: {
       style: 'dark',
+      logo: {
+        alt: 'The Global Alliance for Genomics and Health',
+        src: 'https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-white.svg',
+        width: 60,
+        height: 60,
+      },
       links: [
         {
           title: 'Docs',
@@ -144,10 +164,12 @@ const config: Config = {
             {
               label: 'Go to App',
               href: 'https://refcloud.ga4gh.org',
+              className: 'ga4gh-btn-light',
             },
             {
               label: 'GitHub',
               href: 'https://github.com/ga4gh/ga4gh-reference-cloud',
+              className: 'ga4gh-btn-light',
             },
           ],
         },

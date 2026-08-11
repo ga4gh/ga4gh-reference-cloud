@@ -1,28 +1,515 @@
 /* stylelint-disable docusaurus/copyright-header */
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Global styling for GA4GH Reference Cloud Docs.
+ * Ports the GA4GH brand system used by refcloud-ui (styles/globals.css,
+ * tailwind.config.js) and the new_ga4gh theme (assets/sass/base/_colours.scss,
+ * base/_typography.scss, components/_links.scss, components/_buttons.scss,
+ * layout/_footer.scss, layout/_header.scss) onto Infima, the CSS framework
+ * this Docusaurus site bundles by default.
  */
 
-/* You can override the default Infima variables here. */
-/*
- */
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&family=Figtree:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&display=swap');
+
 :root {
-  --ga4gh-light-blue: #4faedc;
+  /* GA4GH brand palette (base/_colours.scss) */
   --ga4gh-dark-blue: #1b75bb;
-  --ga4gh-green: #8bc53f;
-  --ga4gh-yellow: #f9a533;
-  --ga4gh-red: #e34a3b;
-  --ga4gh-purple: #9f7ab0;
-  --ifm-color-primary: var(--ga4gh-dark-blue);
-  --ifm-color-primary-dark: rgb(33, 175, 144);
-  --ifm-color-primary-darker: rgb(31, 165, 136);
-  --ifm-color-primary-darkest: rgb(26, 136, 112);
-  --ifm-color-primary-light: rgb(70, 203, 174);
-  --ifm-color-primary-lighter: rgb(102, 212, 189);
-  --ifm-color-primary-lightest: rgb(146, 224, 208);
+  --ga4gh-hero-blue: #01266a;
+  --ga4gh-light-blue: #4faedc;
+  --ga4gh-lightest-blue: #c1e1f2;
+  --ga4gh-green: #8cc63e;
+  --ga4gh-dark-green: #00a99d;
+  --ga4gh-orange: #faa633;
+  --ga4gh-red: #e34a3a;
+  --ga4gh-purple: #9f79b0;
+  --ga4gh-dark: #363636;
+  --ga4gh-grey: #767676;
+  --ga4gh-lightgrey: #efefef;
+  --ga4gh-white: #ffffff;
+
+  /* Typography (base/_typography.scss) */
+  --ifm-font-family-base: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+  --ifm-heading-font-family: 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+  --ifm-font-weight-base: 400;
+  --ifm-heading-font-weight: 700;
+  --ifm-font-color-base: var(--ga4gh-dark);
   --ifm-code-font-size: 95%;
+
+  /* base/_typography.scss's --text-* scale - only the sizes actually
+     used outside Infima's own font-size vars (footer copy). --text-sm's
+     clamp() max there (0.11rem) is smaller than its min (0.85rem), which
+     per spec collapses it to a constant 0.85rem regardless of viewport -
+     that's the real, if surprising, rendered behavior on ga4gh.org, so
+     it's reproduced as the flat value rather than "fixed" to a guessed
+     intent. */
+  --text-xs: clamp(0.65rem, 0.75vw, 0.9rem);
+  --text-sm: 0.85rem;
+  --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
+
+  /* Primary color scale, interpolated between the brand's own blue
+     anchors (hero-blue on the dark end, light/lightest-blue on the
+     light end) rather than Infima's generic darken/lighten. */
+  --ifm-color-primary: var(--ga4gh-dark-blue);
+  --ifm-color-primary-dark: #12599f;
+  --ifm-color-primary-darker: #0b468a;
+  --ifm-color-primary-darkest: var(--ga4gh-hero-blue);
+  --ifm-color-primary-light: #3592cc;
+  --ifm-color-primary-lighter: var(--ga4gh-light-blue);
+  --ifm-color-primary-lightest: #93cde9;
+
+  --ifm-link-color: var(--ga4gh-dark-blue);
+  --ifm-link-hover-color: var(--ga4gh-light-blue);
+
+  --ifm-navbar-background-color: var(--ga4gh-white);
+  --ifm-navbar-link-color: var(--ga4gh-dark);
+  --ifm-navbar-link-hover-color: var(--ga4gh-dark-blue);
+  --ifm-navbar-link-active-color: var(--ga4gh-dark-blue);
+  /* abstracts/_mixins.scss's box-shadow-base, applied to the navbar
+     itself on refcloud-ui (Navbar.tsx's own "box-shadow-base" class). */
+  --ifm-navbar-shadow: 0 12px 10px -12px #262626;
+  /* refcloud-ui's navbar: DaisyUI's .navbar min-height (4rem) is exactly
+     met by its .btn brand link (3rem) plus the navbar's own 0.5rem
+     padding on each side. */
+  --ifm-navbar-height: 4rem;
+
+  --ifm-menu-color-active: var(--ga4gh-dark-blue);
+
+  --ifm-hero-background-color: var(--ga4gh-dark);
+  --ifm-hero-text-color: var(--ga4gh-white);
+}
+
+/* themeConfig.footer.style: 'dark' adds this class to the footer element,
+   which redefines the footer's --ifm-footer-* vars directly on it
+   (Infima's default.css) - an explicit declaration on the element itself
+   always wins over an inherited :root value, so it has to be overridden
+   here rather than on :root. */
+.footer--dark {
+  --ifm-footer-background-color: var(--ga4gh-dark);
+  --ifm-footer-color: var(--ga4gh-white);
+  --ifm-footer-link-color: var(--ga4gh-white);
+  --ifm-footer-link-hover-color: var(--ga4gh-grey);
+  --ifm-footer-title-color: var(--ga4gh-white);
+}
+
+/* GA4GH doesn't ship a dark theme (refcloud-ui runs a single fixed
+   data-theme="ga4gh") - the switch is disabled in docusaurus.config.ts,
+   but keep a baseline here in case Infima's own dark defaults are
+   ever reached (e.g. system dark-mode UA styling of native form
+   controls) so nothing renders unreadably. */
+[data-theme='dark'] {
+  --ifm-color-primary: var(--ga4gh-light-blue);
+  --ifm-background-color: var(--ga4gh-dark);
+  --ifm-font-color-base: var(--ga4gh-white);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+}
+
+h1 {
+  color: var(--ga4gh-dark-blue);
+}
+
+a {
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+/* abstracts/_mixins.scss's nav-link-text($font-ws-bold, $dark), as used
+   by layout/_header.scss's #menu-primary > li > a: Work Sans bold,
+   uppercase, hover to darkblue (already --ifm-navbar-link-hover-color,
+   set on :root above). Font-size is --text-base, not the mixin's own
+   --text-sm - #menu-primary > li > a declares its own font-size right
+   after the mixin include, overriding it. */
+.navbar__link {
+  font-weight: 700;
+  font-size: var(--text-base);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* #menu-primary wraps whole items onto a new row once space runs out,
+   rather than each item's own label text wrapping mid-word - .navbar's
+   fixed height (Infima default) has to become a min-height so a
+   second row actually has room to render instead of being clipped. */
+.navbar {
+  height: auto;
+  min-height: var(--ifm-navbar-height);
+}
+
+/* #menu-primary wraps whole items onto a new row once space runs out,
+   rather than each item's own label text wrapping mid-word (handled by
+   .navbar__link's white-space: nowrap above) or the links disappearing
+   under the logo. Stock Docusaurus renders the brand (src/theme/Navbar/
+   Content) as the first children of the SAME .navbar__items flex
+   container the left nav links live in - flex-wrap always restarts a
+   new line at the CONTAINER's own left edge, so wrapped links would
+   land back under the logo instead of staying in their own column.
+   The swizzled Content splits the brand into its own sibling container
+   (never wraps, always flex-shrink: 0) so .navbar__items's own left
+   edge - and so its wrapped second line - sits to the right of the
+   brand instead of underneath it. */
+.navbar__brand-container {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* .navbar__inner wraps by default too, which would drop the whole
+   .navbar__items block onto a new full-width row below the brand
+   container - nowrap keeps brand/links/right-links on one row, letting
+   only .navbar__items wrap its own children below. */
+.navbar__inner {
+  flex-wrap: nowrap;
+}
+
+/* flex-basis: auto (not Infima's default flex: 1, i.e. flex-basis: 0%) -
+   a 0% basis combined with flex-wrap on the same element makes the
+   browser size its "hypothetical main size" against a starting width of
+   0, which collapses it to almost nothing instead of the remaining
+   space between the brand and the right-hand links.
+   Scoped to :not(.navbar__items--right) - .navbar__items--right is
+   ALSO only a single class (not a .navbar__items.navbar__items--right
+   compound), i.e. equal specificity to plain .navbar__items, so an
+   unscoped rule here would win on source order alone and clobber its
+   flex: 0 0 auto/justify-content: flex-end (stretching it to fill
+   space and centering "Go to App"/"GitHub" instead of right-aligning
+   them, which is exactly what happened before this was scoped). */
+.navbar__items:not(.navbar__items--right) {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Footer links - base/_typography.scss's .footer-pagelinks (the real
+   class on new_ga4gh's own footer nav links): Work Sans bold, not the
+   body-copy weight/family other links on the page use. */
+.footer__link-item {
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  line-height: 1.14;
+}
+
+.navbar {
+  font-family: var(--ifm-heading-font-family);
+}
+
+.navbar__brand {
+  gap: 0.5rem;
+}
+
+/* Brand title - refcloud-ui's Navbar.tsx: "GA4GH" in text-primary next
+   to the rest in base-content, both in the body font (Figtree) rather
+   than this navbar's own Work Sans nav-link styling above, sized/
+   weighted to match DaisyUI's .btn.text-2xl (1.5rem, line-height 1em,
+   font-weight 600) that title sits inside on refcloud-ui. */
+.navbar__title {
+  display: inline-flex;
+  gap: 0.3rem;
+  font-family: var(--ifm-font-family-base);
+  font-size: 1.5rem;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.navbar__title-brand {
+  color: var(--ga4gh-dark-blue);
+}
+
+.navbar__title-rest {
+  color: var(--ga4gh-dark);
+}
+
+.navbar__logo {
+  height: 2.5rem;
+  width: 2.5rem;
+}
+
+.footer {
+  --ifm-footer-padding-vertical: 3rem;
+}
+
+/* Footer layout, matching refcloud-ui's .ga4gh-footer-container: logo
+   (src/theme/Footer/Layout) and link columns as flex siblings, pushed
+   to opposite ends. Own padding/max-width here rather than relying on
+   Infima's .container.container-fluid, matching refcloud-ui's own
+   <footer><div class="ga4gh-footer-container"> structure exactly. */
+/* 3 equal-width sections: f-logo, then the 2 link columns. footer__links
+   spans the remaining 2 tracks and re-declares the same gap for its own
+   2 inner columns, so those work out to exactly 1fr each too (spanning
+   2 tracks includes the gap between them: 2fr + gap, split back into 2
+   equal columns with that same gap nets out to 2 * 1fr). */
+.ga4gh-footer-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: stretch;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding: 2rem;
+}
+
+/* Left-hand section - refcloud-ui's aside.f-logo: logo, tagline and
+   copyright stacked in a single left-aligned column, stretched to the
+   row's full height (matching the link columns) with its own content
+   pinned top/bottom via space-between, same as refcloud-ui's own
+   .f-logo and new_ga4gh's layout/_footer.scss .f-logo. */
+.f-logo {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  text-align: left;
+  gap: 1rem;
+  height: 100%;
+  min-height: 4rem;
+}
+
+.f-logo .footer__logo {
+  height: 3rem;
+  width: auto;
+  margin: 0;
+}
+
+/* base/_typography.scss's .f-logo p: Figtree regular, --text-xs, white -
+   refcloud-ui's Footer.tsx adds "font-bold" to the tagline specifically
+   (the copyright line stays regular), so that's the one override. */
+.f-logo-tagline,
+.f-logo .footer__copyright {
+  font-family: var(--ifm-font-family-base);
+  font-size: var(--text-xs);
+  line-height: 1.33;
+  color: var(--ga4gh-white);
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.f-logo-tagline {
+  font-weight: 700;
+  max-width: 20rem;
+}
+
+.f-logo .footer__copyright {
+  font-weight: 400;
+}
+
+/* Link columns - new_ga4gh's layout/_footer.scss .f-links: a 2-column
+   grid of bare <ul>s (no column headings), each stretched to the row's
+   full height with its items distributed via space-between rather than
+   just stacked top-down. */
+.footer__links {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  justify-items: center;
+  gap: 2rem;
+  margin: 0;
+}
+
+/* f-links has no per-column heading - Docusaurus always renders one
+   per link column, so it's hidden rather than left unstyled. */
+.footer__title {
+  display: none;
+}
+
+.footer__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.footer__items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+.footer__item {
+  display: flex;
+  justify-content: center;
+}
+
+/* "Go to App" / "GitHub" footer links (docusaurus.config.ts's
+   className: 'ga4gh-btn-light') - components/_buttons.scss's
+   .btn/.btn-light: a translucent-white pill, rising to solid white with
+   dark text on hover, matching refcloud-ui's .ga4gh-btn-light social
+   buttons. Same rising-fill mechanic as .button/.btn-dark above, just
+   with .btn-light's colors and no bottom box-shadow (btn-theme's
+   $shadow: false for this variant). */
+.ga4gh-btn-light {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: clamp(40px, 10vw, 50px);
+  aspect-ratio: 270 / 60;
+  padding-inline: clamp(1rem, 2cqw, 2rem);
+  padding-block: 0;
+  overflow: hidden;
+  border-radius: 0;
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  background-color: rgba(255, 255, 255, 0.46);
+  color: var(--ga4gh-white);
+  transition: color 0.3s ease;
+}
+
+.ga4gh-btn-light::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  top: calc(100% - 2px);
+  width: 100%;
+  height: 2px;
+  background-color: var(--ga4gh-white);
+  transition: top 0.3s ease, height 0.3s ease;
+}
+
+.ga4gh-btn-light:hover,
+.ga4gh-btn-light:focus-visible {
+  color: var(--ga4gh-dark);
+}
+
+.ga4gh-btn-light:hover::after,
+.ga4gh-btn-light:focus-visible::after {
+  top: 0;
+  height: 100%;
+}
+
+/* Buttons - components/_buttons.scss's .btn/.btn-dark: a lightgrey
+   pill with a thin dark bottom edge at rest, whose ::after underline
+   bar rises to fill the whole button on hover/focus while the label
+   flips from dark to white. All Infima .button variants get this same
+   treatment, matching refcloud-ui's .ga4gh-btn-dark. */
+.button {
+  position: relative;
+  /* Without its own stacking context, the ::after fill below (deliberately
+     z-index: -1, so it stays behind this button's own label) would stack
+     against the nearest ancestor that DOES establish one - e.g. painting
+     behind the whole hero section - rather than just behind this button's
+     text. isolation: isolate scopes it back to this element. */
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(40px, 10vw, 50px);
+  aspect-ratio: 270 / 60;
+  padding-inline: clamp(1rem, 2cqw, 2rem);
+  padding-block: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  font-family: var(--ifm-heading-font-family);
+  font-weight: 700;
+  font-size: clamp(0.75rem, 1vw, 1rem);
+  text-transform: uppercase;
+  background-color: var(--ga4gh-lightgrey);
+  color: var(--ga4gh-dark);
+  box-shadow: inset 0 -2.6px 0 var(--ga4gh-dark);
+  transition: color 0.3s ease;
+}
+
+.button::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 0;
+  top: calc(100% - 2px);
+  width: 100%;
+  height: 2px;
+  background-color: var(--ga4gh-dark);
+  transition: top 0.3s ease, height 0.3s ease;
+}
+
+.button:hover,
+.button:focus-visible {
+  color: var(--ga4gh-white);
+}
+
+.button:hover::after,
+.button:focus-visible::after {
+  top: 0;
+  height: 100%;
+}
+
+.button:disabled,
+.button--disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Footer stacks to a single column below new_ga4gh's own $mobile
+   breakpoint (768px, layout/_footer.scss) - its responsive-breakpoint
+   mixin collapses both the outer 3-column grid and the inner 2-column
+   .f-links grid to grid-template-columns: 1fr, centering what was
+   left-aligned at desktop width. */
+@media (max-width: 768px) {
+  .ga4gh-footer-container {
+    grid-template-columns: 1fr;
+  }
+
+  .f-logo {
+    align-items: center;
+    text-align: center;
+    height: auto;
+  }
+
+  .f-logo-tagline,
+  .f-logo .footer__copyright {
+    text-align: center;
+  }
+
+  .footer__links {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Homepage hero (layout/_header.scss's darkened, greyscaled geometric
+   background, matching refcloud-ui's .ga4gh-hero-bg). The image and its
+   grayscale/brightness filter live on a dedicated ::before layer rather
+   than on .hero--primary itself - filter is a composite effect that
+   would otherwise darken the white text sitting on top of it too, since
+   it applies to an element's children as painted, not just its own
+   background. */
+.hero--primary {
+  --ifm-hero-background-color: var(--ga4gh-dark);
+  background-color: var(--ifm-hero-background-color);
+}
+
+.hero--primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('https://ga4gh-reference-cloud-public-assets.s3.us-east-2.amazonaws.com/images/gradient-geometric-background.webp');
+  background-size: cover;
+  background-position: center;
+  filter: grayscale(100%) brightness(0.412);
+}
+
+.hero--primary .container {
+  position: relative;
+}
+
+.hero--primary h1,
+.hero--primary .hero__title {
+  color: var(--ga4gh-white);
 }
 
 .docusaurus-highlight-code-line {
