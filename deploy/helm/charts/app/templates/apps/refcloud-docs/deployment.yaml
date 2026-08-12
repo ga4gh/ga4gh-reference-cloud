@@ -13,7 +13,7 @@ spec:
         app.kubernetes.io/name: refcloud-docs
     spec:
       containers:
-        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-docs:v0.1.0-1-g2cef043
+        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-docs:v0.1.0-17-g83a0dac
           name: refcloud-docs
           ports:
             - containerPort: 80
