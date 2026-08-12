@@ -1,84 +1,50 @@
-# GA4GH Starter Kit Docs
+# Website
 
-This documentation site provides information about the GA4GH Starter Kit. It uses the [Docusaurus](https://docusaurus.io/) framework for static site building.
-
-## Table of Contents
-
-1. [Installation](#installation)
-    - [Native Installation](#native-installation)
-    - [Docker Installation](#docker-installation)
-2. [Build](#build)
-    - [Native Build](#native-build)
-    - [Docker Build](#docker-build)
-3. [Deployment](#deployment)
-    - [Native Deployment](#native-deployment-used-for-local-development)
-    - [Docker Deployment](#deployment-using-docker)
-    - [Deploy to GitHub Pages](#deploy-to-github-pages)
+This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
 
 ## Installation
 
-### Native Installation
-
-To install the GA4GH Starter Kit and its dependencies natively, make sure you have the following prerequisites:
-
-- Node.js version >= 16.20.0
-- Yarn (tested with version 1.22.19)
-
-Run the following command to install all the dependencies:
-
-```
-yarn install
+```bash
+npm install
 ```
 
-### Docker Installation
+**Note**: feel free to use the package manager of your choice.
 
-To install the GA4GH Starter Kit using Docker, make sure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your machine.
+## Local Development
+
+```bash
+npm run start
+```
+
+This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
 
 ## Build
 
-The build process generates static content into the `build` directory, which can be hosted using any static content hosting service.
-
-### Native Build
-
-To build the project natively, run the following command:
-
-```
-yarn build
+```bash
+npm run build
 ```
 
-### Docker Build
-
-To build the project using Docker, execute the following command:
-
-```
-make run-docker-static-build
-```
+This command generates static content into the `build` directory and can be served using any static contents hosting service.
 
 ## Deployment
 
-This section describes how to deploy the GA4GH Starter Kit Docs.
+Using SSH:
 
-### Native Deployment (used for Local Development)
-
-The following command starts a local development server and opens up a browser window.
-```
-yarn start
-```
-This local server enables live reloading, allowing most changes to be reflected without having to restart the server.
-
-### Deployment Using Docker
-
-To deploy the static resources from the Docker image using Nginx, run the following command:
-
-```
-make run-docker-nginx-deploy
+```bash
+USE_SSH=true npm run deploy
 ```
 
-### Deploy to Github Pages
+Not using SSH:
 
-
+```bash
+GIT_USER=<Your GitHub username> npm run deploy
 ```
-GIT_USER=<Your GitHub username> USE_SSH=true yarn deploy
-```
 
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+If you are using GitHub Pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+
+## Rebuild GA4GH OpenAPI Documentation
+
+```bash
+npm run clear
+npx docusaurus gen-api-docs all
+```

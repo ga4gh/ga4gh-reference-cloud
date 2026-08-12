@@ -1,0 +1,186 @@
+---
+id: reference-cloud-data-repository-service-drs
+title: "Reference Cloud Data Repository Service (DRS)"
+description: "GA4GH Reference Cloud implementation of the Data Repository Service (DRS) API specification."
+sidebar_label: Introduction
+sidebar_position: 0
+hide_title: true
+custom_edit_url: null
+---
+
+import ApiLogo from "@theme/ApiLogo";
+import Heading from "@theme/Heading";
+import SchemaTabs from "@theme/SchemaTabs";
+import TabItem from "@theme/TabItem";
+import Export from "@theme/ApiExplorer/Export";
+
+<span
+  className={"theme-doc-version-badge badge badge--secondary"}
+  children={"Version: 1.0.0"}
+>
+</span>
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Reference Cloud Data Repository Service (DRS)"}
+>
+</Heading>
+
+<ApiLogo
+  logo={{"url":"https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-full-color.svg"}}
+>
+  
+</ApiLogo>
+
+GA4GH Reference Cloud implementation of the Data Repository Service (DRS) API specification.
+DRS provides a generic interace to data repositories so data consumers, including workflow
+systems, can access data objects in a single, standard way regardless of where they are
+stored and how they are managed.
+
+The Reference Cloud implements version **1.5.0** of the DRS specification, which is the latest
+stable release.
+
+For information about the DRS specification itself, please see the
+[documentation on GitHub](https://ga4gh.github.io/data-repository-service-schemas/preview/release/drs-1.5.0/docs/).
+
+
+<div
+  style={{"marginBottom":"2rem"}}
+>
+  <Heading
+    id={"authentication"}
+    as={"h2"}
+    className={"openapi-tabs__heading"}
+    children={"Authentication"}
+  >
+  </Heading><SchemaTabs
+    className={"openapi-tabs__security-schemes"}
+  >
+    <TabItem
+      label={"HTTP: Basic Auth"}
+      value={"BasicAuth"}
+    >
+      
+      
+      A valid authorization token must be passed in the 'Authorization' header,
+      e.g. "Basic $\{token_string\}"
+      
+      
+      <div>
+        <table>
+          <tbody>
+            <tr>
+              <th>
+                Security Scheme Type:
+              </th><td>
+                http
+              </td>
+            </tr><tr>
+              <th>
+                HTTP Authorization Scheme:
+              </th><td>
+                basic
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </TabItem><TabItem
+      label={"HTTP: Bearer Auth"}
+      value={"BearerAuth"}
+    >
+      
+      
+      A valid authorization token must be passed in the 'Authorization' header, e.g. "Bearer $\{token_string\}"
+      
+      <div>
+        <table>
+          <tbody>
+            <tr>
+              <th>
+                Security Scheme Type:
+              </th><td>
+                http
+              </td>
+            </tr><tr>
+              <th>
+                HTTP Authorization Scheme:
+              </th><td>
+                bearer
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </TabItem><TabItem
+      label={"HTTP: Bearer Auth"}
+      value={"PassportAuth"}
+    >
+      
+      
+      A valid GA4GH Passport must be passed in the body of an HTTP POST request as a tokens[] array.
+      
+      <div>
+        <table>
+          <tbody>
+            <tr>
+              <th>
+                Security Scheme Type:
+              </th><td>
+                http
+              </td>
+            </tr><tr>
+              <th>
+                HTTP Authorization Scheme:
+              </th><td>
+                bearer
+              </td>
+            </tr><tr>
+              <th>
+                Bearer format:
+              </th><td>
+                JWT
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </TabItem>
+  </SchemaTabs>
+</div><div
+  style={{"display":"flex","flexDirection":"column","marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    Contact
+  </h3><span>
+    GA4GH Tech Team: [ga4gh-tech-team@ga4gh.org](mailto:ga4gh-tech-team@ga4gh.org)
+  </span>
+</div><div
+  style={{"marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    Terms of Service
+  </h3><a
+    href={"https://www.ga4gh.org/terms-and-conditions/"}
+  >
+    {'https://www.ga4gh.org/terms-and-conditions/'}
+  </a>
+</div><div
+  style={{"marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    License
+  </h3><a
+    href={"https://raw.githubusercontent.com/ga4gh/data-repository-service-schemas/master/LICENSE"}
+  >
+    Apache 2.0
+  </a>
+</div>
+      

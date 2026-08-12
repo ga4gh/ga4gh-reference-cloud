@@ -5,17 +5,14 @@
  * and scoped locally.
  */
 
+/* Fluid instead of a flat 4rem + a breakpoint override to 2rem - eases
+   both the vertical rhythm and the horizontal breathing room down
+   smoothly as the viewport narrows, rather than jumping at 966px. */
 .heroBanner {
-  padding: 4rem 0;
+  padding: clamp(2rem, 6vw, 4rem) clamp(0rem, 4vw, 2rem);
   text-align: center;
   position: relative;
   overflow: hidden;
-}
-
-@media screen and (max-width: 966px) {
-  .heroBanner {
-    padding: 2rem;
-  }
 }
 
 .buttons {
@@ -25,5 +22,5 @@
 }
 
 .buttons a {
-  margin: 5px;
+  margin: 0.5rem;
 }
