@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - develop
-      - ja-reference-cloud-docs-setup
 permissions:
   id-token: write
 jobs:
