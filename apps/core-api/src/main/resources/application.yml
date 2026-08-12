@@ -62,4 +62,4 @@ ga4gh:
         environment: dev
         version: v0.1.0
         drs:
-          max-bulk-length-request: 1
+          max-bulk-length-request: 10
