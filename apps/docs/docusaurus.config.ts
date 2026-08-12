@@ -190,7 +190,7 @@ const config: Config = {
         docsPluginId: "classic",
         config: {
           drs: {
-            specPath: "https://raw.githubusercontent.com/ga4gh/data-repository-service-schemas/gh-pages/preview/release/drs-1.5.0/openapi.yaml",
+            specPath: "openapi/drs/openapi.yaml",
             outputDir: "docs/api-reference/drs",
             sidebarOptions: {
               groupPathsBy: "tag",

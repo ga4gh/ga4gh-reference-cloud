@@ -4,7 +4,7 @@ const sidebar: SidebarsConfig = {
   apisidebar: [
     {
       type: "doc",
-      id: "api-reference/drs/data-repository-service",
+      id: "api-reference/drs/reference-cloud-data-repository-service-drs",
     },
     {
       type: "category",
@@ -38,24 +38,6 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "api-reference/drs/get-bulk-objects",
           label: "Get info about multiple DrsObjects with an optional Passport(s).",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "api-reference/drs/get-access-url",
-          label: "Get a URL for fetching bytes",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "api-reference/drs/post-access-url",
-          label: "Get a URL for fetching bytes through POST'ing a Passport",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "api-reference/drs/get-bulk-access-url",
-          label: "Get URLs for fetching bytes from multiple objects with an optional Passport(s).",
           className: "api-method post",
         },
       ],
