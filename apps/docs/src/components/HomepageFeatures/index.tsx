@@ -40,7 +40,7 @@ function Feature({image, title, description}: {image: string; title: string; des
     <div className={clsx('col col--4')}>
       <div className="text--center">
         {/* <Svg className={styles.featureSvg} alt={title} /> */}
-        <img src={image} />
+        <img className={styles.featureImage} src={image} />
       </div>
       <div className="text--center padding-horiz--md">
         <h3>{title}</h3>
