@@ -634,17 +634,16 @@ a {
   text-decoration: none;
 }
 
-/* Only the clickable crumbs (DocBreadcrumbs renders the current/last
-   one as a plain <span>, not a link) get a hand cursor - the active
-   item isn't actually clickable, so it stays cursor: auto. */
-.breadcrumbs__item:not(.breadcrumbs__item--active) .breadcrumbs__link {
-  cursor: pointer;
-}
-
+/* None of these crumbs function as real navigation in this site's
+   structure, so hover is a deliberate no-op - no pointer cursor, no
+   underline, no color/opacity change - rather than implying they're
+   clickable. */
+.breadcrumbs__link,
 .breadcrumbs__link:hover {
+  cursor: default;
   background: none;
-  text-decoration: underline;
-  opacity: 0.7;
+  text-decoration: none;
+  opacity: 1;
 }
 
 .breadcrumbs__item--active .breadcrumbs__link {
@@ -704,4 +703,12 @@ a {
   display: block;
   margin: 0 calc(-1 * var(--ifm-pre-padding));
   padding: 0 var(--ifm-pre-padding);
+}
+
+/* Docusaurus's own built-in heading anchor ("#" link, revealed on hover
+   via @docusaurus/theme-classic's Heading component - not part of the
+   GA4GH design system being ported here) - no equivalent in the source,
+   so hidden entirely rather than restyled. */
+.hash-link {
+  display: none;
 }
