@@ -8,7 +8,7 @@
  * this Docusaurus site bundles by default.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&family=Figtree:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&family=Figtree:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&family=Roboto:wght@400;700&display=swap');
 
 :root {
   /* GA4GH brand palette (base/_colours.scss) */
@@ -43,6 +43,7 @@
      intent. */
   --text-xs: clamp(0.65rem, 0.75vw, 0.9rem);
   --text-sm: 0.85rem;
+  --text-md: clamp(1.05rem, 1.2vw, 1.3rem);
   --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
 
   /* Primary color scale, interpolated between the brand's own blue
@@ -62,7 +63,6 @@
   --ifm-navbar-background-color: var(--ga4gh-white);
   --ifm-navbar-link-color: var(--ga4gh-dark);
   --ifm-navbar-link-hover-color: var(--ga4gh-dark-blue);
-  --ifm-navbar-link-active-color: var(--ga4gh-dark-blue);
   /* abstracts/_mixins.scss's box-shadow-base, applied to the navbar
      itself on refcloud-ui (Navbar.tsx's own "box-shadow-base" class). */
   --ifm-navbar-shadow: 0 12px 10px -12px #262626;
@@ -71,7 +71,32 @@
      padding on each side. */
   --ifm-navbar-height: 4rem;
 
+  /* Sidebar menu - refcloud-ui's .anchor-menu-link/anchor-menu-list:
+     plain dark text that turns darkblue on hover/active, no background
+     pill behind either state (Infima's own hover/active tint set to
+     transparent below), same padding rhythm (0.5rem 1rem). Chevrons and
+     the expand/collapse mechanics are untouched - only color/type/
+     spacing change here. */
+  --ifm-menu-color: var(--ga4gh-dark);
   --ifm-menu-color-active: var(--ga4gh-dark-blue);
+  --ifm-menu-color-background-hover: transparent;
+  --ifm-menu-color-background-active: transparent;
+  --ifm-menu-link-padding-vertical: 0.5rem;
+  --ifm-menu-link-padding-horizontal: 1rem;
+
+  /* Right-hand TOC - new_ga4gh's own .anchor-menu-list (not refcloud-ui's
+     adapted/bolded port used for the left sidebar above): dark text with
+     no distinct font-weight/size of its own (the raw component doesn't
+     declare either, so Infima's own small TOC size is left as-is), and
+     hover goes to lightblue rather than darkblue - deliberately
+     different from the left sidebar's hover color, matching each
+     source's own actual behavior instead of reusing one blue everywhere.
+     No left border either - that's an Infima addition with nothing in
+     the source to match. */
+  --ifm-toc-link-color: var(--ga4gh-dark);
+  --ifm-toc-border-color: transparent;
+  --ifm-toc-padding-vertical: 1rem;
+  --ifm-toc-padding-horizontal: 1rem;
 
   --ifm-hero-background-color: var(--ga4gh-dark);
   --ifm-hero-text-color: var(--ga4gh-white);
@@ -131,6 +156,19 @@ a {
   font-size: var(--text-base);
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/* new_ga4gh's #menu-primary > li > a has no distinct "active" state at
+   all - only :hover goes to darkblue, everything else stays dark.
+   Infima's own .navbar__link--active reuses --ifm-navbar-link-hover-
+   color (not a separate "active" variable), and Docusaurus marks a
+   navbar doc-link active for any page under that doc's whole sidebar,
+   not just its own page - together, that's why every top-level link
+   was turning blue at once on any docs page. Matching the normal color
+   here keeps them dark while browsing, regardless of that broader
+   active-matching. */
+.navbar__link--active {
+  color: var(--ga4gh-dark);
 }
 
 /* #menu-primary wraps whole items onto a new row once space runs out,
@@ -211,7 +249,7 @@ a {
    font-weight 600) that title sits inside on refcloud-ui. */
 .navbar__title {
   display: inline-flex;
-  gap: 0.3rem;
+  gap: 0.5rem;
   font-family: var(--ifm-font-family-base);
   font-size: 1.5rem;
   line-height: 1;
@@ -231,8 +269,54 @@ a {
   width: 2.5rem;
 }
 
+/* Doc sidebar - refcloud-ui's .anchor-menu-link: Figtree bold, --text-
+   base, dark, turning darkblue on hover (Infima's own .menu__link:hover
+   leaves the color unchanged and relies on the background tint instead -
+   that tint is transparent now, per the --ifm-menu-color-background-*
+   vars on :root, so hover needs its own color change to still read as
+   interactive). Only typography/color/spacing - the chevrons and
+   expand/collapse behavior are Infima's own, untouched. */
+.menu__link {
+  font-family: var(--ifm-font-family-base);
+  font-weight: 700;
+  font-size: var(--text-base);
+  line-height: 1.71;
+}
+
+.menu__link:hover,
+.menu__link--active:hover {
+  color: var(--ga4gh-dark-blue);
+}
+
+/* Right-hand TOC - new_ga4gh's .anchor-menu-list a: the li's own margin
+   (Infima's spacing mechanism) is zeroed out in favor of padding on the
+   link itself (the source's actual spacing mechanism, and the only one
+   that gives the link a properly sized click/hover target). */
+.table-of-contents li {
+  margin: 0;
+}
+
+.table-of-contents {
+  background-color: var(--ga4gh-lightgrey);
+}
+
+.table-of-contents__link {
+  padding: 0.5rem 1rem;
+  transition: color 0.3s ease;
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link:hover code,
+.table-of-contents__link--active,
+.table-of-contents__link--active code {
+  color: var(--ga4gh-light-blue);
+}
+
 .footer {
-  --ifm-footer-padding-vertical: 3rem;
+  /* Fluid rather than a flat 3rem, so the footer's own vertical rhythm
+     eases down smoothly on narrower viewports instead of jumping at a
+     breakpoint. */
+  --ifm-footer-padding-vertical: clamp(1.5rem, 5vw, 3rem);
 }
 
 /* Footer layout, matching refcloud-ui's .ga4gh-footer-container: logo
@@ -244,16 +328,19 @@ a {
    spans the remaining 2 tracks and re-declares the same gap for its own
    2 inner columns, so those work out to exactly 1fr each too (spanning
    2 tracks includes the gap between them: 2fr + gap, split back into 2
-   equal columns with that same gap nets out to 2 * 1fr). */
+   equal columns with that same gap nets out to 2 * 1fr) - the gap here
+   and .footer__links's own gap below have to stay the exact same
+   clamp() expression for that math to hold at every viewport width, not
+   just share the same value at one breakpoint. */
 .ga4gh-footer-container {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   align-items: stretch;
-  gap: 2rem;
+  gap: clamp(1rem, 4vw, 2rem);
   width: 100%;
   max-width: 1440px;
   margin-inline: auto;
-  padding: 2rem;
+  padding: clamp(1rem, 4vw, 2rem);
 }
 
 /* Left-hand section - refcloud-ui's aside.f-logo: logo, tagline and
@@ -267,7 +354,7 @@ a {
   justify-content: space-between;
   align-items: flex-start;
   text-align: left;
-  gap: 1rem;
+  gap: clamp(0.5rem, 2vw, 1rem);
   height: 100%;
   min-height: 4rem;
 }
@@ -310,7 +397,9 @@ a {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   justify-items: center;
-  gap: 2rem;
+  /* Same clamp() expression as .ga4gh-footer-container's gap above -
+     see the comment there for why they need to match exactly. */
+  gap: clamp(1rem, 4vw, 2rem);
   margin: 0;
 }
 
@@ -510,6 +599,104 @@ a {
 .hero--primary h1,
 .hero--primary .hero__title {
   color: var(--ga4gh-white);
+}
+
+/* Breadcrumbs - components/_breadcrumbs.scss's .breadcrumb-wrapper
+   ul.breadcrumbs: plain dark text separated by a literal "|" (not
+   Infima's default chevron background-image), no pill/background
+   highlight on hover or on the active (current-page) item, and Roboto
+   instead of this site's other typefaces - base/_typography.scss's
+   .breadcrumb class, the one exception to the Work Sans/Figtree/Space
+   Grotesk set used everywhere else. */
+.breadcrumbs {
+  margin-bottom: 1rem;
+}
+
+.breadcrumbs__item:not(:last-child)::after {
+  background: none;
+  filter: none;
+  content: '|';
+  width: auto;
+  height: auto;
+  opacity: 1;
+  color: var(--ga4gh-dark);
+  margin: 0 0.5em;
+}
+
+.breadcrumbs__link {
+  border-radius: 0;
+  padding: 0;
+  background: none;
+  color: var(--ga4gh-dark);
+  font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-md);
+  line-height: 1.36;
+  text-decoration: none;
+}
+
+/* Only the clickable crumbs (DocBreadcrumbs renders the current/last
+   one as a plain <span>, not a link) get a hand cursor - the active
+   item isn't actually clickable, so it stays cursor: auto. */
+.breadcrumbs__item:not(.breadcrumbs__item--active) .breadcrumbs__link {
+  cursor: pointer;
+}
+
+.breadcrumbs__link:hover {
+  background: none;
+  text-decoration: underline;
+  opacity: 0.7;
+}
+
+.breadcrumbs__item--active .breadcrumbs__link {
+  background: none;
+  color: var(--ga4gh-dark);
+}
+
+/* Next/Previous pagination cards - abstracts/_mixins.scss's
+   card-hover-lift (raise-link-touch + hover-only raise-link): a card
+   shadow + 3px upward lift, rather than Infima's default border-color
+   flip to the primary blue on hover. Cancel that border-color change
+   explicitly, since it's an equal-specificity :hover rule Infima
+   already declares - raise-link-touch applies the raised state
+   permanently on touch/coarse-pointer devices (no :hover there to
+   trigger it), hover-only applies it only on :hover for devices that
+   support it. */
+.pagination-nav__link {
+  transition: box-shadow 0.3s, transform 0.3s, border-color 0.3s;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--ifm-color-emphasis-300);
+  text-decoration: none;
+}
+
+/* .pagination-nav__label has no color of its own, so it was inheriting
+   the card link's default --ifm-link-color (blue) at rest too - dark at
+   rest, blue only on hover, matching the same dark-then-blue treatment
+   used elsewhere (sidebar links, breadcrumbs). */
+.pagination-nav__label {
+  color: var(--ga4gh-dark);
+  transition: color 0.3s ease;
+}
+
+.pagination-nav__link:hover .pagination-nav__label {
+  color: var(--ga4gh-dark-blue);
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  .pagination-nav__link {
+    box-shadow: 0 5px 12px 0 rgba(0, 0, 0, 0.25);
+    transform: translateY(-3px);
+    cursor: pointer;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pagination-nav__link:hover {
+    box-shadow: 0 5px 12px 0 rgba(0, 0, 0, 0.25);
+    transform: translateY(-3px);
+    cursor: pointer;
+  }
 }
 
 .docusaurus-highlight-code-line {
