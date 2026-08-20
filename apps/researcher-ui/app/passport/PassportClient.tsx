@@ -1,22 +1,23 @@
 'use client';
-import type { NextPage } from 'next'
-import { useRouter } from 'next/router';
+
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import PassportTokenDisplay from '@/components/passport/PassportTokenDisplay';
-import { useEnv } from '@/context/EnvContext'
+import { useEnv } from '@/context/EnvContext';
 
-const Passport: NextPage = () => {
-  const env = useEnv()
+export default function PassportClient() {
+  const env = useEnv();
   const router = useRouter();
-  const { code, state } = router.query;
+
+  const searchParams = useSearchParams();
+  const code = searchParams?.get('code') || undefined;
+  const state = searchParams?.get('state') || undefined;
+
   const [isProcessingExchange, setIsProcessingExchange] = useState(false);
   const [flowComplete, setFlowComplete] = useState(false);
 
   useEffect(() => {
-    // Wait for Next.js router to fully parse query parameters on mount
-    if (!router.isReady) return;
-
     if (flowComplete) {
       console.log("Token already present. Escaping loop to Passport Page.");
       router.push('/passport');
@@ -46,9 +47,13 @@ const Passport: NextPage = () => {
           router.push('/passport');
         } else {
           console.error("Token swap failed:", data.details);
+          setIsProcessingExchange(false); // Reset so it could try again if needed
         }
       })
-      .catch((err) => console.error("Network crash during swap:", err));
+      .catch((err) => {
+        console.error("Network crash during swap:", err);
+        setIsProcessingExchange(false);
+      });
 
       return; // CRITICAL: Stop execution here. Do NOT run initial redirect logic.
     }
@@ -62,22 +67,22 @@ const Passport: NextPage = () => {
       hydraAuthUrl.searchParams.append('response_type', 'code');
       hydraAuthUrl.searchParams.append('scope', 'openid offline_access profile');
       hydraAuthUrl.searchParams.append('redirect_uri', `${env.UI_BASE_URL}/passport`);
-      hydraAuthUrl.searchParams.append('state', (state as string) || crypto.randomUUID());
+      hydraAuthUrl.searchParams.append('state', state || crypto.randomUUID());
 
       // Transfer window execution entirely out of Next.js state engine
       window.location.href = hydraAuthUrl.toString();
     }
-  }, [router.isReady, code, state]);
+  }, [code, state, flowComplete, isProcessingExchange, env, router]);
 
   return (
-    <>
-      <AppLayout>
-        <h1 className="mb-6 text-5xl font-bold">View Passport Token</h1>
-        <h2 className="mb-4 text-2xl">Use your passport token to access data via GA4GH APIs</h2>
-        {flowComplete ? <PassportTokenDisplay/> : <h2 className="mb-4 text-1xl">preparing passport token...</h2>}
-      </AppLayout>
-    </>
-  )
+    <AppLayout>
+      <h1 className="mb-6 text-5xl font-bold">View Passport Token</h1>
+      <h2 className="mb-4 text-2xl">Use your passport token to access data via GA4GH APIs</h2>
+      {flowComplete ? (
+        <PassportTokenDisplay />
+      ) : (
+        <h2 className="mb-4 text-xl">preparing passport token...</h2>
+      )}
+    </AppLayout>
+  );
 }
-
-export default Passport
