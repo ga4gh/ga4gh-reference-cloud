@@ -1,8 +1,9 @@
+'use client';
 import type { NextPage } from 'next'
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
-import AppLayout from 'components/layout/AppLayout';
-import PassportTokenDisplay from 'components/passport/PassportTokenDisplay';
+import AppLayout from '@/components/layout/AppLayout';
+import PassportTokenDisplay from '@/components/passport/PassportTokenDisplay';
 import { useEnv } from '@/context/EnvContext'
 
 const Passport: NextPage = () => {

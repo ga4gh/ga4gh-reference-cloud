@@ -1,6 +1,12 @@
-import { getNodeLabel } from "@ory/integrations/ui"
-
 import { NodeInputProps } from "./helpers"
+
+export function getNodeLabel(node: any): string {
+  if (node.meta?.label?.text) {
+    return node.meta.label.text
+  }
+
+  return node.attributes?.name || "Submit"
+}
 
 export function NodeInputSubmit<T>({
   node,

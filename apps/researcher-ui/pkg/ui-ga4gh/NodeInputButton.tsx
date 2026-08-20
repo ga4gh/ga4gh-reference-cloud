@@ -1,7 +1,30 @@
-import { getNodeLabel } from "@ory/integrations/ui"
-import { Button } from "@ory/themes"
-
 import { callWebauthnFunction, NodeInputProps } from "./helpers"
+
+export function getNodeLabel(node: any): string {
+  if (node.meta?.label?.text) {
+    return node.meta.label.text
+  }
+
+  return node.attributes?.name || "Submit"
+}
+
+// Inline styling config to replace Ory's standard action button primitive
+const primaryButtonStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0.625rem 1.25rem",
+  fontSize: "0.95rem",
+  fontWeight: 600,
+  borderRadius: "6px",
+  border: "1px solid #1a56db",
+  backgroundColor: "#1a56db",
+  color: "#ffffff",
+  cursor: "pointer",
+  transition: "all 0.15s ease-in-out",
+  width: "100%",
+  boxSizing: "border-box" as const,
+}
 
 export function NodeInputButton<T>({
   node,
@@ -10,13 +33,7 @@ export function NodeInputButton<T>({
   disabled,
   dispatchSubmit,
 }: NodeInputProps) {
-  // Some attributes have dynamic JavaScript - this is for example required for WebAuthn.
   const onClick = (e: React.MouseEvent | React.FormEvent<HTMLFormElement>) => {
-    // This section is only used for WebAuthn. The script is loaded via a <script> node
-    // and the functions are available on the global window level. Unfortunately, there
-    // is currently no better way than executing eval / function here at this moment.
-    //
-    // Please note that we also need to prevent the default action from happening.
     if (attributes.onclick) {
       e.stopPropagation()
       e.preventDefault()
@@ -27,18 +44,28 @@ export function NodeInputButton<T>({
     setValue(attributes.value).then(() => dispatchSubmit(e))
   }
 
+  const isButtonDisabled = attributes.disabled || disabled
+
   return (
-    <>
-      <Button
-        name={attributes.name}
-        onClick={(e) => {
-          onClick(e)
-        }}
-        value={attributes.value || ""}
-        disabled={attributes.disabled || disabled}
-      >
-        {getNodeLabel(node)}
-      </Button>
-    </>
+    <button
+      type="button"
+      name={attributes.name}
+      onClick={(e) => {
+        onClick(e)
+      }}
+      value={(attributes.value as string) || ""}
+      disabled={isButtonDisabled}
+      style={{
+        ...primaryButtonStyle,
+        ...(isButtonDisabled && {
+          backgroundColor: "#e5e7eb",
+          borderColor: "#e5e7eb",
+          color: "#9ca3af",
+          cursor: "not-allowed",
+        }),
+      }}
+    >
+      {getNodeLabel(node)}
+    </button>
   )
 }

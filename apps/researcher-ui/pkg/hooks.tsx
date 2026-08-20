@@ -1,13 +1,19 @@
 import { AxiosError } from "axios"
-import { useRouter } from "next/router"
 import { useState, useEffect, DependencyList } from "react"
+import { useRouter as useAppRouter } from "next/navigation";
+import { useRouter as usePagesRouter } from "next/router";
 
 import ory from "./sdk"
 
-// Returns a function which will log the user out
 export function LogoutLink(deps?: DependencyList) {
   const [logoutToken, setLogoutToken] = useState<string>("")
-  const router = useRouter()
+
+  let router;
+  try {
+    router = useAppRouter();
+  } catch {
+    router = usePagesRouter();
+  }
 
   useEffect(() => {
     ory
@@ -18,11 +24,9 @@ export function LogoutLink(deps?: DependencyList) {
       .catch((err: AxiosError) => {
         switch (err.response?.status) {
           case 401:
-            // do nothing, the user is not logged in
             return
         }
 
-        // Something else happened!
         return Promise.reject(err)
       })
   }, deps)
@@ -31,8 +35,20 @@ export function LogoutLink(deps?: DependencyList) {
     if (logoutToken) {
       ory
         .updateLogoutFlow({ token: logoutToken })
-        .then(() => router.push("/"))
-        .then(() => router.reload())
+        .then(() => {
+          if (!router) return;
+          router.push("/");
+        })
+        .then(() => {
+          if (!router) return;
+          
+          if ('refresh' in router) {
+            router.refresh();
+          } else if ('reload' in router) {
+            router.reload();
+          }
+        })
+        .catch((err) => console.error("Logout failed", err));
     }
   }
 }

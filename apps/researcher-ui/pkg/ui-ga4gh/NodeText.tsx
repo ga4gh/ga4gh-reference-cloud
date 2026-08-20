@@ -1,5 +1,4 @@
 import { UiNode, UiNodeTextAttributes, UiText } from "@ory/client"
-import { CodeBox, P } from "@ory/themes"
 import styled from "styled-components"
 
 interface Props {
@@ -7,8 +6,31 @@ interface Props {
   attributes: UiNodeTextAttributes
 }
 
-const ScrollableCodeBox = styled(CodeBox)`
+// Replaces <CodeBox> and <ScrollableCodeBox>
+const CustomCodeBox = styled.pre`
+  background-color: #f4f5f7;
+  border-radius: 4px;
+  padding: 1rem;
   overflow-x: auto;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: #333;
+  margin: 0;
+
+  code {
+    white-space: pre;
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+`
+
+// Replaces <P> for the meta label text
+const LabelText = styled.p`
+  font-size: 0.95rem;
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
 `
 
 const Content = ({ node, attributes }: Props) => {
@@ -39,7 +61,9 @@ const Content = ({ node, attributes }: Props) => {
 
   return (
     <div data-testid={`node/text/${attributes.id}/text`}>
-      <ScrollableCodeBox code={attributes.text.text} />
+      <CustomCodeBox>
+        <code>{attributes.text.text}</code>
+      </CustomCodeBox>
     </div>
   )
 }
@@ -47,9 +71,9 @@ const Content = ({ node, attributes }: Props) => {
 export const NodeText = ({ node, attributes }: Props) => {
   return (
     <>
-      <P data-testid={`node/text/${attributes.id}/label`}>
+      <LabelText data-testid={`node/text/${attributes.id}/label`}>
         {node.meta?.label?.text}
-      </P>
+      </LabelText>
       <Content node={node} attributes={attributes} />
     </>
   )

@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
+    "./app/**/*.{js,ts,jsx,tsx}",
     "./pages/**/*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
     "./pkg/**/*.{js,ts,jsx,tsx}",
@@ -21,11 +22,8 @@ module.exports = {
 
   daisyui: {
     themes: [
-      "cupcake",
-      "nord",
       {
         ga4gh: {
-          ...require("daisyui/src/theming/themes")["nord"],
           'primary': '#1b75bb',
           'primary-content': '#ffffff',
           'secondary': '#4faedc',
@@ -44,7 +42,8 @@ module.exports = {
           'error': '#e34a3a',
           '--rounded-box': '1rem',
         }
-      }
+      },
+      "nord",
     ],
   },
 }

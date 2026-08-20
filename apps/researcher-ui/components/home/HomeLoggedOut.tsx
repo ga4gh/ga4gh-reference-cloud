@@ -1,3 +1,4 @@
+'use client';
 import type { NextPage } from 'next'
 import { useEnv } from '@/context/EnvContext'
 import Link from 'next/link'

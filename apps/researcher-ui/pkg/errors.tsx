@@ -10,7 +10,7 @@ type FlowErrorResponse = {
 
 // A small function to help us deal with errors coming from fetching a flow.
 export function handleGetFlowError<S>(
-  router: NextRouter,
+  router: any,
   flowType: "login" | "registration" | "settings" | "recovery" | "verification",
   resetFlow: Dispatch<SetStateAction<S | undefined>>,
 ) {
