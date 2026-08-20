@@ -17,14 +17,14 @@ import { Messages } from "./Messages"
 import { Node } from "./Node"
 
 export function getNodeId(node: UiNode): string {
-  if (isUiNodeInputAttributes(node.attributes)) {
+  if (isUiNodeInputAttributesFlow(node.attributes)) {
     return node.attributes.name
   }
 
   return (node.attributes as any).id || ""
 }
 
-export function isUiNodeInputAttributes(attributes: any): attributes is { name: string; type: string; value?: any } {
+export function isUiNodeInputAttributesFlow(attributes: any): attributes is { name: string; type: string; value?: any } {
   return attributes && "name" in attributes && "type" in attributes
 }
 
@@ -89,7 +89,7 @@ export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
   initializeValues = (nodes: Array<UiNode> = []) => {
     const values = emptyState<T>()
     nodes.forEach((node) => {
-      if (isUiNodeInputAttributes(node.attributes)) {
+      if (isUiNodeInputAttributesFlow(node.attributes)) {
         if (
           node.attributes.type === "button" ||
           node.attributes.type === "submit"

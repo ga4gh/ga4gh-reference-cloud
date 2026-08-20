@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ActionCard, CenterLink, MarginCard } from "../../pkg";
-import ory from "../../pkg/sdk";
+import ory from "../../utils/ory/sdk";
 
 export default function AuthErrorClient() {
   const [error, setError] = useState<FlowError | string>();

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ThemeProvider, createGlobalStyle } from "styled-components"
-import { EnvProvider } from "@/context/EnvContext"
+import { EnvProvider } from "@/components/context/EnvContext"
 
 interface ProvidersProps {
   children: React.ReactNode;

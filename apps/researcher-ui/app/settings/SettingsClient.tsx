@@ -7,8 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
 import { ActionCard, CenterLink, Flow, Messages, Methods } from "../../pkg";
-import { handleFlowError } from "../../pkg/errors";
-import ory from "../../pkg/sdk";
+import { handleFlowError } from "../../utils/ory/errors";
+import ory from "../../utils/ory/sdk";
 
 const pageTitleStyle = { marginTop: 80, fontSize: "1.75rem", fontWeight: 700, color: "#111827", marginBottom: "2rem" };
 const heading3Style = { fontSize: "1.25rem", fontWeight: 600, color: "#1a202c", marginBottom: "1rem" };

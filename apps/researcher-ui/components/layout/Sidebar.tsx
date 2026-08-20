@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { LogoutLink } from "../../pkg"
 import Link from 'next/link';
-import { useEnv } from '@/context/EnvContext';
+import { useEnv } from '@/components/context/EnvContext';
 
 interface SidebarNavLinksProps {
   onNavigate?: () => void

@@ -1,6 +1,6 @@
 'use client';
 import type { NextPage } from 'next'
-import { useEnv } from '@/context/EnvContext'
+import { useEnv } from '@/components/context/EnvContext'
 import Link from 'next/link'
 
 const HomeLoggedOut: NextPage = () => {

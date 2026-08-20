@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import DrsManifestTable from '@/components/drs/DrsManifestTable';
+import DrsManifestTable from '@/components/pages/drs/DrsManifestTable';
 import { Dataset } from '../datasets/DatasetsClient'; 
-import { useEnv } from '@/context/EnvContext';
+import { useEnv } from '@/components/context/EnvContext';
 
 export default function DrsClient() {
   const env = useEnv();

@@ -7,8 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Flow, ActionCard, CenterLink, MarginCard } from "../../pkg";
-import { handleFlowError } from "../../pkg/errors";
-import ory from "../../pkg/sdk";
+import { handleFlowError } from "../../utils/ory/errors";
+import ory from "../../utils/ory/sdk";
 
 export default function RecoveryClient() {
   const [flow, setFlow] = useState<RecoveryFlow>();

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import ory from "@/pkg/sdk";
-import HomeLoggedOut from "@/components/home/HomeLoggedOut";
+import ory from "@/utils/ory/sdk";
+import HomeLoggedOut from "@/components/pages/home/HomeLoggedOut";
 
 export default async function HomePage() {
   let hasSession = false;

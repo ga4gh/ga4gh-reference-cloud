@@ -7,9 +7,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ActionCard, CenterLink, LogoutLink } from "../../pkg";
-import { Flow } from "../../pkg/ui-ga4gh";
-import { handleGetFlowError, handleFlowError } from "../../pkg/errors";
-import ory from "../../pkg/sdk";
+import { Flow } from "../../components/ui";
+import { handleGetFlowError, handleFlowError } from "../../utils/ory/errors";
+import ory from "../../utils/ory/sdk";
 
 export default function LoginClient() {
   const [flow, setFlow] = useState<LoginFlow>();

@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Flow, ActionCard, CenterLink, MarginCard } from "../../pkg";
-import ory from "../../pkg/sdk";
+import ory from "../../utils/ory/sdk";
 
 export default function VerificationClient() {
   const [flow, setFlow] = useState<VerificationFlow>();

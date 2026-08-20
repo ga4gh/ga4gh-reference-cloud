@@ -3,8 +3,8 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import PassportTokenDisplay from '@/components/passport/PassportTokenDisplay';
-import { useEnv } from '@/context/EnvContext';
+import PassportTokenDisplay from '@/components/pages/passport/PassportTokenDisplay';
+import { useEnv } from '@/components/context/EnvContext';
 
 export default function PassportClient() {
   const env = useEnv();
