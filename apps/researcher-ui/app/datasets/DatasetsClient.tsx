@@ -1,7 +1,7 @@
 'use client';
 
 import AppLayout from '@/components/layout/AppLayout';
-import DatasetCard from '@/components/datasets/DatasetCard';
+import DatasetCard from '@/components/pages/datasets/DatasetCard';
 import { useState, useEffect } from 'react';
 
 export enum PassportVisaAssertionStatus {

@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
-import { ActionCard, CenterLink, Flow, Messages, Methods } from "../../pkg";
+import { ActionCard, CenterLink } from "@/components/ui/styled";
+import { Flow, Messages, Methods } from "@/components/ui";
 import { handleFlowError } from "../../utils/ory/errors";
 import ory from "../../utils/ory/sdk";
 

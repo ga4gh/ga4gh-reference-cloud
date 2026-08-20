@@ -5,8 +5,8 @@ import { AxiosError } from "axios";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-
-import { Flow, ActionCard, CenterLink, MarginCard } from "../../pkg";
+import { ActionCard, CenterLink, MarginCard } from "@/components/ui/styled";
+import { Flow } from "@/components/ui";
 import { handleFlowError } from "../../utils/ory/errors";
 import ory from "../../utils/ory/sdk";
 

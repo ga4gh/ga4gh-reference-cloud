@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { LogoutLink } from "../../pkg"
+import { LogoutLink } from "@/utils/ory/hooks";
 import Link from 'next/link';
 import { useEnv } from '@/components/context/EnvContext';
 

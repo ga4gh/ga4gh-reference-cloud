@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { ActionCard, CenterLink, MarginCard } from "../../pkg";
+import { ActionCard, CenterLink, MarginCard } from "@/components/ui/styled";
 import ory from "../../utils/ory/sdk";
 
 export default function AuthErrorClient() {
