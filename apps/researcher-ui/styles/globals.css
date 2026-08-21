@@ -4,7 +4,7 @@
 
 @plugin "@tailwindcss/typography";
 @plugin "daisyui" {
-  themes: ga4gh, nord;
+  themes: ga4gh;
 }
 
 @theme {

@@ -106,6 +106,8 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
   }, [selectedDatasetId, page, size])
 
   useEffect(() => {
+    if (!modalDrsId) return;
+
     console.log("fetching data for DRS ID: " + modalDrsId);
     const loadDrsObject = async() => {
       try {
@@ -133,9 +135,9 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
             <p className="text-sm font-semibold">Results Per Page:</p>
             {sizeValues.map((sizeValue) => (
               sizeValue === size ? (
-                <button key={sizeValue} className="btn btn-sm btn-outline btn-active">{sizeValue}</button>
+                <button key={sizeValue} className="border rounded-md btn btn-sm btn-neutral hover:border-neutral btn-active">{sizeValue}</button>
               ) : (
-                <button key={sizeValue} className="btn btn-sm btn-outline" onClick={() => changeSizeHandler(sizeValue)}>{sizeValue}</button>
+                <button key={sizeValue} className="border rounded-md btn btn-sm btn-outline btn-neutral hover:border-neutral" onClick={() => changeSizeHandler(sizeValue)}>{sizeValue}</button>
               )
             ))}
           </div>
@@ -175,10 +177,10 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           <table className="ga4gh-drs-table table table-zebra table-xs w-full rounded-none">
             <thead>
               <tr>
-                <th className="sticky top-0 left-0 z-30 bg-base-200 text-base-content shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
-                <th className="sticky top-0 z-10 bg-base-200 text-base-content">Manifest DRS ID</th>
-                <th className="sticky top-0 z-10 bg-base-200 text-base-content">Manifest Description</th>
-                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-200 text-base-content" key={idx}>{tuple[1]}</th> )}
+                <th className="sticky top-0 left-0 z-30 bg-base-100 shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
+                <th className="sticky top-0 z-10 bg-base-100 text-xs">Manifest DRS ID</th>
+                <th className="sticky top-0 z-10 bg-base-100 text-xs">Manifest Description</th>
+                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-100 text-xs" key={idx}>{tuple[1]}</th> )}
               </tr>
             </thead>
             <tbody>

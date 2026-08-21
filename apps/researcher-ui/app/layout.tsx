@@ -3,7 +3,7 @@ import { Providers } from "./providers";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "Refcloud UI",
+  title: "GA4GH Reference Cloud",
   description: "Reference implementation of multiple GA4GH API standards",
 };
 
