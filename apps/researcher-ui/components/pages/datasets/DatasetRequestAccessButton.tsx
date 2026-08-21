@@ -1,5 +1,5 @@
 import React, {Dispatch, SetStateAction} from 'react';
-import { Dataset } from 'pages/datasets';
+import { Dataset } from './DatasetsClient';
 import {useState} from 'react';
 
 interface DatasetRequestAccessButtonProps {

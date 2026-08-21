@@ -50,7 +50,6 @@ export default function LoginClient() {
   }, [flowId, router, aal, refresh, returnTo, flow]);
 
   const onSubmit = (values: UpdateLoginFlowBody) => {
-    // 💡 Shallow routing is default in App Router, path string is standard
     router.push(`/login?flow=${flow?.id}`);
     
     return ory

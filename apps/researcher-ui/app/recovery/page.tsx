@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import RecoveryClient from "./RecoveryClient";
+import RecoveryClient from "@/components/pages/recovery/RecoveryClient";
 
 export const metadata: Metadata = {
   title: "Recover your account",

@@ -6,9 +6,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Flow } from "../../components/ui";
-import { handleFlowError } from "../../utils/ory/errors";
-import ory from "../../utils/ory/sdk";
+import { Flow } from "@/components/ui";
+import { handleFlowError } from "@/utils/ory/errors";
+import ory from "@/utils/ory/sdk";
 
 export default function RegistrationClient() {
   const router = useRouter();

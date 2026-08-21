@@ -1,5 +1,5 @@
 import React, {Dispatch, SetStateAction} from 'react';
-import { Dataset, PassportVisaAssertionStatus } from 'pages/datasets';
+import { Dataset, PassportVisaAssertionStatus } from './DatasetsClient';
 import DatasetRequestAccessButton from './DatasetRequestAccessButton';
 
 interface DatasetCardProps {

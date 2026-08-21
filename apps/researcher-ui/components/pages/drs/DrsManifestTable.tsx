@@ -75,12 +75,10 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           throw new Error('datasets API response was not ok');
         }
 
-        // update the table data
         const pageResult = await response.json()
         const newTableData = pageResult.content
         setTableData(newTableData)
 
-        // grab the unique set of manifest key ids that appears in the dataset
         const uniqueManifestKeys = [...pageResult.content.reduce((set: Set<string>, obj: DrsObject) => {
           if (obj.manifest_content) {
             Object.keys(obj.manifest_content).forEach(key => set.add(key));
@@ -98,7 +96,6 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
 
         setManifestSubFileTableKeysAndHeaders(newManifestSubFileTableKeysAndHeaders);
 
-        // update the final page number
         setFinalPage(pageResult.totalPages - 1)
       } catch (error) {
         console.error("Failed to fetch table data:", error)

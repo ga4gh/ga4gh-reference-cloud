@@ -1,11 +1,10 @@
-// app/auth-error/page.tsx
 import { Metadata } from "next";
 import { Suspense } from "react";
-import AuthErrorClient from "./AuthErrorClient";
+import AuthErrorClient from "@/components/pages/auth-error/AuthErrorClient";
 
 export const metadata: Metadata = {
-  title: "Authentication Error - GA4GH Reference Cloud",
-  description: "An error occurred during your authentication sequence",
+  title: "Auth Error - GA4GH Reference Cloud",
+  description: "An error occurred during your authentication/authorization sequence",
 };
 
 export default function AuthErrorPage() {

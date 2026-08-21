@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import LoginClient from "./LoginClient";
+import LoginClient from "@/components/pages/login/LoginClient";
 
 export const metadata: Metadata = {
   title: "Log in",

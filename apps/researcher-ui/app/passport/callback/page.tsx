@@ -1,4 +1,3 @@
-// app/passport/callback/page.tsx
 'use client';
 
 import { useEffect } from 'react';
@@ -23,7 +22,6 @@ export default function PassportCallbackPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          // 💡 FIX: Change window.opener to window.parent because we are inside an iframe now
           if (window.parent) {
             window.parent.postMessage({ type: 'PASSPORT_AUTH_SUCCESS' }, window.location.origin);
           }
@@ -33,5 +31,5 @@ export default function PassportCallbackPage() {
     }
   }, [env]);
 
-  return null; // Invisible component stream
+  return null;
 }

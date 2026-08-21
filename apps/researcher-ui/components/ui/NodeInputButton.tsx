@@ -8,7 +8,6 @@ export function getNodeLabel(node: any): string {
   return node.attributes?.name || "Submit"
 }
 
-// Inline styling config to replace Ory's standard action button primitive
 const primaryButtonStyle = {
   display: "inline-flex",
   alignItems: "center",

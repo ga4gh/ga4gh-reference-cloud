@@ -8,8 +8,8 @@ import { ReactNode, useEffect, useState } from "react";
 
 import { ActionCard, CenterLink } from "@/components/ui/styled";
 import { Flow, Messages, Methods } from "@/components/ui";
-import { handleFlowError } from "../../utils/ory/errors";
-import ory from "../../utils/ory/sdk";
+import { handleFlowError } from "@/utils/ory/errors";
+import ory from "@/utils/ory/sdk";
 
 const pageTitleStyle = { marginTop: 80, fontSize: "1.75rem", fontWeight: 700, color: "#111827", marginBottom: "2rem" };
 const heading3Style = { fontSize: "1.25rem", fontWeight: 600, color: "#1a202c", marginBottom: "1rem" };
@@ -132,7 +132,6 @@ export default function SettingsClient() {
       </SettingsCard>
 
       <ActionCard>
-        {/* 💡 passHref is no longer needed in Next.js 13+ Link tags */}
         <Link href="/">
           <CenterLink>Go back</CenterLink>
         </Link>

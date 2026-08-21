@@ -1,11 +1,11 @@
 import { Metadata } from 'next';
 import { Suspense } from 'react';
-import PassportClient from './PassportClient';
+import PassportClient from '../../components/pages/passport/PassportClient';
 import AppLayout from '@/components/layout/AppLayout';
 
 export const metadata: Metadata = {
   title: 'View Passport Token - GA4GH Reference Cloud',
-  description: 'Manage and use your passport tokens to securely access sensitive data assets via standard GA4GH compliant APIs.',
+  description: 'Use your passport token to access data via GA4GH APIs',
 };
 
 export default function PassportPage() {

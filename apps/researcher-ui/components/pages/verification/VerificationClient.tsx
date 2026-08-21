@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 
 import { ActionCard, CenterLink, MarginCard } from "@/components/ui/styled";
 import { Flow } from "@/components/ui";
-import ory from "../../utils/ory/sdk";
+import ory from "@/utils/ory/sdk";
 
 export default function VerificationClient() {
   const [flow, setFlow] = useState<VerificationFlow>();

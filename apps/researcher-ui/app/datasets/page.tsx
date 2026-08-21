@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import ory from "@/utils/ory/sdk";
-import DatasetsClient, { Dataset } from "./DatasetsClient";
+import DatasetsClient, { Dataset } from "@/components/pages/datasets/DatasetsClient";
 
 export default async function DatasetsPage() {
   const reqHeaders = await headers();

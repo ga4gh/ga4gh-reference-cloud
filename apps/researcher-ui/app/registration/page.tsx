@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import RegistrationClient from "./RegistrationClient";
+import RegistrationClient from "@/components/pages/registration/RegistrationClient";
 
 export const metadata: Metadata = {
   title: "Sign up",

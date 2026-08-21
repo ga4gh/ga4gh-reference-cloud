@@ -3,6 +3,7 @@
 import React from "react";
 import { ThemeProvider, createGlobalStyle } from "styled-components"
 import { EnvProvider } from "@/components/context/EnvContext"
+import { PassportTokenProvider } from "@/components/context/PassportTokenContext";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -37,10 +38,12 @@ const GlobalStyle = createGlobalStyle`
 export function Providers({ children }: ProvidersProps) {
   return (
       <EnvProvider>
-        <ThemeProvider theme={defaultTheme}>
-          <GlobalStyle />
-          {children}
-        </ThemeProvider>
+        <PassportTokenProvider>
+          <ThemeProvider theme={defaultTheme}>
+            <GlobalStyle />
+            {children}
+          </ThemeProvider>
+        </PassportTokenProvider>
       </EnvProvider>
   );
 }

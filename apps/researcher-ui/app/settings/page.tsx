@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import SettingsClient from "./SettingsClient";
+import SettingsClient from "@/components/pages/settings/SettingsClient";
 
 export const metadata: Metadata = {
   title: "Profile Settings",

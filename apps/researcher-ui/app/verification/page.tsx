@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import VerificationClient from "./VerificationClient";
+import VerificationClient from "@/components/pages/verification/VerificationClient";
 
 export const metadata: Metadata = {
   title: "Verify your account",

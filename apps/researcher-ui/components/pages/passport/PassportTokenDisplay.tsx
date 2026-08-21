@@ -3,15 +3,12 @@ import PassportCopyButton from './PassportCopyButton';
 import PassportIsCopiedButton from './PassportIsCopiedButton';
 
 const base64Decode = (base64Url: string) => {
-  // Replace Base64Url characters with standard Base64 characters
   let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-  
-  // Pad the string with '=' if necessary
+
   while (base64.length % 4) {
     base64 += '=';
   }
 
-  // Decode Base64 to raw string, handling multi-byte UTF-8 characters safely
   const jsonStr = decodeURIComponent(
     atob(base64)
       .split('')

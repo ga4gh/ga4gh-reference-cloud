@@ -5,7 +5,6 @@ interface Props {
   attributes: UiNodeAnchorAttributes
 }
 
-// Replaced @ory/themes button with a clean native look
 const buttonStyle = {
   display: "inline-flex",
   alignItems: "center",
@@ -19,7 +18,7 @@ const buttonStyle = {
   color: "#374151",
   cursor: "pointer",
   transition: "background-color 0.2s, border-color 0.2s",
-  width: "100%", // Adapts to standard Ory workflow button layouts
+  width: "100%",
 }
 
 export const NodeAnchor = ({ node, attributes }: Props) => {

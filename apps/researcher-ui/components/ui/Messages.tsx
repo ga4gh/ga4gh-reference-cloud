@@ -1,5 +1,4 @@
 import { UiText } from "@ory/client"
-import { Alert, AlertContent } from "@ory/themes"
 
 interface MessageProps {
   message: UiText
