@@ -75,20 +75,14 @@ export default function RegistrationClient() {
   };
 
   return (
-    <div className="hero min-h-screen">
-      <div className="ga4gh-hero-bg"></div>
-      <div className="hero-overlay bg-[#363636]/60"></div>
-      <div className="hero-content flex-col lg:flex-row-reverse">
-        <div className="card bg-base-100 w-full max-w-sm shrink-0 box-shadow-card">
-          <div className="card-body">
-            <h2 className="card-title">Sign up</h2>
-            <Flow onSubmit={onSubmit} flow={flow} />
-            <div className="flex w-full flex-col">
-              <div className="divider" />
-            </div>
-            <p>Already registered? <Link href="/login"><span className="ga4gh-link">Log in</span></Link></p>
-          </div>
+    <div className="card bg-base-100 w-full max-w-sm shrink-0 box-shadow-card">
+      <div className="card-body">
+        <h2 className="card-title">Sign up</h2>
+        <Flow onSubmit={onSubmit} flow={flow} />
+        <div className="flex w-full flex-col">
+          <div className="divider" />
         </div>
+        <p>Already registered? <Link href="/login"><span className="ga4gh-link">Log in</span></Link></p>
       </div>
     </div>
   );

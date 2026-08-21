@@ -76,39 +76,33 @@ export default function LoginClient() {
   };
 
   return (
-    <div className="hero min-h-screen">
-      <div className="ga4gh-hero-bg"></div>
-      <div className="hero-overlay bg-[#363636]/60"></div>
-      <div className="hero-content flex-col lg:flex-row-reverse">
-        <div className="card bg-base-100 w-full max-w-sm shrink-0 box-shadow-card">
-          <div className="card-body">
-            <h2 className="card-title">
-              {(() => {
-                if (flow?.refresh) {
-                  return "Confirm Action";
-                } else if (flow?.requested_aal === "aal2") {
-                  return "Two-Factor Authentication";
-                }
-                return "Log in";
-              })()}
-            </h2>
-            <Flow onSubmit={onSubmit} flow={flow} />
-            {aal || refresh ? (
-              <ActionCard>
-                <CenterLink data-testid="logout-link" onClick={onLogout}>
-                  Log out
-                </CenterLink>
-              </ActionCard>
-            ) : (
-              <>
-                <div className="flex w-full flex-col">
-                  <div className="divider" />
-                </div>
-                <p>New user? <Link href="/registration"><span className="ga4gh-link">Sign up</span></Link></p>
-              </>
-            )}
-          </div>
-        </div>
+    <div className="card bg-base-100 w-full max-w-sm shrink-0 box-shadow-card">
+      <div className="card-body">
+        <h2 className="card-title">
+          {(() => {
+            if (flow?.refresh) {
+              return "Confirm Action";
+            } else if (flow?.requested_aal === "aal2") {
+              return "Two-Factor Authentication";
+            }
+            return "Log in";
+          })()}
+        </h2>
+        <Flow onSubmit={onSubmit} flow={flow} />
+        {aal || refresh ? (
+          <ActionCard>
+            <CenterLink data-testid="logout-link" onClick={onLogout}>
+              Log out
+            </CenterLink>
+          </ActionCard>
+        ) : (
+          <>
+            <div className="flex w-full flex-col">
+              <div className="divider" />
+            </div>
+            <p>New user? <Link href="/registration"><span className="ga4gh-link">Sign up</span></Link></p>
+          </>
+        )}
       </div>
     </div>
   );

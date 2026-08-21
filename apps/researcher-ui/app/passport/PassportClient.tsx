@@ -1,88 +1,73 @@
+// app/passport/PassportClient.tsx
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import AppLayout from '@/components/layout/AppLayout';
 import PassportTokenDisplay from '@/components/pages/passport/PassportTokenDisplay';
 import { useEnv } from '@/components/context/EnvContext';
 
 export default function PassportClient() {
   const env = useEnv();
-  const router = useRouter();
-
-  const searchParams = useSearchParams();
-  const code = searchParams?.get('code') || undefined;
-  const state = searchParams?.get('state') || undefined;
-
-  const [isProcessingExchange, setIsProcessingExchange] = useState(false);
   const [flowComplete, setFlowComplete] = useState(false);
+  const [isAuthTriggered, setIsAuthTriggered] = useState(false);
 
   useEffect(() => {
-    if (flowComplete) {
-      console.log("Token already present. Escaping loop to Passport Page.");
-      router.push('/passport');
-      return;
-    }
+    // 💡 Listen for the postMessage signal from the invisible iframe
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
 
-    // PIPELINE A: WE HAVE AN OAUTH CODE FROM HYDRA -> RUN EXCHANGE ONLY
-    if (!flowComplete && code && typeof code === 'string') {
-      if (isProcessingExchange) return; // Prevent double-triggering exchange
-      setIsProcessingExchange(true);
+      if (event.data?.type === 'PASSPORT_AUTH_SUCCESS') {
+        console.log("🔒 Invisible frame auth success! Rendering token...");
+        setFlowComplete(true);
+        
+        // Clean up the iframe from the DOM once finished
+        const frame = document.getElementById('hydra-auth-frame');
+        if (frame) frame.remove();
+      }
+    };
 
-      console.log("Found Hydra Code. Swapping for JWT via Server API...");
-
-      fetch('/api/oauth/token-exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          redirect_uri: `${env.UI_BASE_URL}/passport`
-        })
-      })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          // Token is saved securely as an HttpOnly cookie via the server handler
-          setFlowComplete(true);
-          router.push('/passport');
-        } else {
-          console.error("Token swap failed:", data.details);
-          setIsProcessingExchange(false); // Reset so it could try again if needed
-        }
-      })
-      .catch((err) => {
-        console.error("Network crash during swap:", err);
-        setIsProcessingExchange(false);
-      });
-
-      return; // CRITICAL: Stop execution here. Do NOT run initial redirect logic.
-    }
-
-    // PIPELINE B: NO CODE & NO TOKEN YET -> INITIATE THE LOGIN REDIRECT ONLY ONCE
-    if (!flowComplete && !code) {
-      console.log("No token or code found. Transitioning window control to Ory Hydra...");
+    window.addEventListener('message', handleAuthMessage);
+    
+    // Automatically trigger the hidden flow on mount if not authenticated yet
+    if (!flowComplete && !isAuthTriggered) {
+      setIsAuthTriggered(true);
+      console.log("Launching hidden background authentication flow...");
 
       const hydraAuthUrl = new URL(`${env.HYDRA_PUBLIC_API_BROWSER_SIDE_BASE_URL}/oauth2/auth`);
       hydraAuthUrl.searchParams.append('client_id', `${env.HYDRA_RESEARCHER_CLIENT_ID}`);
       hydraAuthUrl.searchParams.append('response_type', 'code');
       hydraAuthUrl.searchParams.append('scope', 'openid offline_access profile');
-      hydraAuthUrl.searchParams.append('redirect_uri', `${env.UI_BASE_URL}/passport`);
-      hydraAuthUrl.searchParams.append('state', state || crypto.randomUUID());
+      hydraAuthUrl.searchParams.append('redirect_uri', `${env.UI_BASE_URL}/passport/callback`);
+      hydraAuthUrl.searchParams.append('state', crypto.randomUUID());
 
-      // Transfer window execution entirely out of Next.js state engine
-      window.location.href = hydraAuthUrl.toString();
+      // Create an invisible iframe
+      const iframe = document.createElement('iframe');
+      iframe.id = 'hydra-auth-frame';
+      iframe.src = hydraAuthUrl.toString();
+      // Hide it completely from view and assistive technologies
+      iframe.style.display = 'none';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.position = 'absolute';
+      
+      document.body.appendChild(iframe);
     }
-  }, [code, state, flowComplete, isProcessingExchange, env, router]);
+
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, [flowComplete, isAuthTriggered, env]);
 
   return (
-    <AppLayout>
-      <h1 className="mb-6 text-5xl font-bold">View Passport Token</h1>
-      <h2 className="mb-4 text-2xl">Use your passport token to access data via GA4GH APIs</h2>
+    <div className="mt-6">
       {flowComplete ? (
         <PassportTokenDisplay />
       ) : (
-        <h2 className="mb-4 text-xl">preparing passport token...</h2>
+        <div className="flex flex-col gap-4">
+          <h2 className="mb-4 text-xl font-medium flex items-center gap-2">
+            <span className="loading loading-ring loading-md text-primary"></span>
+            Preparing secure connection keys in background...
+          </h2>
+          <div className="h-[200px] bg-base-200 w-full max-w-4xl rounded-box animate-pulse" />
+        </div>
       )}
-    </AppLayout>
+    </div>
   );
 }

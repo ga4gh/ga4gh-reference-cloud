@@ -1,6 +1,6 @@
 const Footer = () => {
   return (
-    <footer className="bg-neutral text-neutral-content p-10">
+    <footer className="ga4gh-footer bg-neutral text-neutral-content p-10">
       <div className="ga4gh-footer-container">
         <aside className="f-logo">
           <img
