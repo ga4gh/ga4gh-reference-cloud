@@ -2,12 +2,15 @@
 @import "tailwindcss";
 @import "./flexboxgrid.css";
 
-@plugin "daisyui";
+@plugin "@tailwindcss/typography";
+@plugin "daisyui" {
+  themes: ga4gh, nord;
+}
 
 @theme {
-  --font-heading: 'Work Sans', 'Space Grotesk', sans-serif;
-  --font-sans: 'Figtree', sans-serif;
-  --font-label: 'Space Grotesk', sans-serif;
+  --font-sans: "Figtree", "ui-sans-serif", "system-ui", sans-serif;
+  --font-heading: "Work Sans", "ui-sans-serif", "system-ui", sans-serif;
+  --font-label: "Space Grotesk", "ui-sans-serif", "system-ui", sans-serif;
   
   --color-brand-blue: #1b75bb;
   --color-brand-dark: #363636;
@@ -55,19 +58,45 @@
   --text-lg: clamp(1.1rem, 1.3vw, 1.4rem);
 }
 
+@plugin "daisyui/theme" {
+  name: "ga4gh";
+  --color-primary: #1b75bb;
+  --color-primary-content: #ffffff;
+  --color-secondary: #4faedc;
+  --color-secondary-content: #ffffff;
+  --color-accent: #faa633;
+  --color-accent-content: #ffffff;
+  --color-neutral: #363636;
+  --color-neutral-content: #ffffff;
+  --color-base-100: #ffffff;
+  --color-base-200: #efefef;
+  --color-base-300: #dcdcdc;
+  --color-base-content: #363636;
+  --color-info: #4faedc;
+  --color-success: #8cc63e;
+  --color-warning: #faa633;
+  --color-error: #e34a3a;
+  --radius-box: 1rem;
+}
+
 @layer base {
+  html, body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+
+    font-family: var(--font-sans);
+    font-weight: 400;
+    color: #363636;
+  }
+
   :root {
     --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
     --text-lg: clamp(1.1rem, 1.3vw, 1.4rem);
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: theme('fontFamily.heading');
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
     font-weight: 700;
   }
 
@@ -239,7 +268,7 @@ h1 {
   .ga4gh-btn-light .btn-text {
     position: relative;
     z-index: 1;
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: var(--text-base);
     text-transform: uppercase;
@@ -253,7 +282,7 @@ h1 {
     padding: 0.5rem 1rem;
     margin-left: 1rem;
     color: #363636;
-    font-family: theme('fontFamily.sans');
+    font-family: var(--font-sans);
     font-weight: 700;
     font-size: var(--text-base);
     line-height: 1.71;
@@ -269,7 +298,7 @@ h1 {
 
   .anchor-menu-list .menu-title {
     color: #363636;
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: var(--text-lg);
     line-height: 1.71;
@@ -327,7 +356,7 @@ h1 {
   .ga4gh-btn-dark .btn-text {
     position: relative;
     z-index: 1;
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: var(--text-base);
     text-transform: uppercase;
@@ -356,7 +385,7 @@ h1 {
   }
 
   .ga4gh-label {
-    font-family: theme('fontFamily.sans');
+    font-family: var(--font-sans);
     font-weight: 700;
     font-size: var(--text-base);
     color: #363636;
@@ -365,7 +394,7 @@ h1 {
   .ga4gh-input {
     width: 100%;
     padding: 0.5rem 1rem;
-    font-family: theme('fontFamily.sans');
+    font-family: var(--font-sans);
     font-size: var(--text-base);
     color: #363636;
     border: 1.5px solid #dcdcdc;
@@ -383,7 +412,7 @@ h1 {
 @layer components {
   .ga4gh-select {
     display: inline-block;
-    font-family: theme('fontFamily.label');
+    font-family: var(--font-label);
     font-weight: 700;
     font-size: 0.85rem;
     line-height: 1.41;
@@ -411,7 +440,7 @@ h1 {
 /* GA4GH cta label, matching base/_typography.scss .cta */
 @layer components {
   .ga4gh-cta {
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: clamp(1rem, 1.1vw, 1.1rem);
     line-height: 1.33;
@@ -428,7 +457,7 @@ h1 {
     background-color: #efefef;
     border: solid 1px #767676;
     padding: 0.5rem;
-    font-family: theme('fontFamily.label');
+    font-family: var(--font-label);
     font-weight: 700;
     font-size: 0.85rem;
     line-height: 1.41;
@@ -555,7 +584,7 @@ h1 {
     display: inline-block;
     min-width: 1.25rem;
     padding: 0 0.5rem;
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: 1.25rem;
     line-height: 1.5rem;
