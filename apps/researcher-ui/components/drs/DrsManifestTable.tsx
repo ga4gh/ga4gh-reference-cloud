@@ -131,7 +131,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
   return (
     <>
       <div className="w-full max-w-full min-w-0 mt-8 space-y-4">
-        <div className="flex flex-col md:flex-row w-full justify-between items-center gap-4 p-4 ga4gh-bg-lightgrey-grey rounded-none">
+        <div className="flex flex-col md:flex-row w-full justify-between items-center gap-4 p-4 bg-base-200 text-base-content rounded-none">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold">Results Per Page:</p>
             {sizeValues.map((sizeValue) => (
@@ -144,7 +144,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           </div>
 
           <div className="ga4gh-pagination">
-            <p className="text-sm font-semibold mr-2 text-white">Page:</p>
+            <p className="text-sm font-semibold mr-2 text-base-content">Page:</p>
 
             {/* previous page arrow */}
             <button className="ga4gh-pagination-arrow" onClick={() => setPage(page - 1)} disabled={page <= 0}>
@@ -175,23 +175,23 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
         </div>
 
         <div className="w-full overflow-x-auto border border-base-300 rounded-none">
-          <table className="table table-zebra table-xs whitespace-nowrap w-full rounded-none">
+          <table className="ga4gh-drs-table table table-zebra table-xs w-full rounded-none">
             <thead>
               <tr>
-                <th className="sticky top-0 left-0 z-30 bg-base-100 shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
-                <th className="sticky top-0 z-10 bg-base-100">Manifest DRS ID</th>
-                <th className="sticky top-0 z-10 bg-base-100">Manifest Description</th>
-                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-100" key={idx}>{tuple[1]}</th> )}
+                <th className="sticky top-0 left-0 z-30 bg-base-200 text-base-content shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
+                <th className="sticky top-0 z-10 bg-base-200 text-base-content">Manifest DRS ID</th>
+                <th className="sticky top-0 z-10 bg-base-200 text-base-content">Manifest Description</th>
+                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-200 text-base-content" key={idx}>{tuple[1]}</th> )}
               </tr>
             </thead>
             <tbody>
               {tableData.map((drsobject, i) => (
                 <tr key={drsobject.id || i}>
-                  <th className={`sticky left-0 z-10 ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{i}</th>
-                  <td>{drsobject.id}</td>
-                  <td>{drsobject.description}</td>
+                  <th data-label="Row" className={`sticky left-0 z-10 ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{i}</th>
+                  <td data-label="Manifest DRS ID">{drsobject.id}</td>
+                  <td data-label="Manifest Description">{drsobject.description}</td>
                   {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => (
-                    <td key={idx}>
+                    <td data-label={tuple[1]} key={idx}>
                       <span className="link link-primary cursor-pointer" onClick={() => drsIdClickHandler(drsobject.manifest_content[tuple[0]])} >
                         {drsobject.manifest_content[tuple[0]]}
                       </span>

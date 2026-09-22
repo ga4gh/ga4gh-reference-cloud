@@ -80,11 +80,9 @@ const PassportTokenDisplay = () => {
       <div className="card bg-base-100 box-shadow-card">
         <div className="card-body">
           <h2 className="card-title">Decoded JWT Header</h2>
-          <p className="font-mono bg-base-200 p-4 rounded-box break-all">
-            <pre className="text-primary">
-              {decodedHeader}
-            </pre>
-          </p>
+          <pre className="font-mono bg-base-200 p-4 rounded-box whitespace-pre-wrap break-all text-primary">
+            {decodedHeader}
+          </pre>
         </div>
       </div>
       <div className="flex w-full flex-col">
@@ -93,11 +91,9 @@ const PassportTokenDisplay = () => {
       <div className="card bg-base-100 box-shadow-card">
         <div className="card-body">
           <h2 className="card-title">Decoded JWT Payload</h2>
-          <p className="font-mono bg-base-200 p-4 rounded-box break-all">
-            <pre className="text-secondary">
-              {decodedPayload}
-            </pre>
-          </p>
+          <pre className="font-mono bg-base-200 p-4 rounded-box whitespace-pre-wrap break-all text-secondary">
+            {decodedPayload}
+          </pre>
         </div>
       </div>
     </>

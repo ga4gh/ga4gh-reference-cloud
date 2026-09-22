@@ -10,8 +10,8 @@ const HomeLoggedOut: NextPage = () => {
       <div className="hero min-h-screen">
         <div className="ga4gh-hero-bg"></div>
         <div className="hero-overlay bg-[#363636]/60"></div>
-        <div className="hero-content text-neutral-content justify-center items-stretch gap-x-12">
-          <div className="f-logo max-w-md">
+        <div className="hero-content ga4gh-home-hero-content text-neutral-content">
+          <div className="ga4gh-home-hero-intro max-w-md">
             <img
               src="https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-color.svg"
               alt="The Global Alliance for Genomics and Health"
@@ -20,20 +20,20 @@ const HomeLoggedOut: NextPage = () => {
             />
             <h1 className="text-3xl font-bold text-white">Welcome to the GA4GH Reference Cloud</h1>
           </div>
-          <div className="grid grid-cols-[auto_auto] content-between items-center gap-x-4 w-fit">
-            <span className="text-right text-lg">Already registered?</span>
+          <div className="ga4gh-home-actions">
+            <span className="ga4gh-home-actions-label text-lg">Already registered?</span>
             <Link href="/login">
               <span className="ga4gh-btn-light">
                 <span className="btn-text">Log in</span>
               </span>
             </Link>
-            <span className="text-right text-lg">New user?</span>
+            <span className="ga4gh-home-actions-label text-lg">New user?</span>
             <Link href="/registration">
               <span className="ga4gh-btn-light">
                 <span className="btn-text">Sign up</span>
               </span>
             </Link>
-            <span className="text-right text-lg">Want to learn more about the platform?</span>
+            <span className="ga4gh-home-actions-label text-lg">Want to learn more about the platform?</span>
             <a className="ga4gh-btn-light" href={env.REFCLOUD_DOCS_URL}>
               <span className="btn-text">View docs</span>
             </a>

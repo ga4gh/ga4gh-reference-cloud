@@ -33,13 +33,15 @@ const DatasetCard = ({ id, title, description, tags, currentStatus, datasetMap, 
         <div className="flex w-full flex-col">
           <div className="divider" />
         </div>
-        <div className="card-actions items-center">
-          <div className="ga4gh-cta">Tags:</div>
-          {tags.map((tag, index) => (
-            <div className="ga4gh-tag" key={index}>
-              {tag}
-            </div>
-          ))}
+        <div className="card-actions items-start">
+          <div className="ga4gh-cta pt-1">Tags:</div>
+          <div className="flex flex-1 flex-wrap gap-2">
+            {tags.map((tag, index) => (
+              <div className="ga4gh-tag" key={index}>
+                {tag}
+              </div>
+            ))}
+          </div>
         </div>
         <div className="card-actions items-center mt-4">
           <div className="ga4gh-cta">Access Status:</div>
