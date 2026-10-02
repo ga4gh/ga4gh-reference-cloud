@@ -90,6 +90,17 @@ This runs the Kratos and Hydra migrations against the host Postgres (via `host.d
 | Hydra | 4444 (public / JWT issuer), 4445 (admin), 5555 |
 | Mailslurper | 4436, 4437 |
 
+Verification and recovery emails sent by Kratos land in Mailslurper at `http://127.0.0.1:4436`.
+
+#### Optional: point Kratos self-service URLs at the UI
+
+`contrib/kratos/kratos.yml` sends its self-service redirects (verification and recovery email links, post-logout redirects, error pages) to `127.0.0.1:4455`, the default port of Ory's sample UI. The [Reference Cloud UI](https://github.com/ga4gh/refcloud-ui) runs on `127.0.0.1:3000` and serves the same paths. Login and registration work without this change because the UI creates those flows through its own Ory proxy, so you can skip it for normal local development. If you need those redirects and email links to land in the UI, run:
+
+```bash
+sed -i '' 's#127.0.0.1:4455#127.0.0.1:3000#g' contrib/kratos/kratos.yml   # macOS; on Linux use sed -i without ''
+docker compose restart kratos
+```
+
 ### 4. Run the API
 
 ```bash
@@ -111,7 +122,7 @@ Other public endpoints:
 - `GET /ga4gh/drs/v1/objects/{id}`
 - `GET /datasets`
 
-Endpoints that need a GA4GH Passport require Hydra to be running so the API can validate JWTs against the issuer at `http://127.0.0.1:4444`. Completing a browser login flow also needs the Reference Cloud frontend, since Hydra and Kratos redirect to `127.0.0.1:3000` and `127.0.0.1:4455`.
+Endpoints that need a GA4GH Passport require Hydra to be running so the API can validate JWTs against the issuer at `http://127.0.0.1:4444`. A full browser login flow also needs the [Reference Cloud UI](https://github.com/ga4gh/refcloud-ui); see its README for setup, including registering the Hydra OAuth client.
 
 ### Troubleshooting
 
