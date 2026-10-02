@@ -53,7 +53,7 @@ curl -s -X POST http://127.0.0.1:4445/admin/clients \
     "grant_types": ["authorization_code", "refresh_token"],
     "response_types": ["code"],
     "scope": "openid offline_access profile",
-    "redirect_uris": ["http://127.0.0.1:3000/passport"],
+    "redirect_uris": ["http://127.0.0.1:3000/passport", "http://127.0.0.1:3000/drs"],
     "token_endpoint_auth_method": "client_secret_post"
   }'
 ```
