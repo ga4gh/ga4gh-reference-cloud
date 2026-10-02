@@ -4,24 +4,136 @@
 
 # GA4GH Reference Cloud API
 
-Core API for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-reference-cloud)
+Core API for the [GA4GH Reference Cloud](https://github.com/ga4gh/ga4gh-reference-cloud).
 
-## Usage (Local Development)
+## Local development
 
-* Prerequisites (ensure these are installed on your machine)
-  * Java v25+ (we recommend installing the `25.0.3-amzn` candidate via [sdkman](https://sdkman.io/))
-  * Gradle v9.1+ (we recommend installing the `9.5.1` candidate via [sdkman](https://sdkman.io/))
-  * PostgreSQL v18+
-* Run the dev server: `./gradlew bootRun`
-* Access the dev server via API testing tool (e.g. Postman) using a base URL of `http://localhost:8080/` (e.g. `http://localhost:8080/actuator/health`)
+These instructions were written against macOS. Linux works the same way apart from the package manager commands.
+
+### Prerequisites
+
+| Requirement | Purpose | Install (macOS) |
+|---|---|---|
+| Java 25+ | Spring Boot 4 runtime. The Docker image builds on Corretto 25, and Java 26 also works locally. | [SDKMAN](https://sdkman.io/) (below) |
+| Gradle 9.5.1 | Optional. `./gradlew` downloads the pinned version on first run. | `sdk install gradle 9.5.1` |
+| PostgreSQL 18+ | Backing store for the API, plus databases for Ory Kratos and Ory Hydra | `brew install postgresql@18` |
+| Liquibase | Applies the API schema. The app runs with `ddl-auto: none` and does not create tables itself. | `brew install liquibase` |
+| Docker (Desktop or OrbStack) | Runs Ory Kratos (identity/sessions), Ory Hydra (OAuth2/JWT issuer) and Mailslurper | [docker.com](https://www.docker.com/products/docker-desktop/) |
+
+#### Installing Java with SDKMAN
+
+```bash
+curl -s "https://get.sdkman.io" | bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"   # or open a new terminal
+
+sdk list java | grep amzn                   # pick a 25.x (or newer) Corretto build
+sdk install java 25.0.3-amzn                # answer "Y" to make it the default
+```
+
+Verify the build is going to use the right JDK. `./gradlew` uses `JAVA_HOME`:
+
+```bash
+java -version
+echo $JAVA_HOME     # ~/.sdkman/candidates/java/current
+```
+
+If `java -version` reports an older JDK, check `~/.zshrc` and `~/.zprofile` for an existing `JAVA_HOME` or Homebrew `openjdk` `PATH` entry that is taking precedence. Remove it, or make sure the SDKMAN init block comes last.
+
+### 1. Start PostgreSQL and create the databases
+
+```bash
+brew services start postgresql@18
+
+psql postgres <<'SQL'
+CREATE ROLE refcloudapi LOGIN PASSWORD 'secret';
+CREATE ROLE kratos      LOGIN PASSWORD 'secret';
+CREATE ROLE hydra       LOGIN PASSWORD 'secret';
+CREATE DATABASE refcloudapi OWNER refcloudapi;
+CREATE DATABASE kratos      OWNER kratos;
+CREATE DATABASE hydra       OWNER hydra;
+SQL
+```
+
+These credentials match `src/main/resources/application.yml` and `docker-compose.yml`. They are for local development only.
+
+### 2. Apply the API schema
+
+```bash
+cd liquibase
+liquibase --changeLogFile=dbchangelog.xml \
+  --url=jdbc:postgresql://localhost:5432/refcloudapi \
+  --username=refcloudapi --password=secret \
+  update
+cd ..
+```
+
+If you don't want to install Liquibase locally, `liquibase/Dockerfile` packages the same changelog.
+
+Optional test data:
+
+```bash
+psql -U refcloudapi -d refcloudapi -f src/test/resources/sql/add-test-data.sql
+psql -U refcloudapi -d refcloudapi -f src/test/resources/sql/add-test-passport-visa-assertions.sql
+```
+
+### 3. Start the Ory services
+
+```bash
+docker compose up -d
+```
+
+This runs the Kratos and Hydra migrations against the host Postgres (via `host.docker.internal`), then starts:
+
+| Service | Ports |
+|---|---|
+| Kratos | 4433 (public), 4434 (admin) |
+| Hydra | 4444 (public / JWT issuer), 4445 (admin), 5555 |
+| Mailslurper | 4436, 4437 |
+
+### 4. Run the API
+
+```bash
+./gradlew bootRun
+```
+
+The API listens on `http://localhost:8080`.
+
+### 5. Verify
+
+```bash
+curl http://localhost:8080/ga4gh/drs/v1/service-info
+```
+
+You should get back the DRS `service-info` document configured under `ga4gh.refcloud.drs.service-info` in `application.yml`.
+
+Other public endpoints:
+
+- `GET /ga4gh/drs/v1/objects/{id}`
+- `GET /datasets`
+
+Endpoints that need a GA4GH Passport require Hydra to be running so the API can validate JWTs against the issuer at `http://127.0.0.1:4444`. Completing a browser login flow also needs the Reference Cloud frontend, since Hydra and Kratos redirect to `127.0.0.1:3000` and `127.0.0.1:4455`.
+
+### Troubleshooting
+
+- **`exec format error` on Apple Silicon.** The pinned `oryd/kratos:v0.9.0-alpha.2` and `oryd/mailslurper` images may not have arm64 builds. Add `platform: linux/amd64` to those services in `docker-compose.yml`.
+- **The `kratos-migrate` or `hydra-migrate` container can't reach Postgres.** Confirm Postgres accepts connections from Docker. You may need `listen_addresses = '*'` in `postgresql.conf` and a `pg_hba.conf` entry for the Docker network.
+- **Kratos rejects its config.** `contrib/kratos/kratos.yml` declares `version: v0.7.1-alpha.1` while the compose file pins Kratos v0.9.0-alpha.2. Check that mismatch first.
+- **The API fails at startup with relation/table errors.** The Liquibase step (2) hasn't been run against `refcloudapi`.
 
 ## Configuration
 
-Configure the API app via the following environment variables
+Configuration lives in `src/main/resources/application.yml`. Spring Boot's relaxed binding lets you override any property with an environment variable. The ones you are most likely to change:
 
-| Variable Name| Description |
-|--------------|-------------|
+| Variable | Default | Description |
+|---|---|---|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/refcloudapi` | API database JDBC URL |
+| `SPRING_DATASOURCE_USERNAME` | `refcloudapi` | Database user |
+| `SPRING_DATASOURCE_PASSWORD` | `secret` | Database password |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUERURI` | `http://127.0.0.1:4444` | OAuth2/OIDC issuer used to validate JWTs (Hydra) |
+| `GA4GH_REFCLOUD_SECURITY_KRATOS_PUBLICBASEURL` | `http://127.0.0.1:4433` | Kratos public API, used for session validation |
+| `GA4GH_REFCLOUD_DRS_SCHEME` | `http` | Scheme used when building DRS URIs |
+| `GA4GH_REFCLOUD_DRS_HOSTDOMAIN` | `127.0.0.1:8080` | Host used when building DRS URIs |
 
 ## Issues
 
-For any issues relating the the API, please create an issue in the [GA4GH Reference Cloud planning repo](https://github.com/ga4gh/ga4gh-reference-cloud/issues). Please do not create issues in this repo as they will not be monitored.
+For any issues relating to the API, please create an issue in the [GA4GH Reference Cloud planning repo](https://github.com/ga4gh/ga4gh-reference-cloud/issues). Please do not create issues in this repo as they will not be monitored.
