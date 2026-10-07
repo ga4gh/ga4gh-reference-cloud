@@ -30,7 +30,7 @@ const Sidebar = ({children}: SidebarProps) => {
             <div className="divider" />
           </div>
           <li className="menu-title">GA4GH APIs</li>
-          <li><a aria-disabled="true" className="link link-primary pointer-events-none opacity-50" href="#">DRS</a></li>
+          <li><a className="link link-primary" href="/drs">DRS</a></li>
           <li><a aria-disabled="true" className="link link-primary pointer-events-none opacity-50" href="#">Beacon</a></li>
           <li><a aria-disabled="true" className="link link-primary pointer-events-none opacity-50" href="#">htsget</a></li>
           <li><a aria-disabled="true" className="link link-primary pointer-events-none opacity-50" href="#">refget</a></li>

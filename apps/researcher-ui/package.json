@@ -31,6 +31,7 @@
     "@types/node": "25.9.1",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
+    "@types/styled-components": "^5.1.36",
     "autoprefixer": "^10.5.0",
     "daisyui": "^4.12.24",
     "eslint": "9.39.4",
