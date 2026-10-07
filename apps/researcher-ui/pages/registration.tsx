@@ -10,6 +10,7 @@ import { Flow } from "../pkg/ui-ga4gh"
 import { handleFlowError } from "../pkg/errors"
 // Import the SDK
 import ory from "../pkg/sdk"
+import Link from "next/link"
 
 // Renders the registration page
 const Registration: NextPage = () => {
@@ -112,7 +113,7 @@ const Registration: NextPage = () => {
               <div className="flex w-full flex-col">
                 <div className="divider" />
               </div>
-              <p>Already registered? <a className="link link-secondary" href="/login">Log in</a></p>
+              <p>Already registered? <Link href="/login"><span className="link link-secondary">Log in</span></Link></p>
               { /* TODO: hiding recovery link until password recovery flow is working
                 <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
               */ }

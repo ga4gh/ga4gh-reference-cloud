@@ -119,7 +119,7 @@ const DRS: NextPage = () => {
             )}
           </>
         ) : (
-          <h2 className="mb-4 text-2xl">Preparing passport token</h2>
+          <h2 className="mb-4 text-1xl">preparing passport token...</h2>
         )}
       </AppLayout>
     </>

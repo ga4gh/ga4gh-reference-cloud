@@ -68,9 +68,6 @@ const Datasets: NextPage = () => {
       <AppLayout>
         <h1 className="mb-5 text-5xl font-bold">Browse Datasets</h1>
         <h2 className="mb-4 text-2xl">Explore and request access to the datasets available on the platform</h2>
-        <div className="flex flex-wrap m-16 gap-8">
-          <input type="search" placeholder="Search..." className="input input-bordered w-full max-w-xs" />
-        </div>
         <div className="flex flex-wrap gap-8">
           {Object.keys(datasetMap).map((key, index) => (
             <DatasetCard
