@@ -177,16 +177,16 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           <table className="ga4gh-drs-table table table-zebra table-xs w-full rounded-none">
             <thead>
               <tr>
-                <th className="sticky top-0 left-0 z-30 bg-base-100 shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
-                <th className="sticky top-0 z-10 bg-base-100 text-xs">Manifest DRS ID</th>
-                <th className="sticky top-0 z-10 bg-base-100 text-xs">Manifest Description</th>
-                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-100 text-xs" key={idx}>{tuple[1]}</th> )}
+                <th className="sticky top-0 left-0 z-30 bg-base-200 text-base-content shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
+                <th className="sticky top-0 z-10 bg-base-200 text-base-content text-xs">Manifest DRS ID</th>
+                <th className="sticky top-0 z-10 bg-base-200 text-base-content text-xs">Manifest Description</th>
+                {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => <th className="sticky top-0 z-10 bg-base-200 text-base-content text-xs" key={idx}>{tuple[1]}</th> )}
               </tr>
             </thead>
             <tbody>
               {tableData.map((drsobject, i) => (
                 <tr key={drsobject.id || i}>
-                  <th data-label="Row" className={`sticky left-0 z-10 ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{i}</th>
+                  <th data-label="Row" className={`sticky left-0 z-10 whitespace-nowrap ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{i}</th>
                   <td data-label="Manifest DRS ID">{drsobject.id}</td>
                   <td data-label="Manifest Description">{drsobject.description}</td>
                   {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => (

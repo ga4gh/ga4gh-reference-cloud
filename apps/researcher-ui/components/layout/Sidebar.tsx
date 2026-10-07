@@ -116,7 +116,7 @@ export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
               </ul>
             </li>
             {index < sections.length - 1 && (
-              <li><div className="divider" /></li>
+              <div className="divider" />
             )}
           </React.Fragment>
         )
