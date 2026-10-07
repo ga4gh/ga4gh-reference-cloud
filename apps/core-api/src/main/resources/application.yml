@@ -43,7 +43,8 @@ ga4gh:
           username: kratos_webhook_user
           password: secret
     drs:
-      host-domain: localhost:8080
+      scheme: http
+      host-domain: 127.0.0.1:8080
       service-info:
         id: org.ga4gh.refcloud.drs.local
         name: GA4GH Reference Cloud DRS Service (Local Dev Environment)

@@ -2,12 +2,14 @@ package org.ga4gh.refcloud.api.drs.drsobject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.ga4gh.refcloud.api.drs.DrsConfig;
 import org.ga4gh.refcloud.api.drs.accessmethod.AccessMethodResponseDTO;
 import org.ga4gh.refcloud.api.drs.accessmethod.AccessMethodType;
+import org.ga4gh.refcloud.api.drs.accessmethod.AccessUrlResponseDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoResponseDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoSummaryResponseDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoUnresolvedIdSetResponseDTO;
@@ -177,6 +179,15 @@ public class DrsObjectService {
     }
 
     @Transactional(readOnly = true)
+    public Map<String, Object> getDrsObjectManifestContent(String drsObjectId) {
+        DrsObject drsObject = loadDrsObject(drsObjectId);
+        if (!drsObject.getIsManifest()) {
+            throw new ResourceNotFoundException("DRS Object with ID: " + drsObjectId + " is not a manifest");
+        }
+        return drsObject.getManifestContent();
+    }
+
+    @Transactional(readOnly = true)
     private Boolean requireDrsObjectExists(String id) {
         boolean exists = drsObjectRepository.existsById(id);
         if (exists == false) {
@@ -196,16 +207,38 @@ public class DrsObjectService {
             .map(checksum -> new DrsObjectChecksumResponseDTO(checksum.getChecksum(), checksum.getType()))
             .collect(Collectors.toSet());
 
-        Set<AccessMethodResponseDTO> accessMethodDtos = drsObject.getAwsS3AccessObjects()
+        Set<AccessMethodResponseDTO> accessMethodDtos;
+
+        if (drsObject.getIsManifest() == true) { // manifests - raw content stored as JSON in DB
+
+            accessMethodDtos = null;
+            accessMethodDtos = Set.of(
+                new AccessMethodResponseDTO(
+                    AccessMethodType.https,
+                    new AccessUrlResponseDTO(
+                        generateAccessUrlForManifestObject(drsObject.getId()),
+                        null
+                    ),
+                    null,
+                    null,
+                    true
+                )
+            );
+        } else { // AWS objects - raw content stored in S3
+            accessMethodDtos = drsObject.getAwsS3AccessObjects()
             .stream()
             .map(s3Object -> new AccessMethodResponseDTO(
                 AccessMethodType.https,
-                generateAccessUrlForOpenAccessS3Object(s3Object),
+                new AccessUrlResponseDTO(
+                    generateAccessUrlForOpenAccessS3Object(s3Object),
+                    null
+                ),
                 "aws",
                 s3Object.getRegion(),
                 true
             ))
             .collect(Collectors.toSet());
+        }
 
         Set<String> aliasDtos = drsObject.getAliases()
                 .stream()
@@ -240,6 +273,15 @@ public class DrsObjectService {
             awsS3AccessObject.getRegion() +
             ".amazonaws.com" +
             awsS3AccessObject.getKey();
+    }
+
+    private String generateAccessUrlForManifestObject(String id) {
+        return drsConfig.scheme() +
+            "://" +
+            drsConfig.hostDomain() +
+            "/ga4gh/drs/v1/objects/" +
+            id +
+            "/manifest-content";
     }
 
     private SingleDrsObjectAuthInfoResponseDTO generateAuthInfoForSingleDrsObjectId(String id) {

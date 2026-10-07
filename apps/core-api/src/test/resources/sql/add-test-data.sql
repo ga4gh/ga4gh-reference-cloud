@@ -80,16 +80,57 @@ INSERT INTO passport_visa (id, name, description, dataset_id) VALUES
 
 
 INSERT INTO drs_object (id, description, created_time, mime_type, name, size, updated_time, version, dataset_id) VALUES
-    ('drs.id.0', '1000 Genomes Phase3 WGS alignment BAM: HG00096 chr11', '2015-05-13 03:10:08', 'application/x-bam', 'HG00096.chrom11.ILLUMINA.bwa.GBR.low_coverage.20120522.bam', 692760649, '2015-05-13 03:10:08', 'v1', 'ds1');
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', 'HG00096 whole-exome bam file', '2015-05-13 03:30:44', 'application/octet-stream', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', 9196950908, '2015-05-13 03:30:44', 'v1', 'ds1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', 'HG00096 whole-exome bai file', '2015-05-13 03:12:41', 'application/octet-stream', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', 6842584, '2015-05-13 03:12:41', 'v1', 'ds1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 'HG00096 whole-exome bas file', '2015-05-13 03:29:43', 'application/octet-stream', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 827, '2015-05-13 03:29:43', 'v1', 'ds1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', 'HG00096 whole-exome cram file', '2015-05-13 03:13:58', 'application/octet-stream', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', 2304099249, '2015-05-13 03:13:58', 'v1', 'ds1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', 'HG00096 whole-exome crai file', '2015-05-13 03:27:40', 'application/octet-stream', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', 178859, '2015-05-13 03:27:40', 'v1', 'ds1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', 'HG00096 whole-exome csra file', '2015-05-13 03:14:58', 'application/octet-stream', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', 2282395745, '2015-05-13 03:14:58', 'v1', 'ds1');
 
 INSERT INTO drs_object_alias (drs_object_id, alias) VALUES
-    ('drs.id.0', 'HG00096 chr11 BAM'),
-    ('drs.id.0', 'HG00096 chr11 BAM file');
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', 'HG00096 whole-exome bam file'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', 'HG00096 whole-exome bai file'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 'HG00096 whole-exome bas file'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', 'HG00096 whole-exome cram file'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', 'HG00096 whole-exome crai file'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', 'HG00096 whole-exome csra file');
 
 INSERT INTO drs_object_checksum(drs_object_id, checksum, type) VALUES
-    ('drs.id.0', 'e2425c6f57b2aa4ddb08f472d98221d0', 'md5'),
-    ('drs.id.0', '9dddead4e1b13471784e536824ffed3c6137126a', 'sha1'),
-    ('drs.id.0', '718f74b48fd739c9305bbf6c3d4b29ef3c9d62fcb1c16eaae61dbfd0c5db60d5', 'sha256');
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', '5d4ae7a46d470036d99429c363498965', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', '72d9fc6f08feb87b5e9666eb6bee98bd00b0d024', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', 'e2062842263d1ca42ce4368e61850b75a58f34cd9b6347c465ea95e3da31d943', 'sha256'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', 'a8a1f1ba420f7d75c7955b04b5972c54', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', '56e7a1d55713e74eccf220365bbeec69ced899ad', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', '89d6677f9e8d54fd3d771177ab352fb5d7435cf4ad1fb5dec33e5a508612f5c0', 'sha256'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 'e2ebae06af6ce9c92750339e9a85e5d9', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 'a3327258093db7eea317b41dff596a032e7e27cf', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 'fb028f0d383e9cc8e987c287a263191c9f910963dc4ad0c68094d569ba714033', 'sha256'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', '46d0f8f93809c608571d82c327bb8bfc', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', 'bbc73bcee7a1e837d5541db1857611b75288a53f', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', '5b8da495309e4b1a2fa229557a2f4ccb7be9347b75fac6c37bc845cb0dcf0784', 'sha256'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', '83ef6855b01965759b9c3c9c7e6586a8', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', 'b7d52204789cc5e098a6be807083165a8a34f4f6', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', '722260f9c8757ed603cfb1bf7441e076371028c05e3f89a81930c895254837ee', 'sha256'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', '35e12569cd5dacb4d158832bedfb8b1b', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', '8f1f9634ab8118717471420a5703fb10ee5383b6', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', 'd5b7a372c4c0187590b3a73b4fd79a4913ad1900305694cb2a33051e63684e89', 'sha256');
 
 INSERT INTO aws_s3_access_object(drs_object_id, region, bucket, key) VALUES
-    ('drs.id.0', 'us-east-1', '1000genomes', '/phase3/data/HG00096/alignment/HG00096.chrom11.ILLUMINA.bwa.GBR.low_coverage.20120522.bam');
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam', 'us-east-1', '1000genomes', '/phase3/data/HG00096/exome_alignment/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai', 'us-east-1', '1000genomes', '/phase3/data/HG00096/exome_alignment/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas', 'us-east-1', '1000genomes', '/phase3/data/HG00096/exome_alignment/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram', 'us-east-1', '1000genomes', '/phase3/data/HG00096/exome_alignment/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai', 'us-east-1', '1000genomes', '/phase3/data/HG00096/exome_alignment/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra', 'us-east-1', '1000genomes', '/phase3/data/HG00096/exome_alignment/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra');
+
+/* DRS Object Manifest */
+INSERT INTO drs_object (id, description, created_time, mime_type, name, size, updated_time, version, dataset_id, is_manifest, manifest_content) VALUES
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.MANIFEST', 'HG00096 whole-exome - compound object manifest', '2015-05-13 03:30:44', 'application/json', 'HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.MANIFEST', 416, '2015-05-13 03:30:44', 'v1', 'ds1', true, '{"bam_file":"HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam","bai_file":"HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai","bas_file":"HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bas","cram_file":"HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram","crai_file":"HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.cram.crai","csra_file":"HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.csra"}');
+
+INSERT INTO drs_object_alias (drs_object_id, alias) VALUES
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.MANIFEST', 'HG00096 whole-exome - compound object manifest');
+
+INSERT INTO drs_object_checksum(drs_object_id, checksum, type) VALUES
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.MANIFEST', 'f257d781e1d4017d1a851b61acc7e93c', 'md5'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.MANIFEST', 'f9db5b1a3332972dbe499399543f210b88dbe55c', 'sha1'),
+    ('HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.MANIFEST', 'e5a3e248d68a035d23e2ed336c93aaf78cd46aceca7cd814e58689896f97b33c', 'sha256');
