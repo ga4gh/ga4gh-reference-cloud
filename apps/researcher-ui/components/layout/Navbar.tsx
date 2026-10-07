@@ -1,13 +1,15 @@
+'use client';
+
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/router";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SidebarNavLinks } from "./Sidebar";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const navRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
+  const pathname = usePathname()
 
   // Close on click/touch outside the navbar+panel, matching new_ga4gh's and
   // the analytics dashboard's mobile nav (click-outside-closes) behavior.
@@ -38,10 +40,8 @@ const Navbar = () => {
 
   // Navigating (including clicking a link inside the dropdown) closes it.
   useEffect(() => {
-    const onRouteChange = () => setIsMenuOpen(false)
-    router.events.on("routeChangeStart", onRouteChange)
-    return () => router.events.off("routeChangeStart", onRouteChange)
-  }, [router.events])
+    setIsMenuOpen(false)
+  }, [pathname])
 
   return (
     <div ref={navRef} className="ga4gh-navbar-container sticky top-0 z-[1000]">

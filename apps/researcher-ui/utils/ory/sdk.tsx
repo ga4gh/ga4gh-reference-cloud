@@ -1,6 +1,8 @@
 import { Configuration, FrontendApi } from "@ory/client"
 
-const basePath = process.env.NEXT_PUBLIC_KRATOS_PUBLIC_URL;
+const basePath = typeof window === "undefined"
+  ? process.env.KRATOS_PUBLIC_API_BASE_URL
+  : "/api/.ory";
 
 const localConfig = new Configuration({
   basePath: basePath,

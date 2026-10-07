@@ -1,5 +1,5 @@
 import { AxiosError } from "axios"
-import { useState, useEffect, DependencyList } from "react"
+import { MouseEvent, useState, useEffect, DependencyList } from "react"
 import { useRouter as useAppRouter } from "next/navigation";
 import { useRouter as usePagesRouter } from "next/router";
 
@@ -31,8 +31,10 @@ export function LogoutLink(deps?: DependencyList) {
       })
   }, deps)
 
-  return () => {
+  return (event?: MouseEvent) => {
     if (logoutToken) {
+      event?.preventDefault();
+
       ory
         .updateLogoutFlow({ token: logoutToken })
         .then(() => {
