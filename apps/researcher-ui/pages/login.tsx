@@ -101,9 +101,11 @@ const Login: NextPage = () => {
         <title>Log in</title>
         <meta name="description" content="Log in - GA4GH Reference Cloud" />
       </Head>
-      <div className="hero bg-base-200 min-h-screen">
+      <div className="hero min-h-screen">
+        <div className="ga4gh-hero-bg"></div>
+        <div className="hero-overlay bg-[#363636]/60"></div>
         <div className="hero-content flex-col lg:flex-row-reverse">
-          <div className="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
+          <div className="card bg-base-100 w-full max-w-sm shrink-0 box-shadow-card">
             <div className="card-body">
               <h2 className="card-title">
                 {(() => {
@@ -127,9 +129,9 @@ const Login: NextPage = () => {
                   <div className="flex w-full flex-col">
                     <div className="divider" />
                   </div>
-                  <p>New user? <Link href="/registration"><span className="link link-secondary">Sign up</span></Link></p>
+                  <p>New user? <Link href="/registration"><span className="ga4gh-link">Sign up</span></Link></p>
                   { /* TODO: hiding recovery link until password recovery flow is working
-                    <p>Forgot password? <a className="link link-secondary" href="/recovery">Recover account</a></p>
+                    <p>Forgot password? <a className="ga4gh-link" href="/recovery">Recover account</a></p>
                   */ }
                 </>
               )}

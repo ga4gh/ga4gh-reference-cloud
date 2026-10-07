@@ -39,10 +39,10 @@ const DatasetRequestAccessButton = ({id, datasetMap, setDatasetMap}: DatasetRequ
       </div>
       <button
         onClick={() => requestAccess(id)}
-        className="btn btn-secondary"
+        className="ga4gh-btn-dark aspect-auto"
         disabled={buttonDisabled}
       >
-        {buttonDisabled ? "Requesting Access ..." : "Request Access" }
+        <span className="btn-text">{buttonDisabled ? "Requesting Access ..." : "Request Access"}</span>
       </button>
     </>
   )

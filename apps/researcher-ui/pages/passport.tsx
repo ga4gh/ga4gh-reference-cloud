@@ -71,7 +71,7 @@ const Passport: NextPage = () => {
   return (
     <>
       <AppLayout>
-        <h1 className="mb-5 text-5xl font-bold">View Passport Token</h1>
+        <h1 className="mb-6 text-5xl font-bold">View Passport Token</h1>
         <h2 className="mb-4 text-2xl">Use your passport token to access data via GA4GH APIs</h2>
         {flowComplete ? <PassportTokenDisplay/> : <h2 className="mb-4 text-1xl">preparing passport token...</h2>}
       </AppLayout>

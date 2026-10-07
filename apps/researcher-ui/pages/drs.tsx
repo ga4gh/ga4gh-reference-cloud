@@ -100,11 +100,11 @@ const DRS: NextPage = () => {
   return (
     <>
       <AppLayout>
-        <h1 className="mb-5 text-5xl font-bold">Data Repository Service (DRS)</h1>
+        <h1 className="mb-6 text-5xl font-bold">Data Repository Service (DRS)</h1>
         <h2 className="mb-4 text-2xl">View & Inspect DRS Objects</h2>
         {flowComplete ? (
           <>
-            <select className="select select-bordered w-full max-w-xs" onChange={e => setSelectedDatasetId(e.target.value)}>
+            <select className="ga4gh-select w-full max-w-xs" onChange={e => setSelectedDatasetId(e.target.value)}>
               <option disabled selected>Select Dataset</option>
               {(Object.keys(approvedDatasetMap) as Array<keyof Dataset>).map((datasetId) => (
                 <option key={datasetId} value={datasetId}>{approvedDatasetMap[datasetId].name}</option>

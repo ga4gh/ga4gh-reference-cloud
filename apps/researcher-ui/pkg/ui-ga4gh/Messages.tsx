@@ -7,7 +7,7 @@ interface MessageProps {
 
 export const Message = ({ message }: MessageProps) => {
   const divStyle = {
-    marginBottom: "10px",
+    marginBottom: "0.5rem",
   }
 
   const messageStyle = {
