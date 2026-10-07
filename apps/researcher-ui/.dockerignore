@@ -1,4 +1,5 @@
 .dockerignore
+.env*.local
 .git
 .gitignore
 .next
