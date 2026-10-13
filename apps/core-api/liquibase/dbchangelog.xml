@@ -179,4 +179,47 @@
             </column>
         </addColumn>
     </changeSet>
+    <changeSet author="jadams" id="add-sha512t24u-to-enum-drs-checksum-type" runInTransaction="false">
+        <sql dbms="postgresql">
+            ALTER TYPE drs_checksum_type ADD VALUE IF NOT EXISTS 'sha512t24u';
+        </sql>
+        <rollback>
+            <comment>PostgreSQL does not support removing a value from an enum type</comment>
+        </rollback>
+    </changeSet>
+    <changeSet author="jadams" id="index-tb-drs-object-checksum-columns-type-checksum">
+        <createIndex indexName="drs_object_checksum_type_checksum_idx" tableName="drs_object_checksum">
+            <column name="type"/>
+            <column name="checksum"/>
+        </createIndex>
+    </changeSet>
+    <changeSet author="jadams" id="create-table-refget-sequence">
+        <createTable tableName="refget_sequence">
+            <column name="drs_object_id" type="TEXT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="refget_sequence_pkey"/>
+            </column>
+            <column name="is_circular" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="jadams" id="fkconstraint-tb-refget-sequence-column-drs-object-id-refs-drs-object">
+        <addForeignKeyConstraint baseColumnNames="drs_object_id" baseTableName="refget_sequence" constraintName="refget_sequence_drs_object_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="drs_object" validate="true"/>
+    </changeSet>
+    <changeSet author="jadams" id="create-table-refget-sequence-alias">
+        <createTable tableName="refget_sequence_alias">
+            <column name="refget_sequence_id" type="TEXT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="refget_sequence_alias_pkey"/>
+            </column>
+            <column name="naming_authority" type="TEXT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="refget_sequence_alias_pkey"/>
+            </column>
+            <column name="alias" type="TEXT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="refget_sequence_alias_pkey"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="jadams" id="fkconstraint-tb-refget-sequence-alias-column-refget-sequence-id-refs-refget-sequence">
+        <addForeignKeyConstraint baseColumnNames="refget_sequence_id" baseTableName="refget_sequence_alias" constraintName="refget_sequence_alias_refget_sequence_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="drs_object_id" referencedTableName="refget_sequence" validate="true"/>
+    </changeSet>
 </databaseChangeLog>
