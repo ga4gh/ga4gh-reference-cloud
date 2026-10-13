@@ -17,11 +17,12 @@ def dataset_init(dataset_id):
         raise SystemExit(1)
 
     dataset = SUPPORTED_DATASETS[dataset_id]["dataset"]
-    visa = SUPPORTED_DATASETS[dataset_id]["visa"]
-    visa["dataset_id"] = dataset["id"]
-
     database_engine.insert_dataset(**dataset)
-    database_engine.insert_passport_visa(**visa)
+
+    visa = SUPPORTED_DATASETS[dataset_id]["visa"]
+    if visa is not None:
+        visa["dataset_id"] = dataset["id"]
+        database_engine.insert_passport_visa(**visa)
 
     for tag_name in SUPPORTED_DATASETS[dataset_id].get("tags", []):
         tag = database_engine.get_tag(tag_name)
@@ -30,4 +31,4 @@ def dataset_init(dataset_id):
         tag = database_engine.get_tag(tag_name)
         database_engine.insert_dataset_tag(dataset_id=dataset["id"], tag_id=tag.id)
 
-    click.echo(f"done: successfully added new dataset ({dataset_id}) and associated visa to the database")
+    click.echo(f"done: successfully added new dataset ({dataset_id}) to the database")
