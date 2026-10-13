@@ -39,7 +39,7 @@ public class RefgetSequence {
     @JoinColumn(name = "drs_object_id")
     private DrsObject drsObject;
 
-    @OneToMany(mappedBy = "refgetSequence", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "refgetSequence", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private Set<RefgetSequenceAlias> aliases = new HashSet<>();
 }

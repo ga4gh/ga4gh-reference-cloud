@@ -24,3 +24,9 @@ Add refget tables, foreign key constraints, etc. to the dbchangelog file. Since 
 * create a new RefgetSequence entity
 * create a new RefgetSequenceAlias entity and link bidirectionally with RefgetSequence
 * create a bidirectional linkage between DRSObject and RefgetSequence
+
+### Task 4: Create repository layer for looking up refget sequences by ID
+
+* create a repository class that will look up a refget sequence when passed a checksum
+* remember that the database query will need to start at the "drs_object_checksum" table, but will need to perform data joins to see if the corresponding DRSObject is present in the RefgetSequence table
+* repository class should have 2 methods, one that will look everything up to and including the RefgetSequence (to be used by sequence controller), and one that will also look up the metadata (to be used by the metadata controller)
