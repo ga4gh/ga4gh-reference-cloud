@@ -86,5 +86,7 @@ ga4gh:
           refget:
             circular-supported: false
             algorithms:
+              - md5
+              - trunc512
               - ga4gh
             identifier-types: []

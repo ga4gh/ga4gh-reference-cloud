@@ -17,3 +17,10 @@ Add refget tables, foreign key constraints, etc. to the dbchangelog file. Since 
 * create folder `src/main/java/org/ga4gh/refcloud/api/refget` that will hold refget functionality
 * create folder `src/main/java/org/ga4gh/refcloud/api/refget/sequence` that will hold functionality for refget sequences specifically (in contrast to the eventual sequence collections and pangenomes endpoint)
 * within the `refget/sequence` folder, create a base service info controller. the API endpoint to trigger the service info will be `/ga4gh/refget/v2/sequence/service-info`. Adjust the class so that it loads service info properties from `application.yml`. Add a section to `application.yml` so the properties for refget service info can be loaded independently from drs service info.
+
+### Task 3: Create / Update entities
+
+* create and update entities to reflect the new models present in the database
+* create a new RefgetSequence entity
+* create a new RefgetSequenceAlias entity and link bidirectionally with RefgetSequence
+* create a bidirectional linkage between DRSObject and RefgetSequence
