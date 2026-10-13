@@ -64,3 +64,27 @@ ga4gh:
         version: v0.1.0
         drs:
           max-bulk-length-request: 10
+    refget:
+      sequence:
+        service-info:
+          id: org.ga4gh.refcloud.refget.sequence.local
+          name: GA4GH Reference Cloud Refget Sequence Service (Local Dev Environment)
+          type:
+            group: org.ga4gh
+            artifact: refget
+            version: 2.0.0
+          description: GA4GH reference implementation of the Refget sequence retrieval specification
+          organization:
+            name: Global Alliance for Genomics and Health (GA4GH)
+            url: https://ga4gh.org
+          contact-url: info@ga4gh.org
+          documentation-url: https://github.com/ga4gh/ga4gh-reference-cloud
+          created-at: 2026-10-13T20:00:00Z
+          updated-at: 2026-10-13T20:00:00Z
+          environment: dev
+          version: v0.1.0
+          refget:
+            circular-supported: false
+            algorithms:
+              - ga4gh
+            identifier-types: []

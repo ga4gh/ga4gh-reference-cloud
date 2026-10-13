@@ -31,7 +31,8 @@ public class SecurityConfig {
 
     private static final List<RequestMatcher> PUBLIC_ENDPOINTS = List.of(
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info")
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/service-info")
     );
 
     private static final List<RequestMatcher> CUSTOM_SECURITY_ENDPOINTS = List.of(
