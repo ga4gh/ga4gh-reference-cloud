@@ -32,7 +32,8 @@ public class SecurityConfig {
     private static final List<RequestMatcher> PUBLIC_ENDPOINTS = List.of(
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/service-info")
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/service-info"),
+        PathPatternRequestMatcher.withDefaults().matcher("/error") // Spring Boot error page, otherwise errors raised via sendError (e.g. 406) surface as 401 for anonymous requests
     );
 
     private static final List<RequestMatcher> CUSTOM_SECURITY_ENDPOINTS = List.of(
@@ -40,7 +41,8 @@ public class SecurityConfig {
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects")
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}")
     );
 
     public SecurityConfig(OrySessionFilter orySessionFilter) {
