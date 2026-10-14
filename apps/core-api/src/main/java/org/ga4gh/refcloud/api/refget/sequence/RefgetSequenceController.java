@@ -26,7 +26,13 @@ public class RefgetSequenceController {
 
     private static final MediaType REFGET_PLAIN_TEXT_ASCII = new MediaType("text", "vnd.ga4gh.refget.v2.0.0+plain", StandardCharsets.US_ASCII);
 
+    private static final String REFGET_JSON = "application/vnd.ga4gh.refget.v2.0.0+json";
+
+    private static final MediaType REFGET_JSON_ASCII = new MediaType("application", "vnd.ga4gh.refget.v2.0.0+json", StandardCharsets.US_ASCII);
+
     private final RefgetSequenceService refgetSequenceService;
+
+    private final RefgetSequenceMetadataService refgetSequenceMetadataService;
 
     // unsupported Accept headers are rejected by Spring with 406 Not Acceptable
     @GetMapping(path = "/{id}", produces = { REFGET_PLAIN_TEXT, MediaType.TEXT_PLAIN_VALUE })
@@ -56,5 +62,14 @@ public class RefgetSequenceController {
                     content.transferTo(outputStream);
                 }
             });
+    }
+
+    // unsupported Accept headers are rejected by Spring with 406 Not Acceptable
+    @GetMapping(path = "/{id}/metadata", produces = { REFGET_JSON, MediaType.APPLICATION_JSON_VALUE })
+    @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessRefgetSequence(authentication, #id)")
+    public ResponseEntity<RefgetSequenceMetadataResponseDTO> getSequenceMetadataById(@PathVariable String id) {
+        return ResponseEntity.ok()
+            .contentType(REFGET_JSON_ASCII)
+            .body(refgetSequenceMetadataService.getSequenceMetadata(id));
     }
 }

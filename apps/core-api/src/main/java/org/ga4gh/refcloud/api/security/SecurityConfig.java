@@ -42,7 +42,8 @@ public class SecurityConfig {
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}")
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}/metadata")
     );
 
     public SecurityConfig(OrySessionFilter orySessionFilter) {
