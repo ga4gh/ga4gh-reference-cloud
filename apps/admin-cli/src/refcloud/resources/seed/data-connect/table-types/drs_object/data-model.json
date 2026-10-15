@@ -1,0 +1,84 @@
+{
+  "$id": "{{refcloud_base_url}}/ga4gh/data-connect/v1/table/{{table_name}}/info",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "DRS objects belonging to a dataset",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "varchar",
+      "description": "DRS object identifier, resolvable at /ga4gh/drs/v1/objects/{id}"
+    },
+    "drs_uri": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Hostname-based DRS URI for the object (drs://<host>/<id>)"
+    },
+    "name": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Object name, e.g. the file name"
+    },
+    "description": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Object description"
+    },
+    "size": {
+      "type": "string",
+      "format": "bigint",
+      "description": "Object size in bytes (bigint, represented as a string per the Data Connect type mapping)"
+    },
+    "mime_type": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Media type of the object content"
+    },
+    "checksums": {
+      "type": "array",
+      "format": "json",
+      "description": "Checksums of the object content, sorted by type then value",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Checksum algorithm, e.g. md5, sha256, sha512t24u"
+          },
+          "checksum": {
+            "type": "string",
+            "description": "Checksum value"
+          }
+        }
+      }
+    },
+    "aliases": {
+      "type": "array",
+      "format": "json",
+      "description": "Alternative names for the object, sorted alphabetically",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_time": {
+      "type": "string",
+      "format": "timestamp",
+      "description": "Object creation time (ISO 8601)"
+    },
+    "updated_time": {
+      "type": "string",
+      "format": "timestamp",
+      "description": "Object last update time (ISO 8601)"
+    },
+    "version": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Object version"
+    },
+    "is_manifest": {
+      "type": "boolean",
+      "format": "boolean",
+      "description": "True if the object is a manifest listing other DRS objects"
+    }
+  }
+}
