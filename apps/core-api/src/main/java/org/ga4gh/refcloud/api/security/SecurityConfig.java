@@ -33,6 +33,7 @@ public class SecurityConfig {
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/service-info"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/service-info"),
         PathPatternRequestMatcher.withDefaults().matcher("/error") // Spring Boot error page, otherwise errors raised via sendError (e.g. 406) surface as 401 for anonymous requests
     );
 
@@ -43,7 +44,11 @@ public class SecurityConfig {
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/drs/v1/objects"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}/metadata")
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/{id}/metadata"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/tables"), // open, but an optional token modifies which tables are listed
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/table/{table_name}/info"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/table/{table_name}/data"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/data-connect/v1/search")
     );
 
     public SecurityConfig(OrySessionFilter orySessionFilter) {

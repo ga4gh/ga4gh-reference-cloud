@@ -222,4 +222,94 @@
     <changeSet author="jadams" id="fkconstraint-tb-refget-sequence-alias-column-refget-sequence-id-refs-refget-sequence">
         <addForeignKeyConstraint baseColumnNames="refget_sequence_id" baseTableName="refget_sequence_alias" constraintName="refget_sequence_alias_refget_sequence_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="drs_object_id" referencedTableName="refget_sequence" validate="true"/>
     </changeSet>
+    <changeSet author="jadams" id="create-table-data-connect-table-type">
+        <createTable tableName="data_connect_table_type">
+            <column name="id" type="TEXT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="data_connect_table_type_pkey"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="data_model_template" type="jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="internal_query" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITHOUT TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="jadams" id="create-table-data-connect-table">
+        <createTable tableName="data_connect_table">
+            <column name="table_name" type="TEXT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="data_connect_table_pkey"/>
+            </column>
+            <column name="dataset_id" type="TEXT"/>
+            <column name="table_type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITHOUT TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="jadams" id="fkconstraint-tb-data-connect-table-column-dataset-id-refs-dataset">
+        <addForeignKeyConstraint baseColumnNames="dataset_id" baseTableName="data_connect_table" constraintName="data_connect_table_dataset_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="dataset" validate="true"/>
+    </changeSet>
+    <changeSet author="jadams" id="fkconstraint-tb-data-connect-table-column-table-type-refs-data-connect-table-type">
+        <addForeignKeyConstraint baseColumnNames="table_type" baseTableName="data_connect_table" constraintName="data_connect_table_table_type_fkey" deferrable="false" initiallyDeferred="false" onDelete="RESTRICT" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="data_connect_table_type" validate="true"/>
+    </changeSet>
+    <changeSet author="jadams" id="uniqueconstraint-tb-data-connect-table-columns-dataset-id-table-type">
+        <addUniqueConstraint columnNames="dataset_id, table_type" constraintName="data_connect_table_dataset_id_table_type_key" tableName="data_connect_table"/>
+    </changeSet>
+    <changeSet author="jadams" id="checkconstraint-tb-data-connect-table-column-table-name-format">
+        <comment>Dot-separated lowercase SQL identifiers (letters, digits, underscores) so table names never require quoting in search queries</comment>
+        <sql dbms="postgresql">
+            ALTER TABLE data_connect_table ADD CONSTRAINT data_connect_table_table_name_format_check
+                CHECK (table_name ~ '^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$');
+        </sql>
+        <rollback>
+            <sql>ALTER TABLE data_connect_table DROP CONSTRAINT data_connect_table_table_name_format_check;</sql>
+        </rollback>
+    </changeSet>
+    <changeSet author="jadams" id="create-function-set-updated-at">
+        <sql dbms="postgresql" splitStatements="false">
+            CREATE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = now();
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            <sql>DROP FUNCTION set_updated_at();</sql>
+        </rollback>
+    </changeSet>
+    <changeSet author="jadams" id="trigger-tb-data-connect-table-type-set-updated-at">
+        <sql dbms="postgresql">
+            CREATE TRIGGER data_connect_table_type_set_updated_at
+                BEFORE UPDATE ON data_connect_table_type
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        </sql>
+        <rollback>
+            <sql>DROP TRIGGER data_connect_table_type_set_updated_at ON data_connect_table_type;</sql>
+        </rollback>
+    </changeSet>
+    <changeSet author="jadams" id="trigger-tb-data-connect-table-set-updated-at">
+        <sql dbms="postgresql">
+            CREATE TRIGGER data_connect_table_set_updated_at
+                BEFORE UPDATE ON data_connect_table
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        </sql>
+        <rollback>
+            <sql>DROP TRIGGER data_connect_table_set_updated_at ON data_connect_table;</sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>
