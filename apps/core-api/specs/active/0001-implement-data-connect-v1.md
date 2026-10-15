@@ -101,7 +101,7 @@ Further Decisions:
   * Map the `data_model_template` (jsonb) property to `JsonNode`
 * Add repositories: look up a table by `table_name`, and list tables visible for a given set of dataset IDs, including platform-wide tables with no `dataset_id`.
 
-### Task 5: Standard Table Type Definitions (Seed Content) (DRAFT, incomplete)
+### Task 5: Standard Table Type Definitions (Seed Content)
 
 * Define the columns for each table type:
   * `datasets`: id, name, description, tags, open vs visa-required
@@ -113,6 +113,29 @@ Further Decisions:
 * Write the `internal_query` for each type, with the dataset as a bind parameter.
 * The output is the seed content the CLI loads. The column names agreed here are needed by Tasks 6–8.
 * Open decision: which JSON Schema draft to use (the spec examples use draft-07).
+
+Outcome & Contract Summary:
+
+The seed content now lives in the **CLI repo** (`seed/data-connect/`, loaded by `refcloud seed`), not in this repo. Its README is the full contract. This summary records what `refcloud-api` depends on.
+
+* **Seed layout:** one directory per table type (`table-type.json`, `data-model.json` → `data_model_template`, `internal-query.sql` → `internal_query`), plus `tables/datasets.json` for the platform-wide `refcloud.platform.datasets` table (`dataset_id` null). The CLI loads table types first and uses `INSERT ... ON CONFLICT DO UPDATE`, so re-runs are safe. Files are stored verbatim, with no substitution at seed time.
+* **Table types and columns:**
+  * `datasets` (platform-wide): `id`, `name`, `description`, `tags`, `requires_visa`
+  * `drs_object` (per dataset): `id`, `drs_uri`, `name`, `description`, `size`, `mime_type`, `checksums`, `aliases`, `created_time`, `updated_time`, `version`, `is_manifest`
+  * `refget_sequence` (per dataset): `id` (`SQ.` + sha512t24u), `md5`, `trunc512`, `length`, `circular`, `aliases`, `drs_uri`
+  * Refget sequences also appear in their dataset's `drs_object` table. Join them on `drs_uri`.
+* **Data model placeholders (Task 6 must substitute these at runtime):**
+  * `{{refcloud_base_url}}`: the server's public base URL, with no trailing slash
+  * `{{table_name}}`: the `data_connect_table.table_name` being served
+  * Used in `$id`: `{{refcloud_base_url}}/ga4gh/data-connect/v1/table/{{table_name}}/info`
+* **Query bind parameters (Task 7 must bind these, never concatenate them):**
+  * `:dataset_id`: the table's `data_connect_table.dataset_id` (used by `drs_object` and `refget_sequence`)
+  * `:drs_host_domain`: `ga4gh.refcloud.drs.host-domain` (builds `drs_uri`, used by `drs_object` and `refget_sequence`)
+  * `datasets` takes no parameters.
+* **Query rules:** each `internal_query` is a single self-contained `SELECT` with no `ORDER BY` or `LIMIT`, reading the existing tables directly. Output column names exactly match the data model `properties`. Arrays and nested objects are returned as `jsonb`, sorted inside the query.
+* **Data model conventions:** JSON Schema draft-07. `format` holds the SQL type name (`varchar`, `bigint`, `boolean`, `timestamp`, `json`). There are no `$ref` meaning links yet (no stable schema URLs identified), so each column has a `description` instead.
+* **Type conversion (Task 7 must apply this):** following the Data Connect SQL-to-JSON mapping, `bigint` columns (`size`, `length`) are declared as `"type": "string"`, and `timestamp` columns are ISO 8601 strings. The queries return plain numbers and timestamps, so the engine must convert them.
+* **Verified:** all three queries ran read-only against the local database with correct, de-duplicated results (row count equals distinct ID count).
 
 > **⚠️ DRAFT: Tasks 6–11 are AI-proposed and incomplete.** They are an outline for planning and may be modified, reordered, merged or removed before implementation. Treat each task as a starting point to review, not a finalized requirement.
 
