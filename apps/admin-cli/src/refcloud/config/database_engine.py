@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, MetaData, select, insert, delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from refcloud.config.env_config import EnvConfig
 
 class DatabaseEngine:
@@ -27,6 +28,7 @@ class DatabaseEngine:
         self._refget_sequence_table = self._metadata.tables['refget_sequence']
         self._refget_sequence_alias_table = self._metadata.tables['refget_sequence_alias']
         self._data_connect_table_table = self._metadata.tables['data_connect_table']
+        self._data_connect_table_type_table = self._metadata.tables['data_connect_table_type']
 
     def _insert(self, table, **kwargs):
         stmt = insert(table).values(**kwargs)
@@ -95,3 +97,51 @@ class DatabaseEngine:
         with self._engine.begin() as conn: # single transaction, rolls back if either delete fails
             conn.execute(drs_object_stmt)
             conn.execute(data_connect_table_stmt)
+
+    def _upsert_data_connect_table_type(self, conn, **kwargs):
+        # insert a new table type, or update an existing one. created_at is never overwritten on update
+        stmt = pg_insert(self._data_connect_table_type_table).values(**kwargs)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[self._data_connect_table_type_table.c.id],
+            set_={
+                "description": stmt.excluded.description,
+                "data_model_template": stmt.excluded.data_model_template,
+                "internal_query": stmt.excluded.internal_query,
+                "updated_at": stmt.excluded.updated_at,
+            }
+        )
+        conn.execute(stmt)
+
+    def get_data_connect_table_type_ids(self):
+        stmt = select(self._data_connect_table_type_table.c.id)
+        with self._engine.connect() as conn:
+            return set(conn.execute(stmt).scalars())
+
+    def get_data_connect_table_names(self):
+        stmt = select(self._data_connect_table_table.c.table_name)
+        with self._engine.connect() as conn:
+            return set(conn.execute(stmt).scalars())
+
+    def upsert_data_connect_table_types(self, table_types):
+        with self._engine.begin() as conn: # single transaction, rolls back if any upsert fails
+            for table_type in table_types:
+                self._upsert_data_connect_table_type(conn, **table_type)
+
+    def _upsert_data_connect_table(self, conn, **kwargs):
+        # insert a new table, or update an existing one. created_at is never overwritten on update
+        stmt = pg_insert(self._data_connect_table_table).values(**kwargs)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[self._data_connect_table_table.c.table_name],
+            set_={
+                "dataset_id": stmt.excluded.dataset_id,
+                "table_type": stmt.excluded.table_type,
+                "description": stmt.excluded.description,
+                "updated_at": stmt.excluded.updated_at,
+            }
+        )
+        conn.execute(stmt)
+
+    def upsert_data_connect_tables(self, tables):
+        with self._engine.begin() as conn: # single transaction, rolls back if any upsert fails
+            for table in tables:
+                self._upsert_data_connect_table(conn, **table)

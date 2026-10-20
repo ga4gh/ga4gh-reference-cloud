@@ -12,7 +12,7 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 
 * The database schema is owned and migrated by the `refcloud-api` backend repo. This CLI does not create tables; `DatabaseEngine` reflects the existing schema at startup, so backend migrations must have been applied first.
 * Database connection is configured via `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (see `config/env_config.py` for local defaults).
-* Supported datasets are defined in `SUPPORTED_DATASETS` (`config/constants.py`). Adding a dataset means adding an entry there plus a custom onboarding function in `custom_onboarding/` that yields `drs_object_set` dicts (see existing onboarders for the shape).
+* Supported datasets are defined in `SUPPORTED_DATASETS` (`config/constants.py`). Adding a dataset means adding an entry there plus a custom onboarding function in `custom_onboarding/` that yields `drs_object_set` dicts (see existing onboarders for the shape). Dataset ids must be lowercase snake case (`^[a-z_][a-z0-9_]*$`) and visa ids must be `ga4gh_visa:{dataset_id}`; `validate_supported_datasets()` enforces this. Each dataset's Data Connect tables are listed in its `data_connect_tables` entry; table names are derived as `refcloud.{dataset_id}.{table_type}`.
 * Onboarding reads from public S3 buckets using unsigned requests.
 * `resources/seed/data-connect/` holds Data Connect seed content (table types, data models, internal queries). Its README defines the contract with `refcloud-api`; keep the two in sync.
 
@@ -20,6 +20,7 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 
 * `src/refcloud` - all source code and resources
 * `src/refcloud/resources` - non-python resource files (e.g. JSON files, SQL templates)
+* `migrations` - one-off SQL scripts for fixing existing databases in place (run manually with `psql`, not by the CLI)
 
 ---
 
@@ -29,6 +30,7 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 
 * Build project: `uv sync`
 * Run CLI: `uv run refcloud`
+* Seed platform-wide data (required before any `dataset init` / `dataset onboard`): `uv run refcloud seed`
 * Initialize and empty reference cloud dataset: `uv run refcloud dataset init -d {DATASET_ID}`
 * Onboard reference data to a dataset: `uv run refcloud dataset onboard -d {DATASET_ID}`
 * Delete an existing dataset: `uv run refcloud dataset delete -d {DATASET_ID}`

@@ -11,11 +11,12 @@ data-connect/
 │       ├── table-type.json      # id, description
 │       ├── data-model.json      # → data_model_template (jsonb)
 │       └── internal-query.sql   # → internal_query (text)
-└── tables/                      # one row per file in data_connect_table (platform-wide tables only)
-    └── datasets.json
+└── tables/
+    └── platform/                # one row per file in data_connect_table, loaded by `refcloud seed`
+        └── datasets.json        # dataset_id must be null
 ```
 
-Per-dataset tables (`drs_object`, `refget_sequence`) are **not** seeded here; the onboarding script creates a `data_connect_table` row for them when a dataset is loaded.
+Only `tables/platform/` is loaded by `refcloud seed`. Per-dataset tables (`drs_object`, `refget_sequence`) are **not** seeded by it; the onboarding script creates a `data_connect_table` row for them when a dataset is loaded.
 
 ## Loading
 

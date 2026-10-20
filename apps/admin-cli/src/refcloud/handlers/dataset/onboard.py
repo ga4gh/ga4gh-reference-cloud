@@ -3,12 +3,25 @@ import click
 from botocore import UNSIGNED
 from botocore.config import Config
 from refcloud.config.database_engine import DatabaseEngine
-from refcloud.config.constants import SUPPORTED_DATASETS
+import datetime
+from refcloud.config.constants import SUPPORTED_DATASETS, validate_supported_datasets, data_connect_table_name
+from refcloud.handlers.seed import require_database_seeded
 from operator import itemgetter
 
 
 def dataset_onboard(dataset_id):
     database_engine = DatabaseEngine()
+
+    # guard against invalid dataset configuration before touching the database
+    errors = validate_supported_datasets()
+    if errors:
+        for error in errors:
+            click.echo(f"error: {error}")
+        click.echo("error: invalid SUPPORTED_DATASETS configuration. exiting")
+        raise SystemExit(1)
+
+    # seed must be run first, as dataset data connect tables reference the seeded table types
+    require_database_seeded(database_engine)
 
     # first check if specified dataset is in the list of supported datasets
     if dataset_id not in SUPPORTED_DATASETS.keys():
@@ -65,3 +78,20 @@ def dataset_onboard(dataset_id):
                         for refget_sequence_alias in meta_obj["refget_sequence_aliases"]:
                             refget_sequence_alias["refget_sequence_id"] = refget_sequence["drs_object_id"]
                             database_engine.insert_refget_sequence_alias(**refget_sequence_alias)
+
+    # register dataset data connect tables only after all drs objects are loaded, so tables never point at partial data
+    now = datetime.datetime.now()
+    tables = [
+        {
+            "table_name": data_connect_table_name(dataset_id, table["table_type"]),
+            "dataset_id": dataset_id,
+            "table_type": table["table_type"],
+            "description": table["description"],
+            "created_at": now,
+            "updated_at": now,
+        }
+        for table in SUPPORTED_DATASETS[dataset_id].get("data_connect_tables", [])
+    ]
+    database_engine.upsert_data_connect_tables(tables)
+    for table in tables:
+        click.echo(f"added data connect table: {table['table_name']}")

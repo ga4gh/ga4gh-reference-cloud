@@ -3,6 +3,7 @@ from refcloud.handlers.dataset.init import dataset_init
 from refcloud.handlers.dataset.onboard import dataset_onboard
 from refcloud.handlers.dataset.delete import dataset_delete
 from refcloud.handlers.dataset.reset import dataset_reset
+from refcloud.handlers.seed import seed_database
 
 @click.group()
 def main() -> None:
@@ -38,3 +39,7 @@ def delete(dataset_id):
 def reset(dataset_id, yes):
     """Delete data from existing dataset, preserving auth info"""
     dataset_reset(dataset_id, yes)
+
+@main.command(help=seed_database.__doc__)
+def seed():
+    seed_database()

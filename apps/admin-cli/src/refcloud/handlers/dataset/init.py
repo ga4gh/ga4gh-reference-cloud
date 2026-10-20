@@ -1,10 +1,22 @@
 import click
 from refcloud.config.database_engine import DatabaseEngine
-from refcloud.config.constants import SUPPORTED_DATASETS
+from refcloud.config.constants import SUPPORTED_DATASETS, validate_supported_datasets
+from refcloud.handlers.seed import require_database_seeded
 from operator import itemgetter
 
 def dataset_init(dataset_id):
     database_engine = DatabaseEngine()
+
+    # guard against invalid dataset configuration before touching the database
+    errors = validate_supported_datasets()
+    if errors:
+        for error in errors:
+            click.echo(f"error: {error}")
+        click.echo("error: invalid SUPPORTED_DATASETS configuration. exiting")
+        raise SystemExit(1)
+
+    # seed must be run before any dataset is created
+    require_database_seeded(database_engine)
 
     # first check if specified dataset is in the list of supported datasets
     if dataset_id not in SUPPORTED_DATASETS.keys():
