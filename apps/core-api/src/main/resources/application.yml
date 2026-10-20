@@ -91,6 +91,18 @@ ga4gh:
               - ga4gh
             identifier-types: []
     data-connect:
+      base-url: http://127.0.0.1:8080 # public base URL of this server, no trailing slash
+      query:
+        max-length: 10000 # maximum length (characters) of a researcher-submitted SQL query
+        statement-timeout: 30s # per-query time limit, also set on the database role
+        page-size: 100 # maximum rows returned per page
+      # connection pool for the restricted, read-only role that runs researcher-submitted SQL
+      # (created by setup/postgres/create-data-connect-reader-role.sql); local development credentials only
+      datasource:
+        url: jdbc:postgresql://localhost:5432/refcloudapi
+        username: data_connect_reader
+        password: secret
+        maximum-pool-size: 5
       service-info:
         id: org.ga4gh.refcloud.dataconnect.local
         name: GA4GH Reference Cloud Data Connect Service (Local Dev Environment)

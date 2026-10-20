@@ -2,6 +2,7 @@ package org.ga4gh.refcloud.api.security;
 
 import org.springframework.stereotype.Component;
 import org.ga4gh.refcloud.api.core.dataset.DatasetService;
+import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableService;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoRequestDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectRequestDTO;
 import org.ga4gh.refcloud.api.drs.authinfo.SingleDrsObjectRequestDTO;
@@ -25,11 +26,14 @@ public class GA4GHPassportTokenEvaluator {
 
     private final RefgetSequenceService refgetSequenceService;
 
-    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService, DatasetService datasetService, RefgetSequenceService refgetSequenceService) {
+    private final DataConnectTableService dataConnectTableService;
+
+    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService, DatasetService datasetService, RefgetSequenceService refgetSequenceService, DataConnectTableService dataConnectTableService) {
         this.jwtDecoder = jwtDecoder;
         this.drsObjectService = drsObjectService;
         this.datasetService = datasetService;
         this.refgetSequenceService = refgetSequenceService;
+        this.dataConnectTableService = dataConnectTableService;
     }
 
     public boolean canAccessDataset(Authentication authentication, String datasetId) {
@@ -58,6 +62,21 @@ public class GA4GHPassportTokenEvaluator {
         }
 
         return refgetSequenceService.validateUserIsAuthorizedForSequence(userId, id);
+    }
+
+    // anonymous requests are allowed through, but can only access platform-wide tables and tables in open datasets.
+    // inaccessible tables raise the same 404 as missing tables (rather than 401/403), so restricted tables cannot be discovered
+    public boolean canAccessDataConnectTable(Authentication authentication, String tableName) {
+        String userId = null;
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+            userId = jwt.getSubject();
+        }
+
+        if (!dataConnectTableService.validateUserIsAuthorizedForTable(userId, tableName)) {
+            throw DataConnectTableService.tableNotFound(tableName);
+        }
+
+        return true;
     }
 
     public boolean canAccessDrsObject(Authentication authentication, String objectId, SingleDrsObjectRequestDTO requestDTO) {

@@ -312,4 +312,17 @@
             <sql>DROP TRIGGER data_connect_table_set_updated_at ON data_connect_table;</sql>
         </rollback>
     </changeSet>
+    <changeSet author="jadams" id="grant-select-data-connect-reader">
+        <comment>Read-only access for the Data Connect query engine role, limited to the tables read by the data_connect_table_type internal queries. The role is created beforehand by setup/postgres/create-data-connect-reader-role.sql</comment>
+        <sql dbms="postgresql">
+            GRANT SELECT ON TABLE dataset, tag, dataset_tag, drs_object, drs_object_checksum, drs_object_alias, refget_sequence, refget_sequence_alias TO data_connect_reader;
+            GRANT SELECT (id, dataset_id) ON TABLE passport_visa TO data_connect_reader;
+        </sql>
+        <rollback>
+            <sql>
+                REVOKE SELECT ON TABLE dataset, tag, dataset_tag, drs_object, drs_object_checksum, drs_object_alias, refget_sequence, refget_sequence_alias FROM data_connect_reader;
+                REVOKE SELECT (id, dataset_id) ON TABLE passport_visa FROM data_connect_reader;
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>
