@@ -29,3 +29,13 @@ Configure the UI app via the following environment variables
 ## Issues
 
 For any issues relating to the UI, please create an issue in the [GA4GH Reference Cloud planning repo](https://github.com/ga4gh/ga4gh-reference-cloud/issues). Please do not create issues in this repo as they will not be monitored.
+
+## AI Disclosure
+
+Artificial intelligence tools, including large language models (LLMs), were used during the development of this project to support writing, clarify technical concepts, and assist in generating application code. These tools served as an aid for idea refinement, debugging, and improving the readability of explanations and documentation. All AI-generated text and code were thoroughly reviewed, verified for correctness, and understood in full before being incorporated into this application. The responsibility for all final decisions, interpretations, and implementations remains solely with the contributors.
+
+## License
+
+Copyright 2026 Global Alliance for Genomics and Health.
+
+Licensed under the [Apache License 2.0](./LICENSE)

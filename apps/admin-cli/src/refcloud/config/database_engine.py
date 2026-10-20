@@ -26,6 +26,7 @@ class DatabaseEngine:
         self._aws_s3_access_object_table = self._metadata.tables['aws_s3_access_object']
         self._refget_sequence_table = self._metadata.tables['refget_sequence']
         self._refget_sequence_alias_table = self._metadata.tables['refget_sequence_alias']
+        self._data_connect_table_table = self._metadata.tables['data_connect_table']
 
     def _insert(self, table, **kwargs):
         stmt = insert(table).values(**kwargs)
@@ -85,3 +86,12 @@ class DatabaseEngine:
         with self._engine.connect() as conn:
             conn.execute(stmt)
             conn.commit()
+
+    def reset_dataset(self, id):
+        # deletes all data (drs objects and data connect tables) but preserves the dataset, its tags,
+        # and its passport visas/user assertions. drs sub-objects are removed via ON DELETE CASCADE
+        drs_object_stmt = delete(self._drs_object_table).where(self._drs_object_table.c.dataset_id == id)
+        data_connect_table_stmt = delete(self._data_connect_table_table).where(self._data_connect_table_table.c.dataset_id == id)
+        with self._engine.begin() as conn: # single transaction, rolls back if either delete fails
+            conn.execute(drs_object_stmt)
+            conn.execute(data_connect_table_stmt)
