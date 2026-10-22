@@ -4,6 +4,7 @@ import org.ga4gh.refcloud.api.core.tag.Tag;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectRepository;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectService;
+import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUserRepository;
@@ -12,6 +13,7 @@ import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVis
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionResponseDTO;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionService;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportVisaAssertionStatus;
+import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
 import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisaResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -67,10 +69,10 @@ public class DatasetService {
         List<DatasetResponseDTO> datasetDtos = new ArrayList<>();
 
         for (Dataset dataset : datasets) {
-            PassportUserVisaAssertion assertion = null;
-            if (assertionMap.containsKey(dataset.getPassportVisa().getId())) {
-                assertion = assertionMap.get(dataset.getPassportVisa().getId());
-            }
+            // open datasets have no visa, and so no assertion
+            PassportUserVisaAssertion assertion = dataset.getPassportVisa() == null
+                ? null
+                : assertionMap.get(dataset.getPassportVisa().getId());
             datasetDtos.add(convertToResponseDto(dataset, assertion));
         }
 
@@ -84,20 +86,24 @@ public class DatasetService {
             return null;
         }
 
-        String visaId = dataset.getPassportVisa().getId();
+        // open datasets have no visa, and so no assertion
         PassportUserVisaAssertion assertion = null;
-        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(userId, visaId);
-        if (optionalAssertion.isPresent()) {
-            assertion = optionalAssertion.get();
+        if (dataset.getPassportVisa() != null) {
+            String visaId = dataset.getPassportVisa().getId();
+            Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(userId, visaId);
+            if (optionalAssertion.isPresent()) {
+                assertion = optionalAssertion.get();
+            }
         }
 
         return convertToResponseDto(dataset, assertion);
     }
 
+    // empty when the dataset is open (has no visa)
     @Transactional(readOnly = true)
-    public String getVisaIdByDatasetId(String id) {
+    public Optional<String> getVisaIdByDatasetId(String id) {
         Dataset dataset = loadDataset(id);
-        return dataset.getPassportVisa().getId();
+        return Optional.ofNullable(dataset.getPassportVisa()).map(PassportVisa::getId);
     }
 
     @Transactional
@@ -106,6 +112,11 @@ public class DatasetService {
         Dataset dataset = datasetRepository.findByIdWithTagsAndVisas(datasetId).orElse(null);
         if (dataset == null) {
             return null;
+        }
+
+        // open datasets have no visa to request
+        if (dataset.getPassportVisa() == null) {
+            throw new BadRequestException("Dataset with ID: " + datasetId + " is open access and does not require an access request");
         }
 
         // retrieve user object from db
@@ -153,8 +164,12 @@ public class DatasetService {
     }
 
     public boolean validateUserIsAuthorizedForDataset(String userId, String datasetId) {
-        String visaId = getVisaIdByDatasetId(datasetId);
-        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId);
+        Optional<String> visaId = getVisaIdByDatasetId(datasetId);
+        if (visaId.isEmpty()) {
+            return true; // open dataset, no visa required
+        }
+
+        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId.get());
         if (optionalAssertion.isPresent()) {
             PassportUserVisaAssertion assertion = optionalAssertion.get();
             if (assertion.getCurrentStatus() == PassportVisaAssertionStatus.Approved) {
@@ -186,13 +201,16 @@ public class DatasetService {
             );
         }
 
-        // prepare visa
-        PassportVisaResponseDTO visaDto = new PassportVisaResponseDTO(
-            dataset.getPassportVisa().getId(),
-            dataset.getPassportVisa().getName(),
-            dataset.getPassportVisa().getDescription(),
-            assertionDto
-        );
+        // prepare visa (null for open datasets)
+        PassportVisaResponseDTO visaDto = null;
+        if (dataset.getPassportVisa() != null) {
+            visaDto = new PassportVisaResponseDTO(
+                dataset.getPassportVisa().getId(),
+                dataset.getPassportVisa().getName(),
+                dataset.getPassportVisa().getDescription(),
+                assertionDto
+            );
+        }
 
         // prepare final dataset
         return new DatasetResponseDTO(

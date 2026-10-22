@@ -14,6 +14,10 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: true
+    # off so a database connection is held only for the duration of each transaction, not the whole
+    # request (a Data Connect search can run for up to the statement timeout); entities must not be
+    # lazily loaded outside a transaction, e.g. in controllers
+    open-in-view: false
   security:
     oauth2:
       resourceserver:
@@ -96,6 +100,12 @@ ga4gh:
         max-length: 10000 # maximum length (characters) of a researcher-submitted SQL query
         statement-timeout: 30s # per-query time limit, also set on the database role
         page-size: 100 # maximum rows returned per page
+        # /search results longer than one page are saved (data_connect_search) and later pages read from them
+        search:
+          max-rows: 10000 # larger results are rejected (400)
+          max-bytes: 25MB # maximum size of one result as JSON; larger results are rejected (400)
+          ttl: 2h # saved results expire after this
+          storage-max-bytes: 1GB # total size of unexpired saved results; when full, new multi-page searches get 503 + Retry-After
       # connection pool for the restricted, read-only role that runs researcher-submitted SQL
       # (created by setup/postgres/create-data-connect-reader-role.sql); local development credentials only
       datasource:

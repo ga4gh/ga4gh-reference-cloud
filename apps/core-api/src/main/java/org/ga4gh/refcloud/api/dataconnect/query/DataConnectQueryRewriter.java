@@ -10,12 +10,16 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import org.ga4gh.refcloud.api.dataconnect.error.InvalidQueryException;
 import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableService;
-import org.ga4gh.refcloud.api.exception.BadRequestException;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Alias;
+import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcNamedParameter;
+import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimeKeyExpression;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.schema.Table;
@@ -28,15 +32,18 @@ import net.sf.jsqlparser.statement.select.ParenthesedFromItem;
 import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.select.WithItem;
 
 // Turns researcher-submitted SQL into SQL that is safe to run against the refcloud database:
 //   parse     -> exactly one SELECT statement, within the length limit
-//   validate  -> every AST node, enum, function, cast type and table position is on the allow list
+//   validate  -> every AST node, enum, function, cast type and table position is on the allow list,
+//                and the number of ? placeholders matches the supplied positional parameters
 //   authorize -> every referenced Data Connect table is resolved via tableResolver, which returns
 //                empty for missing AND inaccessible tables (both raise the same 404)
 //   rewrite   -> each referenced table becomes a NOT MATERIALIZED CTE wrapping its internal_query,
-//                so the researcher's filters are still pushed down into the base-table query
+//                so the researcher's filters are still pushed down into the base-table query;
+//                ? placeholders become named parameters and ga4gh_type() wrappers are removed
 //
 // No database access happens here; this class is plain Java so it can be unit tested directly.
 public class DataConnectQueryRewriter {
@@ -46,21 +53,42 @@ public class DataConnectQueryRewriter {
     // per-table bind parameter in internal_query, bound to the table's dataset id
     private static final String DATASET_ID_PARAMETER = "dataset_id";
 
+    // researcher ? placeholders are renamed to :dc_param_1, :dc_param_2, ... in text order
+    private static final String POSITIONAL_PARAMETER_PREFIX = "dc_param_";
+
+    private static final String GA4GH_TYPE_FUNCTION = "ga4gh_type";
+
+    private static final String SCHEMA_REF_PREFIX = "$ref:";
+
     private final int maxQueryLength;
 
     public DataConnectQueryRewriter(int maxQueryLength) {
         this.maxQueryLength = maxQueryLength;
     }
 
-    // globalParameters supplies values for internal_query parameters other than :dataset_id
-    // (e.g. :drs_host_domain)
+    // for queries without positional parameters; any ? placeholder is rejected
     public RewrittenQuery rewrite(
         String sql,
         Function<String, Optional<ResolvedTable>> tableResolver,
         Map<String, Object> globalParameters
     ) {
+        return rewrite(sql, tableResolver, globalParameters, List.of());
+    }
+
+    // globalParameters supplies values for internal_query parameters other than :dataset_id
+    // (e.g. :drs_host_domain); positionalParameters supplies one value per ? placeholder, in text order
+    public RewrittenQuery rewrite(
+        String sql,
+        Function<String, Optional<ResolvedTable>> tableResolver,
+        Map<String, Object> globalParameters,
+        List<?> positionalParameters
+    ) {
         Select select = parse(sql);
+        Map<String, String> columnSchemaRefs = extractSchemaRefs(select);
         ValidatedQuery validated = validate(select);
+
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        bindPositionalParameters(validated.positionalParameters(), positionalParameters, parameters);
 
         // authorize: resolve each distinct Data Connect table, in order of first reference
         Map<String, ResolvedTable> resolvedTables = new LinkedHashMap<>();
@@ -76,7 +104,6 @@ public class DataConnectQueryRewriter {
             referencesByName.computeIfAbsent(name, k -> new ArrayList<>()).add(reference);
         }
 
-        Map<String, Object> parameters = new LinkedHashMap<>();
         List<WithItem<?>> tableCtes = new ArrayList<>();
         Map<String, String> aliasByQualifiedName = new HashMap<>();
         Set<String> usedCteNames = new HashSet<>(validated.cteNames());
@@ -128,35 +155,82 @@ public class DataConnectQueryRewriter {
             select.setWithItemsList(withItems);
         }
 
-        return new RewrittenQuery(select.toString(), parameters);
+        return new RewrittenQuery(select.toString(), parameters, List.copyOf(resolvedTables.keySet()), columnSchemaRefs);
     }
 
     // ---- parse ----
 
     private Select parse(String sql) {
         if (sql == null || sql.isBlank()) {
-            throw new BadRequestException("query must not be empty");
+            throw new InvalidQueryException("query must not be empty");
         }
         if (sql.length() > maxQueryLength) {
-            throw new BadRequestException("query exceeds the maximum length of " + maxQueryLength + " characters");
+            throw new InvalidQueryException("query exceeds the maximum length of " + maxQueryLength + " characters");
         }
 
         Statements statements;
         try {
             statements = CCJSqlParserUtil.parseStatements(sql);
         } catch (JSQLParserException | RuntimeException e) {
-            throw new BadRequestException("query could not be parsed: " + rootMessage(e));
+            throw new InvalidQueryException("query could not be parsed: " + rootMessage(e));
         }
 
         if (statements == null || statements.size() != 1) {
-            throw new BadRequestException("query must contain exactly one statement");
+            throw new InvalidQueryException("query must contain exactly one statement");
         }
 
         Statement statement = statements.get(0);
         if (!(statement instanceof Select select)) {
-            throw new BadRequestException("only SELECT queries are supported");
+            throw new InvalidQueryException("only SELECT queries are supported");
         }
         return select;
+    }
+
+    // ---- ga4gh_type() ----
+
+    // ga4gh_type(column, '$ref:<url>') asks for a JSON Schema $ref on that result column. It is only
+    // supported as an item of the outermost select list; the wrapper is removed here, before
+    // validation, so anywhere else it is rejected as an unsupported function.
+    // Returns the $ref url keyed by result column name
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> extractSchemaRefs(Select select) {
+        Map<String, String> schemaRefs = new LinkedHashMap<>();
+        if (!(select instanceof PlainSelect plainSelect)) {
+            return schemaRefs;
+        }
+
+        for (SelectItem<?> item : plainSelect.getSelectItems()) {
+            if (!(item.getExpression() instanceof net.sf.jsqlparser.expression.Function function) || !isGa4ghType(function)) {
+                continue;
+            }
+
+            ExpressionList<?> arguments = function.getParameters();
+            if (arguments == null || arguments.size() != 2
+                || !(arguments.get(1) instanceof StringValue ref)
+                || !ref.getValue().startsWith(SCHEMA_REF_PREFIX)) {
+                throw new InvalidQueryException("ga4gh_type() takes a column and a '" + SCHEMA_REF_PREFIX + "<url>' string literal");
+            }
+
+            Expression value = arguments.get(0);
+            // the result column is named by its alias, or by the column itself (as Postgres does)
+            String columnName;
+            if (item.getAlias() != null) {
+                columnName = normalizeIdentifier(item.getAlias().getName());
+            } else if (value instanceof Column column) {
+                columnName = normalizeIdentifier(column.getColumnName());
+            } else {
+                throw new InvalidQueryException("ga4gh_type() on an expression needs a column alias (AS name)");
+            }
+
+            schemaRefs.put(columnName, ref.getValue().substring(SCHEMA_REF_PREFIX.length()));
+            ((SelectItem<Expression>) item).setExpression(value);
+        }
+        return schemaRefs;
+    }
+
+    private static boolean isGa4ghType(net.sf.jsqlparser.expression.Function function) {
+        List<String> nameParts = function.getMultipartName();
+        return nameParts.size() == 1 && GA4GH_TYPE_FUNCTION.equals(normalizeIdentifier(nameParts.get(0)).toLowerCase(Locale.ROOT));
     }
 
     // ---- validate ----
@@ -164,13 +238,15 @@ public class DataConnectQueryRewriter {
     private record ValidatedQuery(
         List<Table> tableReferences,
         List<Table> columnQualifiers,
-        Set<String> cteNames
+        Set<String> cteNames,
+        List<JdbcParameter> positionalParameters
     ) {}
 
     private ValidatedQuery validate(Select select) {
         List<Table> tableReferences = new ArrayList<>();
         List<Table> columnQualifiers = new ArrayList<>();
         Set<String> cteNames = new HashSet<>();
+        List<JdbcParameter> positionalParameters = new ArrayList<>();
 
         AstWalker.walk(select, new AstWalker.Visitor() {
 
@@ -209,6 +285,13 @@ public class DataConnectQueryRewriter {
                         }
                         cteNames.add(normalizeIdentifier(withItem.getAliasName()));
                     }
+                    case JdbcParameter parameter -> {
+                        // plain ? only; numbered forms (?1, $1) are rejected
+                        if (parameter.isUseFixedIndex() || !"?".equals(parameter.getParameterCharacter())) {
+                            throw unsupported("numbered parameter " + parameter);
+                        }
+                        positionalParameters.add(parameter);
+                    }
                     default -> {}
                 }
                 return true;
@@ -227,7 +310,7 @@ public class DataConnectQueryRewriter {
             }
         });
 
-        return new ValidatedQuery(tableReferences, columnQualifiers, cteNames);
+        return new ValidatedQuery(tableReferences, columnQualifiers, cteNames, positionalParameters);
     }
 
     private static boolean isTableReferencePosition(Object parent, String fieldName) {
@@ -240,11 +323,15 @@ public class DataConnectQueryRewriter {
     }
 
     private static void validateFunction(net.sf.jsqlparser.expression.Function function) {
+        if (isGa4ghType(function)) {
+            // supported ga4gh_type() calls were already removed by extractSchemaRefs
+            throw new InvalidQueryException("ga4gh_type() is only supported as an item of the outermost select list");
+        }
         List<String> nameParts = function.getMultipartName();
         // schema-qualified names (pg_catalog.lower) are rejected outright
         if (nameParts.size() != 1
             || !QueryAllowList.FUNCTIONS.contains(normalizeIdentifier(nameParts.get(0)).toLowerCase(Locale.ROOT))) {
-            throw new BadRequestException("function is not supported: " + function.getName());
+            throw new InvalidQueryException("function is not supported: " + function.getName());
         }
     }
 
@@ -256,15 +343,41 @@ public class DataConnectQueryRewriter {
             .replaceAll("\\s+", " ")
             .toLowerCase(Locale.ROOT);
         if (!QueryAllowList.DATA_TYPES.contains(typeName)) {
-            throw new BadRequestException("data type is not supported: " + dataType.getDataType());
+            throw new InvalidQueryException("data type is not supported: " + dataType.getDataType());
         }
     }
 
-    private static BadRequestException unsupported(String feature) {
-        return new BadRequestException("SQL feature is not supported: " + feature);
+    private static InvalidQueryException unsupported(String feature) {
+        return new InvalidQueryException("SQL feature is not supported: " + feature);
     }
 
     // ---- rewrite ----
+
+    // the parser numbers ? placeholders in text order, which is the order the spec binds values in.
+    // Each becomes a named parameter so it can be bound alongside the internal queries' parameters
+    private static void bindPositionalParameters(
+        List<JdbcParameter> placeholders,
+        List<?> values,
+        Map<String, Object> parameters
+    ) {
+        if (placeholders.size() != values.size()) {
+            throw new InvalidQueryException("query has " + placeholders.size() + " positional parameter(s) but "
+                + values.size() + " value(s) were supplied");
+        }
+
+        List<JdbcParameter> inTextOrder = placeholders.stream()
+            .sorted(java.util.Comparator.comparing(JdbcParameter::getIndex))
+            .toList();
+        for (int i = 0; i < inTextOrder.size(); i++) {
+            int number = i + 1;
+            // printed as :dc_param_<number>
+            inTextOrder.get(i)
+                .setParameterCharacter(":" + POSITIONAL_PARAMETER_PREFIX)
+                .withUseFixedIndex(true)
+                .setIndex(number);
+            parameters.put(POSITIONAL_PARAMETER_PREFIX + number, values.get(i));
+        }
+    }
 
     private WithItem<ParenthesedSelect> buildTableCte(
         String cteName,

@@ -1,8 +1,10 @@
 package org.ga4gh.refcloud.api.dataconnect.query;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -12,16 +14,18 @@ import java.util.Map;
 import java.util.Set;
 import javax.sql.DataSource;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
-import org.ga4gh.refcloud.api.exception.BadRequestException;
+import org.ga4gh.refcloud.api.dataconnect.error.InvalidQueryException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.support.AbstractSqlTypeValue;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.unit.DataSize;
 import tools.jackson.databind.ObjectMapper;
 
 // Runs rewritten Data Connect queries as the restricted data_connect_reader role, in a read-only
@@ -44,6 +48,8 @@ public class DataConnectQueryExecutor {
 
     private final QueryValueConverter queryValueConverter;
 
+    private final ObjectMapper objectMapper;
+
     private final Duration statementTimeout;
 
     public DataConnectQueryExecutor(
@@ -64,10 +70,17 @@ public class DataConnectQueryExecutor {
         this.transactionTemplate.setReadOnly(true);
 
         this.queryValueConverter = new QueryValueConverter(objectMapper);
+        this.objectMapper = objectMapper;
     }
 
     // returns up to maxRows rows; hasMore reports whether further rows exist
     public QueryResult execute(RewrittenQuery query, int maxRows) {
+        return execute(query, maxRows, Long.MAX_VALUE);
+    }
+
+    // as above, and rejects (400) a result whose rows add up to more than maxBytes of JSON.
+    // Checked while rows stream in, so an oversized result is never held in memory in full
+    public QueryResult execute(RewrittenQuery query, int maxRows, long maxBytes) {
         try {
             return transactionTemplate.execute(status -> {
                 JdbcTemplate jdbcTemplate = namedParameterJdbcTemplate.getJdbcTemplate();
@@ -75,15 +88,45 @@ public class DataConnectQueryExecutor {
                 jdbcTemplate.execute("SET LOCAL statement_timeout = " + statementTimeout.toMillis());
                 jdbcTemplate.execute("SET LOCAL intervalstyle = 'iso_8601'");
 
-                ResultSetExtractor<QueryResult> extractor = resultSet -> extract(resultSet, maxRows);
-                return namedParameterJdbcTemplate.query(query.sql(), new MapSqlParameterSource(query.parameters()), extractor);
+                ResultSetExtractor<QueryResult> extractor = resultSet -> extract(resultSet, maxRows, maxBytes);
+                return namedParameterJdbcTemplate.query(query.sql(), toParameterSource(query.parameters()), extractor);
             });
         } catch (DataAccessException e) {
             throw translate(e);
         }
     }
 
-    private QueryResult extract(ResultSet resultSet, int maxRows) throws SQLException {
+    // e.g. 25MB, 512KB, 300B
+    private static String formatSize(long bytes) {
+        DataSize size = DataSize.ofBytes(bytes);
+        if (bytes % DataSize.ofMegabytes(1).toBytes() == 0) {
+            return size.toMegabytes() + "MB";
+        }
+        if (bytes % DataSize.ofKilobytes(1).toBytes() == 0) {
+            return size.toKilobytes() + "KB";
+        }
+        return bytes + "B";
+    }
+
+    private static MapSqlParameterSource toParameterSource(Map<String, Object> parameters) {
+        MapSqlParameterSource source = new MapSqlParameterSource();
+        parameters.forEach((name, value) -> {
+            if (value instanceof ArrayParameter array) {
+                // bound as one SQL array; a plain collection would be expanded into a list of values
+                source.addValue(name, new AbstractSqlTypeValue() {
+                    @Override
+                    protected Object createTypeValue(Connection connection, int sqlType, String typeName) throws SQLException {
+                        return connection.createArrayOf(array.elementTypeName(), array.elements().toArray());
+                    }
+                }, Types.ARRAY);
+            } else {
+                source.addValue(name, value);
+            }
+        });
+        return source;
+    }
+
+    private QueryResult extract(ResultSet resultSet, int maxRows, long maxBytes) throws SQLException {
         ResultSetMetaData metaData = resultSet.getMetaData();
         List<QueryColumn> columns = new ArrayList<>();
         Set<String> columnNames = new HashSet<>();
@@ -91,13 +134,14 @@ public class DataConnectQueryExecutor {
             String name = metaData.getColumnLabel(i);
             // rows are JSON objects keyed by column name, so names must be unique
             if (!columnNames.add(name)) {
-                throw new BadRequestException("duplicate column name in query result: " + name + " (use a column alias)");
+                throw new InvalidQueryException("duplicate column name in query result: " + name + " (use a column alias)");
             }
             columns.add(new QueryColumn(name, metaData.getColumnTypeName(i)));
         }
 
         List<Map<String, Object>> rows = new ArrayList<>();
         boolean hasMore = false;
+        long totalBytes = 0;
         while (resultSet.next()) {
             if (rows.size() == maxRows) {
                 hasMore = true;
@@ -107,6 +151,13 @@ public class DataConnectQueryExecutor {
             for (int i = 0; i < columns.size(); i++) {
                 QueryColumn column = columns.get(i);
                 row.put(column.name(), queryValueConverter.read(resultSet, i + 1, column.typeName()));
+            }
+            if (maxBytes != Long.MAX_VALUE) {
+                totalBytes += objectMapper.writeValueAsBytes(row).length;
+                if (totalBytes > maxBytes) {
+                    throw new InvalidQueryException("query result exceeds the maximum size of "
+                        + formatSize(maxBytes) + "; narrow the query or add LIMIT");
+                }
             }
             rows.add(row);
         }
@@ -124,10 +175,10 @@ public class DataConnectQueryExecutor {
             return exception;
         }
         if (QUERY_CANCELED.equals(sqlState)) {
-            return new BadRequestException("query exceeded the time limit of " + statementTimeout.toSeconds() + " seconds");
+            return new InvalidQueryException("query exceeded the time limit of " + statementTimeout.toSeconds() + " seconds");
         }
         if (sqlState.startsWith(DATA_EXCEPTION_CLASS) || sqlState.startsWith(SYNTAX_ERROR_OR_ACCESS_RULE_VIOLATION_CLASS)) {
-            return new BadRequestException("query failed: " + firstLine(sqlException.getMessage()));
+            return new InvalidQueryException("query failed: " + firstLine(sqlException.getMessage()));
         }
         return exception;
     }

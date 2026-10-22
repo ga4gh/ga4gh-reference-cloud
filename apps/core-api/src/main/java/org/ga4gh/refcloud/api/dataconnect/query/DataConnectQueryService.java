@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.dataconnect.query;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
@@ -31,10 +32,16 @@ public class DataConnectQueryService {
     // validates and rewrites researcher-submitted SQL; userId is null for anonymous requests.
     // tables the user cannot access are treated exactly like missing tables (404)
     public RewrittenQuery prepareQuery(String sql, String userId) {
+        return prepareQuery(sql, List.of(), userId);
+    }
+
+    // positionalParameters supplies one bind value per ? placeholder, in text order
+    public RewrittenQuery prepareQuery(String sql, List<?> positionalParameters, String userId) {
         return dataConnectQueryRewriter.rewrite(
             sql,
             tableName -> findVisibleTable(tableName, userId),
-            Map.of(DRS_HOST_DOMAIN_PARAMETER, drsConfig.hostDomain())
+            Map.of(DRS_HOST_DOMAIN_PARAMETER, drsConfig.hostDomain()),
+            positionalParameters
         );
     }
 

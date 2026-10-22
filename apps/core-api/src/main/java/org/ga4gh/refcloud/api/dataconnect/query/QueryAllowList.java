@@ -10,6 +10,7 @@ import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.ExtractExpression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.IntervalExpression;
+import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.JsonExpression;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NotExpression;
@@ -99,6 +100,8 @@ final class QueryAllowList {
         TimestampValue.class,
         IntervalExpression.class,
         TimeKeyExpression.class,
+        // ? placeholders (only plain ?, checked by the rewriter)
+        JdbcParameter.class,
         // logical and comparison operators
         AndExpression.class,
         OrExpression.class,
@@ -154,8 +157,8 @@ final class QueryAllowList {
     static final Set<String> FUNCTIONS = Set.of(
         // aggregates
         "count", "min", "max", "sum", "avg",
-        // conditionals
-        "coalesce", "nullif", "greatest", "least",
+        // conditionals; ANY compares with each element of an array (e.g. id = ANY(?) with an array parameter)
+        "coalesce", "nullif", "greatest", "least", "any",
         // strings
         "lower", "upper", "substring", "substr", "length", "char_length", "trim", "ltrim", "rtrim",
         "replace", "concat", "strpos", "left", "right", "starts_with",

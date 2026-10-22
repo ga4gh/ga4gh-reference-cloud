@@ -3,7 +3,7 @@ package org.ga4gh.refcloud.api.dataconnect.table;
 import java.util.List;
 import java.util.Map;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
-import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
+import org.ga4gh.refcloud.api.dataconnect.error.TableNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -48,8 +48,8 @@ public class DataConnectTableService {
     }
 
     // used for both missing and inaccessible tables, so restricted tables cannot be discovered
-    public static ResourceNotFoundException tableNotFound(String tableName) {
-        return new ResourceNotFoundException("No Data Connect table with name: " + tableName);
+    public static TableNotFoundException tableNotFound(String tableName) {
+        return new TableNotFoundException(tableName);
     }
 
     private DataConnectTableResponseDTO convertToResponseDto(DataConnectTable table) {

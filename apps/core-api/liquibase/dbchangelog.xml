@@ -325,4 +325,50 @@
             </sql>
         </rollback>
     </changeSet>
+    <changeSet author="jadams" id="create-table-data-connect-search">
+        <comment>Saved /search results that run past one page, so later pages are stable and don't re-run the query. Rows expire after ga4gh.refcloud.data-connect.query.search.ttl. data_model is json (not jsonb) to keep its property order. No grants: data_connect_reader must not read saved searches</comment>
+        <createTable tableName="data_connect_search">
+            <column name="id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="data_connect_search_pkey"/>
+            </column>
+            <column name="user_id" type="TEXT"/>
+            <column name="data_model" type="json">
+                <constraints nullable="false"/>
+            </column>
+            <column name="table_names" type="TEXT[]">
+                <constraints nullable="false"/>
+            </column>
+            <column name="size_bytes" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITHOUT TIME ZONE" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP WITHOUT TIME ZONE">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="jadams" id="index-tb-data-connect-search-column-expires-at">
+        <createIndex indexName="data_connect_search_expires_at_idx" tableName="data_connect_search">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+    <changeSet author="jadams" id="create-table-data-connect-search-row">
+        <comment>One saved result row (as json, which keeps column order), numbered by its position in the full result</comment>
+        <createTable tableName="data_connect_search_row">
+            <column name="search_id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="data_connect_search_row_pkey"/>
+            </column>
+            <column name="row_number" type="BIGINT">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="data_connect_search_row_pkey"/>
+            </column>
+            <column name="data" type="json">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet author="jadams" id="fkconstraint-tb-data-connect-search-row-column-search-id-refs-data-connect-search">
+        <addForeignKeyConstraint baseColumnNames="search_id" baseTableName="data_connect_search_row" constraintName="data_connect_search_row_search_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="data_connect_search" validate="true"/>
+    </changeSet>
 </databaseChangeLog>

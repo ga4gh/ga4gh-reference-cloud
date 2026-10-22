@@ -47,13 +47,18 @@ public class DataConnectQueryRewriterTest {
     }
 
     private RewrittenQuery rewrite(String sql) {
+        return rewrite(sql, List.of());
+    }
+
+    private RewrittenQuery rewrite(String sql, List<?> positionalParameters) {
         return rewriter.rewrite(
             sql,
             tableName -> {
                 resolvedTableNames.add(tableName);
                 return Optional.ofNullable(VISIBLE_TABLES.get(tableName));
             },
-            GLOBAL_PARAMETERS
+            GLOBAL_PARAMETERS,
+            positionalParameters
         );
     }
 
@@ -160,6 +165,98 @@ public class DataConnectQueryRewriterTest {
         assertFalse(result.sql().contains("trailing"), result.sql());
     }
 
+    @Test
+    public void reportsReferencedTableNames() {
+        RewrittenQuery result = rewrite("SELECT a.id FROM refcloud.open_a.drs_object a JOIN refcloud.platform.datasets d ON a.name = d.name");
+
+        assertEquals(result.tableNames(), List.of("refcloud.open_a.drs_object", "refcloud.platform.datasets"));
+    }
+
+    // ---- positional parameters ----
+
+    @Test
+    public void bindsPositionalParametersInTextOrder() {
+        RewrittenQuery result = rewrite("""
+            WITH big AS (SELECT id, size FROM refcloud.open_a.drs_object WHERE size > ?)
+            SELECT id FROM big WHERE id IN (?, ?) AND id <> ?
+            """, List.of(100.0, "a", "b", "c"));
+
+        assertTrue(result.sql().contains("WHERE size > :dc_param_1"), result.sql());
+        assertTrue(result.sql().endsWith("WHERE id IN (:dc_param_2, :dc_param_3) AND id <> :dc_param_4"), result.sql());
+        assertEquals(result.parameters().get("dc_param_1"), 100.0);
+        assertEquals(result.parameters().get("dc_param_2"), "a");
+        assertEquals(result.parameters().get("dc_param_3"), "b");
+        assertEquals(result.parameters().get("dc_param_4"), "c");
+        // internal query parameters are still bound alongside
+        assertEquals(result.parameters().get("dc_table_1_dataset_id"), "open_a");
+    }
+
+    @Test
+    public void bindsNullPositionalParameter() {
+        RewrittenQuery result = rewrite("SELECT id FROM refcloud.platform.datasets WHERE coalesce(?, name) = name", java.util.Arrays.asList((Object) null));
+
+        assertTrue(result.parameters().containsKey("dc_param_1"));
+        assertEquals(result.parameters().get("dc_param_1"), null);
+    }
+
+    @DataProvider
+    public Object[][] positionalParameterCountMismatches() {
+        return new Object[][] {
+            { "SELECT id FROM refcloud.platform.datasets WHERE id = ?", List.of() },
+            { "SELECT id FROM refcloud.platform.datasets WHERE id = ?", List.of("a", "b") },
+            { "SELECT id FROM refcloud.platform.datasets", List.of("a") },
+        };
+    }
+
+    @Test(dataProvider = "positionalParameterCountMismatches")
+    public void rejectsPositionalParameterCountMismatch(String sql, List<?> values) {
+        BadRequestException exception = expectThrows(BadRequestException.class, () -> rewrite(sql, values));
+        assertTrue(exception.getMessage().contains("positional parameter"), exception.getMessage());
+        assertTrue(resolvedTableNames.isEmpty(), "tables must not be resolved for an invalid query");
+    }
+
+    // ---- ga4gh_type() ----
+
+    @Test
+    public void ga4ghTypeIsRemovedAndRecordsSchemaRef() {
+        RewrittenQuery result = rewrite("""
+            SELECT ga4gh_type(d.id, '$ref:https://example.org/id.json') AS dataset_id,
+                   GA4GH_TYPE(name, '$ref:https://example.org/name.json'),
+                   d.description
+            FROM refcloud.platform.datasets d
+            """);
+
+        assertTrue(result.sql().endsWith("SELECT d.id AS dataset_id, name, d.description FROM dc_table_1 d"), result.sql());
+        assertEquals(result.columnSchemaRefs(), Map.of(
+            "dataset_id", "https://example.org/id.json",
+            "name", "https://example.org/name.json"
+        ));
+    }
+
+    @DataProvider
+    public Object[][] invalidGa4ghTypeUses() {
+        return new Object[][] {
+            // only as an item of the outermost select list
+            { "SELECT id FROM refcloud.platform.datasets WHERE ga4gh_type(id, '$ref:x') = 'a'" },
+            { "SELECT x.id FROM (SELECT ga4gh_type(id, '$ref:x') AS id FROM refcloud.platform.datasets) x" },
+            { "SELECT ga4gh_type(id, '$ref:x') FROM refcloud.platform.datasets UNION SELECT id FROM refcloud.platform.datasets" },
+            { "SELECT lower(ga4gh_type(id, '$ref:x')) FROM refcloud.platform.datasets" },
+            // wrong arguments
+            { "SELECT ga4gh_type(id) FROM refcloud.platform.datasets" },
+            { "SELECT ga4gh_type(id, 'https://example.org/no-prefix.json') FROM refcloud.platform.datasets" },
+            { "SELECT ga4gh_type(id, name) FROM refcloud.platform.datasets" },
+            // an expression needs an alias to name the column
+            { "SELECT ga4gh_type(lower(id), '$ref:x') FROM refcloud.platform.datasets" },
+            // the wrapped value is still validated
+            { "SELECT ga4gh_type(pg_sleep(10), '$ref:x') AS slept" },
+        };
+    }
+
+    @Test(dataProvider = "invalidGa4ghTypeUses")
+    public void rejectsInvalidGa4ghTypeUse(String sql) {
+        expectThrows(BadRequestException.class, () -> rewrite(sql));
+    }
+
     @DataProvider
     public Object[][] allowedQueries() {
         return new Object[][] {
@@ -174,6 +271,7 @@ public class DataConnectQueryRewriterTest {
             { "SELECT CAST(size AS varchar(10)), CAST(size AS double precision) FROM refcloud.open_a.drs_object" },
             { "SELECT id FROM refcloud.open_a.drs_object a LEFT JOIN refcloud.open_b.drs_object b USING (id)" },
             { "SELECT id FROM refcloud.open_a.drs_object EXCEPT SELECT id FROM refcloud.open_b.drs_object" },
+            { "SELECT id FROM refcloud.open_a.drs_object WHERE id = ANY(CAST('{a,b}' AS varchar[]))" },
         };
     }
 
@@ -224,9 +322,12 @@ public class DataConnectQueryRewriterTest {
             { "WITH RECURSIVE r AS (SELECT 1) SELECT * FROM r" },
             { "SELECT * FROM refcloud.platform.datasets d, LATERAL (SELECT 1) l" },
             { "SELECT count(*) OVER () FROM refcloud.platform.datasets" },
-            // researchers must not supply bind parameters (they could bind to another dataset)
+            // researchers must not supply named parameters (they could bind to another dataset),
+            // numbered parameters, or more ? placeholders than values (none are supplied here)
             { "SELECT * FROM refcloud.open_a.drs_object WHERE id = :dataset_id" },
             { "SELECT * FROM refcloud.open_a.drs_object WHERE id = ?" },
+            { "SELECT * FROM refcloud.open_a.drs_object WHERE id = ?1" },
+            { "SELECT * FROM refcloud.open_a.drs_object WHERE id = $1" },
             // casts to system types
             { "SELECT 'pg_authid'::regclass" },
             { "SELECT CAST(name AS regproc) FROM refcloud.platform.datasets" },

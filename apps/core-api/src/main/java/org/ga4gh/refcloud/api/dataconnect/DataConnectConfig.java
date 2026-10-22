@@ -3,6 +3,7 @@ package org.ga4gh.refcloud.api.dataconnect;
 import java.time.Duration;
 import java.time.Instant;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.unit.DataSize;
 
 @ConfigurationProperties(prefix = "ga4gh.refcloud.data-connect")
 public record DataConnectConfig(
@@ -18,8 +19,17 @@ public record DataConnectConfig(
     public record Query(
         int maxLength,
         Duration statementTimeout,
-        int pageSize
-    ){}
+        int pageSize,
+        Search search
+    ){
+        // limits for /search results saved so later pages can be served without re-running the query
+        public record Search(
+            int maxRows,
+            DataSize maxBytes,
+            Duration ttl,
+            DataSize storageMaxBytes
+        ){}
+    }
 
     // connection settings for the restricted data_connect_reader role
     public record Datasource(

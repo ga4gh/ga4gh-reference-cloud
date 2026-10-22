@@ -1,6 +1,8 @@
 package org.ga4gh.refcloud.api.security;
 
 import java.util.List;
+import org.ga4gh.refcloud.api.dataconnect.error.DataConnectAccessDeniedHandler;
+import org.ga4gh.refcloud.api.dataconnect.error.DataConnectAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -22,6 +24,12 @@ import org.springframework.http.HttpMethod;
 public class SecurityConfig {
 
     private final OrySessionFilter orySessionFilter;
+
+    private final DataConnectAuthenticationEntryPoint dataConnectAuthenticationEntryPoint;
+
+    private final DataConnectAccessDeniedHandler dataConnectAccessDeniedHandler;
+
+    private static final RequestMatcher DATA_CONNECT_ENDPOINTS = PathPatternRequestMatcher.withDefaults().matcher("/ga4gh/data-connect/**");
 
     private static final List<RequestMatcher> ORY_KRATOS_SESSION_ENDPOINTS = List.of(
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets"),
@@ -48,11 +56,14 @@ public class SecurityConfig {
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/tables"), // open, but an optional token modifies which tables are listed
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/table/{table_name}/info"),
         PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/table/{table_name}/data"),
-        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/data-connect/v1/search")
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/ga4gh/data-connect/v1/search"),
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/search/{search_id}")
     );
 
-    public SecurityConfig(OrySessionFilter orySessionFilter) {
+    public SecurityConfig(OrySessionFilter orySessionFilter, DataConnectAuthenticationEntryPoint dataConnectAuthenticationEntryPoint, DataConnectAccessDeniedHandler dataConnectAccessDeniedHandler) {
         this.orySessionFilter = orySessionFilter;
+        this.dataConnectAuthenticationEntryPoint = dataConnectAuthenticationEntryPoint;
+        this.dataConnectAccessDeniedHandler = dataConnectAccessDeniedHandler;
     }
 
     @Bean
@@ -107,7 +118,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(authorize -> authorize
                 .anyRequest().permitAll()
             )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
+            // Data Connect 401s get an ErrorResponse body; other APIs are unchanged
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}).authenticationEntryPoint(dataConnectAuthenticationEntryPoint))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.disable());
 
@@ -121,7 +133,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .anyRequest().authenticated()
             )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}).authenticationEntryPoint(dataConnectAuthenticationEntryPoint))
+            // Data Connect 403s (e.g. CSRF rejection of a POST to an unknown Data Connect path) get an ErrorResponse body
+            .exceptionHandling(exceptions -> exceptions.defaultAccessDeniedHandlerFor(dataConnectAccessDeniedHandler, DATA_CONNECT_ENDPOINTS));
         return http.build();
     }
 }

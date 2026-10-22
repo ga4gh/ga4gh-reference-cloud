@@ -11,6 +11,7 @@ import org.ga4gh.refcloud.api.dataconnect.query.QueryResult;
 import org.ga4gh.refcloud.api.dataconnect.query.RewrittenQuery;
 import org.ga4gh.refcloud.api.dataconnect.query.TableDataResponseDTO;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
@@ -35,7 +36,9 @@ public class DataConnectTableDataService {
     private final DataConnectConfig dataConnectConfig;
 
     // userId is null for anonymous requests; pageToken is null for the first page.
-    // rows are ordered by id (unique in every table type) so pages neither overlap nor skip rows
+    // rows are ordered by id (unique in every table type) so pages neither overlap nor skip rows.
+    // Runs outside a JPA transaction so no primary-pool connection is held while the query runs
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public TableDataResponseDTO getTableData(String tableName, String userId, String pageToken) {
         if (!TABLE_NAME_FORMAT.matcher(tableName).matches()) {
             throw DataConnectTableService.tableNotFound(tableName);
