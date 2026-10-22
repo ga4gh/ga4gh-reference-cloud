@@ -284,13 +284,43 @@ Outcome & Implementation Notes:
   * **Session settings:** queries ran as `data_connect_reader` with `default_transaction_read_only = on`, `transaction_read_only = on`, and the app-set timeout.
 * **Tests:** all 69 tests pass. The executor and converter have no automated tests, because they need a real database; they were verified against the local database instead. Integration tests (e.g. Testcontainers) are Task 11.
 
-> **⚠️ DRAFT: Tasks 8–11 are AI-proposed and incomplete.** They are an outline for planning and may be modified, reordered, merged or removed before implementation. Treat each task as a starting point to review, not a finalized requirement.
-
-### Task 8: Implement `/table/{table_name}/data` and Pagination (DRAFT, incomplete)
+### Task 8: Implement `/table/{table_name}/data` and Pagination
 
 * Run `SELECT * FROM <table_name>` through the query engine.
 * Implement pagination via `pagination.next_page_url`. Every non-empty page must include `data_model`.
 * Open decision: a signed (tamper-proof), stateless page token encoding the query, parameters and offset (recommended), or server-side cursor storage. Make the page size configurable.
+
+Decisions:
+
+1. **Unsigned offset page token:** `GET /table/{table_name}/data?page_token=<token>`. The token is base64url-encoded JSON (`{"offset":N}`), so fields can be added later. It isn't stored on the server and isn't signed: every page reruns validation and access checks for the current caller, so a modified token can only return rows the caller could already read. The table name is already in the path, so the token only needs the offset. `/search` will probably need something more sophisticated (its tokens would have to carry the SQL itself, up to 10,000 characters), which is decided in Task 9.
+2. **OFFSET pagination ordered by `id`:** `SELECT * FROM <table> ORDER BY id LIMIT <page size + 1> OFFSET <n>`. This depends on every table type having a unique `id` column (true for all three; Task 5 checked row count equals distinct ID count). It will be replaced with continuing after the last `id` seen if deep pages get too slow.
+3. **Page size:** the configured `query.page-size` (100). Clients can't choose a page size, since the spec doesn't define a parameter for it.
+4. **Table name check:** the path's `table_name` is checked against the same rule as the `data_connect_table_table_name_format_check` constraint before it's put into SQL. Names that don't match get the usual 404. The query then goes through the full rewrite step like any other.
+5. **Scope:** `/data` only, plus pieces Task 9 can reuse (`TableDataResponseDTO`, `PaginationDTO`, `PageTokenCodec`). `/search` is unchanged.
+
+Outcome & Implementation Notes:
+
+* **Access:** the same `@PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessDataConnectTable(...)")` as `/info`, so an inaccessible table returns the same 404 as a missing one. `prepareQuery` checks visibility again when it resolves the table.
+* **New classes:**
+  * `table/DataConnectTableDataService` (`@Transactional(readOnly = true)`): checks the name, decodes the token, gets the filled-in data model from `DataConnectTableService.getTable`, then runs the query through `DataConnectQueryService.prepareQuery` and `DataConnectQueryExecutor.execute`.
+  * `query/TableDataResponseDTO` (`data_model`, `data`, `pagination`), with `pagination` left out on the last page (`@JsonInclude(NON_NULL)`). The spec's optional `errors` field is left out for now.
+  * `query/PaginationDTO` (`next_page_url`).
+  * `query/PageToken` and `query/PageTokenCodec`. A token that doesn't decode, or has a negative offset, returns a 400 (`invalid page_token`).
+* **`data_model`** is the same filled-in template `/info` returns. It's included on every page, including empty ones (the spec allows leaving it out on empty pages).
+* **`next_page_url`** is absolute, built from `base-url`. `DataConnectConfig.baseUrlWithoutTrailingSlash()` now handles the trailing slash for both this and the `{{refcloud_base_url}}` placeholder.
+* **The extra row:** the query asks for one row more than the page size, so a table with exactly page-size rows correctly has no next page.
+* **Verified locally:**
+  * with the default page size, all three open tables return their rows, `data_model` and no `pagination`. Values are converted (`size` and `length` as strings, `checksums` and `aliases` as embedded JSON);
+  * with `GA4GH_REFCLOUD_DATACONNECT_QUERY_PAGESIZE=2`, the 4-row `drs_object` table returns 2 pages that don't overlap, ordered by `id`, and only page 1 has `next_page_url`. The 2-row `datasets` table returns 1 page with no `next_page_url`. `data_model` matches `/info` exactly;
+  * an offset past the end returns an empty page with no `pagination`;
+  * a page token that doesn't decode, or has a negative offset → 400;
+  * the visa-restricted 1000 Genomes table, a table that doesn't exist, a name in uppercase, a base table (`drs_object`) and a system catalog (`pg_user`) → 404;
+  * an invalid bearer token → 401.
+  * Not yet verified with a real passport token (needs Hydra).
+* **Tests:** all existing tests pass. No new automated tests: `/data` needs a real database, which is Task 11's integration test work.
+* **Open for Task 9 (not verified):** with Spring Boot's default `spring.jpa.open-in-view`, a primary-pool connection is likely held for the whole request once JPA uses one, including while the Data Connect query runs. That's harmless for `/data` (fast, paged queries), but `/search` can run for up to 30s, so check this and consider turning it off then.
+
+> **⚠️ DRAFT: Tasks 9–11 are AI-proposed and incomplete.** They are an outline for planning and may be modified, reordered, merged or removed before implementation. Treat each task as a starting point to review, not a finalized requirement.
 
 ### Task 9: Implement `/search` (DRAFT, incomplete)
 

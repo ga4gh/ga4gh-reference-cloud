@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.dataconnect.table;
 
+import org.ga4gh.refcloud.api.dataconnect.query.TableDataResponseDTO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -7,6 +8,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import lombok.RequiredArgsConstructor;
 
@@ -16,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 public class DataConnectTableController {
 
     private final DataConnectTableService dataConnectTableService;
+
+    private final DataConnectTableDataService dataConnectTableDataService;
 
     // open endpoint: anonymous requests (jwt == null) list only platform-wide and open tables,
     // a passport token additionally lists tables in datasets the user has an approved visa for
@@ -32,7 +36,13 @@ public class DataConnectTableController {
     }
 
     @GetMapping("/table/{table_name}/data")
-    public ResponseEntity<String> getTableData(@PathVariable("table_name") String tableName) {
-        return ResponseEntity.ok("you have reached the /table/" + tableName + "/data endpoint");
+    @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessDataConnectTable(authentication, #tableName)")
+    public ResponseEntity<TableDataResponseDTO> getTableData(
+        @PathVariable("table_name") String tableName,
+        @RequestParam(name = "page_token", required = false) String pageToken,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String userId = jwt == null ? null : jwt.getSubject();
+        return ResponseEntity.ok(dataConnectTableDataService.getTableData(tableName, userId, pageToken));
     }
 }

@@ -68,7 +68,7 @@ public class DataConnectTableService {
     // fills runtime placeholders in a copy of the stored template, leaving the entity untouched
     private JsonNode hydrateDataModel(DataConnectTable table) {
         Map<String, String> placeholders = Map.of(
-            BASE_URL_PLACEHOLDER, stripTrailingSlash(dataConnectConfig.baseUrl()),
+            BASE_URL_PLACEHOLDER, dataConnectConfig.baseUrlWithoutTrailingSlash(),
             TABLE_NAME_PLACEHOLDER, table.getTableName()
         );
 
@@ -108,9 +108,5 @@ public class DataConnectTableService {
             result = result.replace(placeholder.getKey(), placeholder.getValue());
         }
         return result;
-    }
-
-    private String stripTrailingSlash(String url) {
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

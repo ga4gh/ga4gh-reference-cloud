@@ -11,6 +11,10 @@ public record DataConnectConfig(
     Datasource datasource,
     ServiceInfo serviceInfo
 ){
+    public String baseUrlWithoutTrailingSlash() {
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
     public record Query(
         int maxLength,
         Duration statementTimeout,
