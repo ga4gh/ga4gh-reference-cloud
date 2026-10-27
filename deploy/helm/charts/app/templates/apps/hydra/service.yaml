@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hydra
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: hydra
+  ports:
+    - name: client
+      port: 4444
+      targetPort: 4444
+      protocol: TCP
+    - name: admin
+      port: 4445
+      targetPort: 4445
+      protocol: TCP
+    - name: token
+      port: 5555
+      targetPort: 5555
+      protocol: TCP

@@ -1,0 +1,29 @@
+replicaCount: 1
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+ga4gh:
+  referenceCloud:
+    baseURL: refcloud.ga4gh.local
+    cloudEnvironment: local
+    drs:
+      serviceInfo:
+        id: org.ga4gh.refcloud.drs.local.helm
+        name: GA4GH Reference Cloud DRS Service (Local Helm Environment)
+        description: GA4GH reference implementation of the Data Repository Service (DRS) specification
+        organization:
+          name: Global Alliance for Genomics and Health
+          url: https://ga4gh.org
+        contactUrl: mailto:jeremy.adams@ga4gh.org
+        documentationUrl: https://github.com/ga4gh/ga4gh-reference-cloud
+        createdAt: 2026-07-20T12:00:00Z
+        updatedAt: 2026-07-20T12:00:00Z
+        environment: local
+        version: 0.1.0
