@@ -1,0 +1,1 @@
+# GA4GH Reference Cloud: How to Contribute
