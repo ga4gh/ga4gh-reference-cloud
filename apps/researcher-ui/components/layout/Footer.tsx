@@ -1,10 +1,10 @@
 const Footer = () => {
   return (
-    <footer className="bg-neutral text-neutral-content p-10">
+    <footer className="ga4gh-footer bg-neutral text-neutral-content p-10">
       <div className="ga4gh-footer-container">
         <aside className="f-logo">
           <img
-            src="https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-white.svg"
+            src="/logos/logo-mark-white.svg"
             alt="The Global Alliance for Genomics and Health"
             width="60"
             height="60"

@@ -1,29 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&family=Figtree:wght@300;400;600;700&family=Space+Grotesk:wght@400;700&display=swap');
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 @import "./flexboxgrid.css";
 
-@layer base {
-  :root {
-    --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
-    --text-lg: clamp(1.1rem, 1.3vw, 1.4rem);
-  }
+@plugin "@tailwindcss/typography";
+@plugin "daisyui" {
+  themes: ga4gh;
+}
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: theme('fontFamily.heading');
-    font-weight: 700;
-  }
-
-  h1 {
-    color: #1b75bb;
-  }
+@theme {
+  --font-sans: "Figtree", "ui-sans-serif", "system-ui", sans-serif;
+  --font-heading: "Work Sans", "ui-sans-serif", "system-ui", sans-serif;
+  --font-label: "Space Grotesk", "ui-sans-serif", "system-ui", sans-serif;
+  
+  --color-brand-blue: #1b75bb;
+  --color-brand-dark: #363636;
+  --color-brand-light: #efefef;
+  --color-neutral: var(--color-brand-dark);
 }
 
 /* GA4GH footer, matching new_ga4gh's layout/_footer.scss + abstracts/_breakpoints.scss $max-site-width */
@@ -61,66 +53,55 @@
   }
 }
 
-/* GA4GH footer social buttons, matching components/_buttons.scss .btn/.btn-light
-   (as used by footer.php's btn-icon-youtube/btn-icon-linkedin markup) */
-@layer components {
-  .ga4gh-btn-light {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    height: clamp(40px, 10vw, 50px);
-    aspect-ratio: 270 / 60;
-    padding-inline: clamp(1rem, 2cqw, 2rem);
-    padding-block: 0;
-    border: none;
-    border-radius: 0;
-    cursor: pointer;
-    overflow: hidden;
-    background-color: rgba(255, 255, 255, 0.46);
-    color: #ffffff;
-    transition: color 0.3s ease;
-  }
+:root {
+  --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
+  --text-lg: clamp(1.1rem, 1.3vw, 1.4rem);
+}
 
-  .ga4gh-btn-light::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: calc(100% - 2px);
-    width: 100%;
-    height: 2px;
-    background-color: #ffffff;
-    transition: all 0.3s ease;
-  }
+@plugin "daisyui/theme" {
+  name: "ga4gh";
+  --color-primary: #1b75bb;
+  --color-primary-content: #ffffff;
+  --color-secondary: #4faedc;
+  --color-secondary-content: #ffffff;
+  --color-accent: #faa633;
+  --color-accent-content: #ffffff;
+  --color-neutral: #363636;
+  --color-neutral-content: #ffffff;
+  --color-base-100: #ffffff;
+  --color-base-200: #efefef;
+  --color-base-300: #dcdcdc;
+  --color-base-content: #363636;
+  --color-info: #4faedc;
+  --color-success: #8cc63e;
+  --color-warning: #faa633;
+  --color-error: #e34a3a;
+  --radius-box: 1rem;
+}
 
-  .ga4gh-btn-light:hover::after,
-  .ga4gh-btn-light:focus-visible::after {
-    top: 0;
-    height: 100%;
-  }
+@layer base {
+  html, body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 
-  .ga4gh-btn-light:hover,
-  .ga4gh-btn-light:focus-visible {
+    font-family: var(--font-sans);
+    font-weight: 400;
     color: #363636;
   }
 
-  .ga4gh-btn-light svg {
-    position: relative;
-    z-index: 1;
-    fill: currentColor;
-    width: 1.25rem;
-    height: 1.25rem;
-    flex-shrink: 0;
+  :root {
+    --text-base: clamp(0.95rem, 1.15vw, 1.25rem);
+    --text-lg: clamp(1.1rem, 1.3vw, 1.4rem);
   }
 
-  .ga4gh-btn-light .btn-text {
-    position: relative;
-    z-index: 1;
-    font-family: theme('fontFamily.heading');
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
     font-weight: 700;
-    font-size: var(--text-base);
-    text-transform: uppercase;
+  }
+
+  h1 {
+    color: #1b75bb;
   }
 }
 
@@ -193,6 +174,100 @@
   }
 }
 
+/* GA4GH footer social buttons, matching components/_buttons.scss .btn/.btn-light
+   (as used by footer.php's btn-icon-youtube/btn-icon-linkedin markup) */
+@layer components {
+  .ga4gh-btn-light {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: clamp(40px, 10vw, 50px);
+    aspect-ratio: 270 / 60;
+    padding-inline: clamp(1rem, 2cqw, 2rem);
+    padding-block: 0;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.46);
+    color: #ffffff;
+    transition: color 0.3s ease;
+  }
+
+  .ga4gh-btn-light::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: calc(100% - 2px);
+    width: 100%;
+    height: 2px;
+    background-color: #ffffff;
+    transition: all 0.3s ease;
+  }
+
+  .ga4gh-btn-light:hover::after,
+  .ga4gh-btn-light:focus-visible::after {
+    top: 0;
+    height: 100%;
+  }
+
+  .ga4gh-btn-light:hover,
+  .ga4gh-btn-light:focus-visible {
+    color: #363636;
+  }
+
+  .ga4gh-btn-light svg {
+    position: relative;
+    z-index: 1;
+    fill: currentColor;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .ga4gh-btn-light .btn-text {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: var(--text-base);
+    text-transform: uppercase;
+  }
+}
+
+/* GA4GH anchor menu, matching new_ga4gh's components/_lists.scss .anchor-menu-list */
+@layer components {
+  .anchor-menu-link {
+    display: block;
+    padding: 0.5rem 1rem;
+    margin-left: 1rem;
+    color: #363636;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: var(--text-base);
+    line-height: 1.71;
+    transition: color 0.3s ease;
+  }
+
+  .anchor-menu-link:hover,
+  .anchor-menu-link:focus-visible {
+    color: #1b75bb;
+    background-color: transparent;
+    cursor: pointer;
+  }
+
+  .anchor-menu-list .menu-title {
+    color: #363636;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: var(--text-lg);
+    line-height: 1.71;
+    opacity: 1;
+  }
+}
+
 /* GA4GH box-shadow-base/box-shadow-card mixins (abstracts/_mixins.scss) */
 @layer utilities {
   .box-shadow-base {
@@ -243,7 +318,7 @@
   .ga4gh-btn-dark .btn-text {
     position: relative;
     z-index: 1;
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: var(--text-base);
     text-transform: uppercase;
@@ -272,7 +347,7 @@
   }
 
   .ga4gh-label {
-    font-family: theme('fontFamily.sans');
+    font-family: var(--font-sans);
     font-weight: 700;
     font-size: var(--text-base);
     color: #363636;
@@ -281,7 +356,7 @@
   .ga4gh-input {
     width: 100%;
     padding: 0.5rem 1rem;
-    font-family: theme('fontFamily.sans');
+    font-family: var(--font-sans);
     font-size: var(--text-base);
     color: #363636;
     border: 1.5px solid #dcdcdc;
@@ -299,7 +374,7 @@
 @layer components {
   .ga4gh-select {
     display: inline-block;
-    font-family: theme('fontFamily.label');
+    font-family: var(--font-label);
     font-weight: 700;
     font-size: 0.85rem;
     line-height: 1.41;
@@ -327,7 +402,7 @@
 /* GA4GH cta label, matching base/_typography.scss .cta */
 @layer components {
   .ga4gh-cta {
-    font-family: theme('fontFamily.heading');
+    font-family: var(--font-heading);
     font-weight: 700;
     font-size: clamp(1rem, 1.1vw, 1.1rem);
     line-height: 1.33;
@@ -344,45 +419,11 @@
     background-color: #efefef;
     border: solid 1px #767676;
     padding: 0.5rem;
-    font-family: theme('fontFamily.label');
+    font-family: var(--font-label);
     font-weight: 700;
     font-size: 0.85rem;
     line-height: 1.41;
     text-transform: uppercase;
-  }
-}
-
-/* GA4GH status pills, matching components/_status-badges.scss .status + $pdap-status-colours/$faint-status-colours */
-@layer components {
-  .ga4gh-status {
-    display: inline-block;
-    border-radius: 100px;
-    padding: 0.5rem 1rem;
-    border: 2px solid transparent;
-    font-weight: 800;
-    font-size: var(--text-base);
-    white-space: nowrap;
-    color: #363636;
-  }
-
-  .ga4gh-status--approved {
-    border-color: #8cc63e;
-    background-color: #8cc63e50;
-  }
-
-  .ga4gh-status--requested {
-    border-color: #faa633;
-    background-color: #faa63350;
-  }
-
-  .ga4gh-status--denied {
-    border-color: #e34a3a;
-    background-color: #e34a3a50;
-  }
-
-  .ga4gh-status--not-requested {
-    border-color: #767676;
-    background-color: #efefef;
   }
 }
 
@@ -450,6 +491,46 @@
   }
 }
 
+.ga4gh-btn-light:hover::after,
+.ga4gh-btn-light:focus-visible::after {
+  top: 0;
+  height: 100%;
+}
+
+/* GA4GH status pills, matching components/_status-badges.scss .status + $pdap-status-colours/$faint-status-colours */
+@layer components {
+  .ga4gh-status {
+    display: inline-block;
+    border-radius: 100px;
+    padding: 0.5rem 1rem;
+    border: 2px solid transparent;
+    font-weight: 800;
+    font-size: var(--text-base);
+    white-space: nowrap;
+    color: #363636;
+  }
+
+  .ga4gh-status--approved {
+    border-color: #8cc63e;
+    background-color: #8cc63e50;
+  }
+
+  .ga4gh-status--requested {
+    border-color: #faa633;
+    background-color: #faa63350;
+  }
+
+  .ga4gh-status--denied {
+    border-color: #e34a3a;
+    background-color: #e34a3a50;
+  }
+
+  .ga4gh-status--not-requested {
+    border-color: #767676;
+    background-color: #efefef;
+  }
+}
+
 /* GA4GH $lightgrey-grey gradient, matching base/_colours.scss */
 @layer components {
   .ga4gh-bg-lightgrey-grey {
@@ -473,26 +554,230 @@
   }
 }
 
-/* GA4GH hero background: darkened greyscale pattern, floored at $dark (#363636) */
-@layer components {
-  .ga4gh-hero-bg {
-    width: 100%;
-    height: 100%;
-    background-image: url(https://ga4gh-reference-cloud-public-assets.s3.us-east-2.amazonaws.com/images/gradient-geometric-background.webp);
-    background-size: cover;
-    background-position: center;
-    filter: grayscale(100%) brightness(0.412);
-  }
+.anchor-menu-link {
+  display: block;
+  padding: 0.5rem 1rem;
+  margin-left: 1rem;
+  color: var(--color-brand-dark);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: var(--text-base);
+  line-height: 1.71;
+  transition: color 0.3s ease;
+}
+
+.anchor-menu-link:hover,
+.anchor-menu-link:focus-visible {
+  color: var(--color-brand-blue);
+  background-color: transparent;
+  cursor: pointer;
+}
+
+.anchor-menu-list .menu-title {
+  color: var(--color-brand-dark);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: var(--text-lg);
+  line-height: 1.71;
+  opacity: 1;
+}
+
+.ga4gh-btn-dark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(40px, 10vw, 50px);
+  aspect-ratio: 270 / 60;
+  padding-inline: clamp(1rem, 2cqw, 2rem);
+  padding-block: 0;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  overflow: hidden;
+  background-color: var(--color-brand-light);
+  box-shadow: inset 0 -2.6px 0 var(--color-brand-dark);
+}
+
+.ga4gh-btn-dark::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(100% - 2px);
+  width: 100%;
+  height: 2px;
+  background-color: var(--color-brand-dark);
+  transition: all 0.3s ease;
+}
+
+.ga4gh-btn-dark:hover::after,
+.ga4gh-btn-dark:focus-visible::after {
+  top: 0;
+  height: 100%;
+}
+
+.ga4gh-btn-dark .btn-text {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: var(--text-base);
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-brand-dark);
+  transition: color 0.3s ease;
+}
+
+.ga4gh-btn-dark svg {
+  position: relative;
+  z-index: 1;
+  color: var(--color-brand-dark);
+  transition: color 0.3s ease;
+}
+
+.ga4gh-btn-dark:hover .btn-text,
+.ga4gh-btn-dark:focus-visible .btn-text,
+.ga4gh-btn-dark:hover svg,
+.ga4gh-btn-dark:focus-visible svg {
+  color: #ffffff;
+}
+
+.ga4gh-btn-dark:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ga4gh-label {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--color-brand-dark);
+}
+
+.ga4gh-input {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--color-brand-dark);
+  border: 1.5px solid #dcdcdc;
+  border-radius: 0;
+  outline: none;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.ga4gh-input:focus {
+  border-color: var(--color-brand-blue);
+}
+
+.ga4gh-select {
+  display: inline-block;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1.41;
+  text-transform: uppercase;
+  height: clamp(40px, 10vw, 50px);
+  padding: 0.5rem 1rem;
+  border: none;
+  border-bottom: 2px solid var(--color-brand-light);
+  border-radius: 0;
+  background-color: #ffffff;
+  color: var(--color-brand-dark);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ga4gh-select:hover,
+.ga4gh-select:active,
+.ga4gh-select:focus {
+  color: var(--color-brand-dark);
+  background-color: var(--color-brand-light);
+  border-bottom-color: var(--color-brand-dark);
+}
+
+.ga4gh-cta {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: clamp(1rem, 1.1vw, 1.1rem);
+  line-height: 1.33;
+  text-transform: uppercase;
+  color: var(--color-brand-dark);
+}
+
+.ga4gh-tag {
+  display: inline-block;
+  color: var(--color-brand-dark);
+  background-color: var(--color-brand-light);
+  border: solid 1px #767676;
+  padding: 0.5rem;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1.41;
+  text-transform: uppercase;
+}
+
+.ga4gh-status {
+  display: inline-block;
+  border-radius: 100px;
+  padding: 0.5rem 1rem;
+  border: 2px solid transparent;
+  font-weight: 800;
+  font-size: var(--text-base);
+  white-space: nowrap;
+  color: var(--color-brand-dark);
+}
+
+.ga4gh-status--approved {
+  border-color: #8cc63e;
+  background-color: rgba(140, 198, 62, 0.31);
+}
+
+.ga4gh-status--requested {
+  border-color: #faa633;
+  background-color: rgba(250, 166, 51, 0.31);
+}
+
+.ga4gh-status--denied {
+  border-color: #e34a3a;
+  background-color: rgba(227, 74, 58, 0.31);
+}
+
+.ga4gh-status--not-requested {
+  border-color: #767676;
+  background-color: var(--color-brand-light);
+}
+
+/* 6. Functional Native Box Shadow Utility Tokens */
+@utility box-shadow-base {
+  box-shadow: 0 12px 10px -12px #262626;
+}
+
+@utility box-shadow-card {
+  box-shadow: 0 5px 12px 0 rgba(0, 0, 0, 0.25);
 }
 
 /* GA4GH dashboard nav: below 768px or on touch screens, the sidebar collapses
    into a hamburger + dropdown panel hung off the sticky top navbar, matching
    new_ga4gh's / the analytics dashboard's mobile nav pattern. */
-@layer components {
+/* In @layer utilities (not @layer components) so this wins over daisyUI's
+   .btn font-size, which lives in a nested utilities sublayer and would
+   otherwise override it regardless of selector specificity. */
+@layer utilities {
   .ga4gh-navbar-brand {
     font-size: 1.5rem;
   }
 
+  @media (max-width: 767px), (pointer: coarse) {
+    .ga4gh-navbar-brand {
+      font-size: 1.125rem;
+      gap: 0.35rem;
+    }
+  }
+}
+
+@layer components {
   .ga4gh-navbar-mobile-trigger {
     display: none;
   }
@@ -511,13 +796,6 @@
        there (desktop keeps them, since ga4gh-sidebar is hidden here anyway). */
     .anchor-menu-list .divider {
       display: none;
-    }
-
-    /* Frees up room for the hamburger on narrow screens - the full
-       wordmark plus the trigger button doesn't fit next to it otherwise. */
-    .ga4gh-navbar-brand {
-      font-size: 1.125rem;
-      gap: 0.35rem;
     }
 
     .ga4gh-navbar-brand-full {
@@ -688,5 +966,17 @@
       letter-spacing: 0.02em;
       color: #767676;
     }
+  }
+}
+
+/* GA4GH hero background: darkened greyscale pattern, floored at $dark (#363636) */
+@layer components {
+  .ga4gh-hero-bg {
+    width: 100%;
+    height: 100%;
+    background-image: url(https://ga4gh-reference-cloud-public-assets.s3.us-east-2.amazonaws.com/images/gradient-geometric-background.webp);
+    background-size: cover;
+    background-position: center;
+    filter: grayscale(100%) brightness(0.412);
   }
 }
