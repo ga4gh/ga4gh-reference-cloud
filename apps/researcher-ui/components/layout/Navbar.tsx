@@ -49,7 +49,7 @@ const Navbar = () => {
         <Link href="/datasets">
           <span className="ga4gh-navbar-brand btn btn-ghost no-animation">
             <img
-              src="https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-color.svg"
+              src="/logos/logo-mark-color.svg"
               alt="The Global Alliance for Genomics and Health"
               width="40"
               height="40"

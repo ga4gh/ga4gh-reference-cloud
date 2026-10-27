@@ -14,7 +14,7 @@ const HomeLoggedOut: NextPage = () => {
         <div className="hero-content ga4gh-home-hero-content text-neutral-content">
           <div className="ga4gh-home-hero-intro max-w-md">
             <img
-              src="https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-color.svg"
+              src="/logos/logo-mark-color.svg"
               alt="The Global Alliance for Genomics and Health"
               width="100"
               height="100"

@@ -4,7 +4,7 @@ const Footer = () => {
       <div className="ga4gh-footer-container">
         <aside className="f-logo">
           <img
-            src="https://www.ga4gh.org/wp-content/themes/ga4gh/dist/assets/svg/logos/logo-mark-white.svg"
+            src="/logos/logo-mark-white.svg"
             alt="The Global Alliance for Genomics and Health"
             width="60"
             height="60"
