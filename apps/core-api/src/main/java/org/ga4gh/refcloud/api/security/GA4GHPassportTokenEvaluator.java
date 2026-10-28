@@ -8,6 +8,7 @@ import org.ga4gh.refcloud.api.drs.authinfo.SingleDrsObjectRequestDTO;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectService;
 import org.ga4gh.refcloud.api.exception.ContentTooLargeException;
 import org.ga4gh.refcloud.api.exception.ForbiddenException;
+import org.ga4gh.refcloud.api.refget.sequence.RefgetSequenceService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -22,10 +23,13 @@ public class GA4GHPassportTokenEvaluator {
 
     private final DatasetService datasetService;
 
-    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService, DatasetService datasetService) {
+    private final RefgetSequenceService refgetSequenceService;
+
+    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService, DatasetService datasetService, RefgetSequenceService refgetSequenceService) {
         this.jwtDecoder = jwtDecoder;
         this.drsObjectService = drsObjectService;
         this.datasetService = datasetService;
+        this.refgetSequenceService = refgetSequenceService;
     }
 
     public boolean canAccessDataset(Authentication authentication, String datasetId) {
@@ -44,6 +48,16 @@ public class GA4GHPassportTokenEvaluator {
 
         String userId = jwt.getSubject();
         return drsObjectService.validateUserIsAuthorizedForDrsObject(userId, objectId);
+    }
+
+    // anonymous requests are allowed through, but can only access sequences in open datasets
+    public boolean canAccessRefgetSequence(Authentication authentication, String id) {
+        String userId = null;
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+            userId = jwt.getSubject();
+        }
+
+        return refgetSequenceService.validateUserIsAuthorizedForSequence(userId, id);
     }
 
     public boolean canAccessDrsObject(Authentication authentication, String objectId, SingleDrsObjectRequestDTO requestDTO) {

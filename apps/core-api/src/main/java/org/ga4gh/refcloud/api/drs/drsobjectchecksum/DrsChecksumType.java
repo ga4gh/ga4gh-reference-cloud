@@ -6,5 +6,6 @@ public enum DrsChecksumType {
     crc32c,
     trunc512,
     sha1,
-    sha256
+    sha256,
+    sha512t24u
 }

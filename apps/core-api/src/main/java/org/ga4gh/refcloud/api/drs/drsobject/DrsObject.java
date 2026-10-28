@@ -8,6 +8,7 @@ import org.ga4gh.refcloud.api.core.dataset.Dataset;
 import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3AccessObject;
 import org.ga4gh.refcloud.api.drs.drsobjectalias.DrsObjectAlias;
 import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsObjectChecksum;
+import org.ga4gh.refcloud.api.refget.sequence.RefgetSequence;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import jakarta.persistence.CascadeType;
@@ -18,6 +19,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -73,4 +75,7 @@ public class DrsObject {
     @OneToMany(mappedBy = "drsObject", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
     private Set<DrsObjectAlias> aliases = new HashSet<>();
+
+    @OneToOne(mappedBy = "drsObject", cascade = CascadeType.ALL, orphanRemoval = true)
+    private RefgetSequence refgetSequence;
 }
