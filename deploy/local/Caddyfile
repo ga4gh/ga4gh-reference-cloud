@@ -1,0 +1,7 @@
+refcloud.ga4gh.local {
+	reverse_proxy * localhost:3000
+}
+
+docs.refcloud.ga4gh.local {
+	reverse_proxy * localhost:3001
+}
