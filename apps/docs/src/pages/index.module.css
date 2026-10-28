@@ -1,0 +1,26 @@
+/* stylelint-disable docusaurus/copyright-header */
+
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+/* Fluid instead of a flat 4rem + a breakpoint override to 2rem - eases
+   both the vertical rhythm and the horizontal breathing room down
+   smoothly as the viewport narrows, rather than jumping at 966px. */
+.heroBanner {
+  padding: clamp(2rem, 6vw, 4rem) clamp(0rem, 4vw, 2rem);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.buttons a {
+  margin: 0.5rem;
+}
