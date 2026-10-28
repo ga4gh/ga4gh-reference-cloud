@@ -24,6 +24,8 @@ class DatabaseEngine:
         self._drs_object_alias_table = self._metadata.tables['drs_object_alias']
         self._drs_object_checksum_table = self._metadata.tables['drs_object_checksum']
         self._aws_s3_access_object_table = self._metadata.tables['aws_s3_access_object']
+        self._refget_sequence_table = self._metadata.tables['refget_sequence']
+        self._refget_sequence_alias_table = self._metadata.tables['refget_sequence_alias']
 
     def _insert(self, table, **kwargs):
         stmt = insert(table).values(**kwargs)
@@ -71,6 +73,12 @@ class DatabaseEngine:
 
     def insert_aws_s3_access_object(self, **kwargs):
         return self._insert(self._aws_s3_access_object_table, **kwargs)
+
+    def insert_refget_sequence(self, **kwargs):
+        return self._insert(self._refget_sequence_table, **kwargs)
+
+    def insert_refget_sequence_alias(self, **kwargs):
+        return self._insert(self._refget_sequence_alias_table, **kwargs)
 
     def delete_dataset(self, id):
         stmt = delete(self._dataset_table).where(self._dataset_table.c.id == id)

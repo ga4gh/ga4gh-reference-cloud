@@ -27,7 +27,11 @@ def dataset_onboard(dataset_id):
 
         for drs_object_set in onboarding_fn(s3_client): # load drs objects and sub-objects (aliases, checksums, aws s3 access objects) into db
             if len(drs_object_set['file_keys']) > 0:
-                all_meta_objects = [drs_object_set['file_objs'][file_key] for file_key in drs_object_set['file_keys']] + [drs_object_set["manifest_obj"]]
+
+                all_meta_objects = [drs_object_set['file_objs'][file_key] for file_key in drs_object_set['file_keys']]
+                if "manifest_obj" in drs_object_set:
+                    all_meta_objects += [drs_object_set["manifest_obj"]]
+
                 for meta_obj in all_meta_objects:
                     # unpack
                     drs_object, aliases, checksums, aws_s3_access_objects = itemgetter("drs_object", "aliases", "checksums", "aws_s3_access_objects")(meta_obj)
@@ -50,3 +54,14 @@ def dataset_onboard(dataset_id):
                     for aws_s3_access_object in aws_s3_access_objects:
                         aws_s3_access_object["drs_object_id"] = drs_object["id"]
                         database_engine.insert_aws_s3_access_object(**aws_s3_access_object)
+
+                    # add refget sequence metadata if present, will lead to object being available by Refget API
+                    if "refget_sequence" in meta_obj.keys():
+                        refget_sequence = meta_obj["refget_sequence"]
+                        refget_sequence["drs_object_id"] = drs_object["id"]
+                        database_engine.insert_refget_sequence(**refget_sequence)
+
+                    if "refget_sequence_aliases" in meta_obj.keys():
+                        for refget_sequence_alias in meta_obj["refget_sequence_aliases"]:
+                            refget_sequence_alias["refget_sequence_id"] = refget_sequence["drs_object_id"]
+                            database_engine.insert_refget_sequence_alias(**refget_sequence_alias)

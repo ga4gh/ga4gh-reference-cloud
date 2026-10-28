@@ -1,4 +1,5 @@
 from refcloud.custom_onboarding.onboard_1000_genomes import onboard_1000_genomes
+from refcloud.custom_onboarding.onboard_refget_sequences_v2_conformance import onboard_refget_sequences_v2_conformance
 
 SUPPORTED_DATASETS = {
     "aws.opendata.registry.1000-genomes": {
@@ -20,6 +21,24 @@ SUPPORTED_DATASETS = {
             "type": "s3",
             "s3info": {
                 "custom_onboarding_function": onboard_1000_genomes
+            }
+        }
+    },
+    "ga4gh.refget.sequences.v2.conformance": {
+        "dataset": {
+            "id": "ga4gh.refget.sequences.v2.conformance",
+            "name": "GA4GH Refget Sequences v2 Conformance Test Dataset",
+            "description": "Test sequences for GA4GH Refget Sequences v2 Conformance"
+        },
+        "visa": None, # conformance data that will not require a researcher passport, hence no visa is required to access it
+        "tags": [
+            "Reference Sequences",
+            "Conformance"
+        ],
+        "data_source": {
+            "type": "s3",
+            "s3info": {
+                "custom_onboarding_function": onboard_refget_sequences_v2_conformance
             }
         }
     }
