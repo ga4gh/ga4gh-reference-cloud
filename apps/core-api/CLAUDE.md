@@ -2,25 +2,26 @@
 
 ## Project Overview & Architecture
 
-This GA4GH Reference Cloud (Refcloud) is a reference implementation of multiple API specifications from the [Global Alliance for Genomics and Health](https://ga4gh.org). The Refcloud is designed to provide a live model of GA4GH standards in action, demonstrating how they work as running applications, and elucidating how various models and concepts can be connected across different GA4GH Work Streams.
+The GA4GH Reference Cloud (Refcloud) is a reference implementation of multiple API specifications from the [Global Alliance for Genomics and Health](https://ga4gh.org). The Refcloud is designed to provide a live model of GA4GH standards in action, demonstrating how they work as running applications, and elucidating how various models and concepts can be connected across different GA4GH Work Streams.
 
 This repo serves as the core application's backend layer. There are separate repos for the frontend, CLI, helm chart, etc.
 
 * **Tech Stack:** Java Spring Boot, PostgreSQL, Liquibase
 
 ### Directory Layout
-* `[src/main]` - Main Java/Spring Boot application code
-* `[src/test/]` - Unit and integration tests
-* `[liquibase/]` - Contains config and commands to apply database migrations via liquibase
-* `[contrib/]` - Config files used by dependency services spun up via docker compose
+* `src/main` - Main Java/Spring Boot application code
+* `src/test/` - Unit and integration tests
+* `liquibase/` - Contains config and commands to apply database migrations via liquibase
+* `contrib/` - Config files used by dependency services spun up via docker compose
+* `setup/` - One-time environment setup scripts, grouped by target (e.g. `setup/postgres/` for admin database setup, such as role creation, run before the Liquibase changelog)
 
 ---
 
 ## 🛠️ Core Commands
 
 ### Development & Build
-* Start dependency services: `[docker-compose up -d]`
-* Start local dev server: `[./gradlew bootRun]`
+* Start dependency services: `docker-compose up -d`
+* Start local dev server: `./gradlew bootRun`
 
 ### Code Quality & Validation
 * TBD: Run linter

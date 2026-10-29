@@ -56,6 +56,14 @@ SQL
 
 These credentials match `src/main/resources/application.yml` and `docker-compose.yml`. They are for local development only.
 
+Then create the restricted, read-only role that the Data Connect query engine uses to run researcher-submitted SQL. It must exist before the next step, because the Liquibase changelog grants it access to specific tables:
+
+```bash
+psql postgres -f setup/postgres/create-data-connect-reader-role.sql
+```
+
+The script is safe to re-run. Locally it uses the password `secret`; in other environments, set `DATA_CONNECT_READER_PASSWORD` before running it, and give the app the same value through `GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_PASSWORD`. See the comments in [`setup/postgres/create-data-connect-reader-role.sql`](setup/postgres/create-data-connect-reader-role.sql) for details.
+
 ### 2. Apply the API schema
 
 ```bash
@@ -144,7 +152,21 @@ Configuration lives in `src/main/resources/application.yml`. Spring Boot's relax
 | `GA4GH_REFCLOUD_SECURITY_KRATOS_PUBLICBASEURL` | `http://127.0.0.1:4433` | Kratos public API, used for session validation |
 | `GA4GH_REFCLOUD_DRS_SCHEME` | `http` | Scheme used when building DRS URIs |
 | `GA4GH_REFCLOUD_DRS_HOSTDOMAIN` | `127.0.0.1:8080` | Host used when building DRS URIs |
+| `GA4GH_REFCLOUD_DATACONNECT_BASEURL` | `http://127.0.0.1:8080` | Public base URL of this server, used in Data Connect data models |
+| `GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/refcloudapi` | JDBC URL used by the Data Connect query engine |
+| `GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_USERNAME` | `data_connect_reader` | Restricted, read-only role used to run researcher-submitted SQL |
+| `GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_PASSWORD` | `secret` | Password for that role; must match `DATA_CONNECT_READER_PASSWORD` used by `setup/postgres/create-data-connect-reader-role.sql` |
 
 ## Issues
 
 For any issues relating to the API, please create an issue in the [GA4GH Reference Cloud planning repo](https://github.com/ga4gh/ga4gh-reference-cloud/issues). Please do not create issues in this repo as they will not be monitored.
+
+## AI Disclosure
+
+Artificial intelligence tools, including large language models (LLMs), were used during the development of this project to support writing, clarify technical concepts, and assist in generating application code. These tools served as an aid for idea refinement, debugging, and improving the readability of explanations and documentation. All AI-generated text and code were thoroughly reviewed, verified for correctness, and understood in full before being incorporated into this application. The responsibility for all final decisions, interpretations, and implementations remains solely with the contributors.
+
+## License
+
+Copyright 2026 Global Alliance for Genomics and Health.
+
+Licensed under the [Apache License 2.0](./LICENSE)

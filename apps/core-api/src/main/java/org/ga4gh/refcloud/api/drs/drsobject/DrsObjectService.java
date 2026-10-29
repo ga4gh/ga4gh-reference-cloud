@@ -24,6 +24,7 @@ import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertion;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertionService;
 import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportVisaAssertionStatus;
+import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -64,10 +65,11 @@ public class DrsObjectService {
         return convertToResponseDTO(loadDrsObject(id));
     }
 
+    // empty when the object's dataset is open (has no visa)
     @Transactional(readOnly = true)
-    public String getVisaIdByDrsObjectId(String id) {
+    public Optional<String> getVisaIdByDrsObjectId(String id) {
         DrsObject drsObject = loadDrsObject(id);
-        return drsObject.getDataset().getPassportVisa().getId();
+        return Optional.ofNullable(drsObject.getDataset().getPassportVisa()).map(PassportVisa::getId);
     }
 
     public SingleDrsObjectAuthInfoResponseDTO getDrsObjectAuthInfo(String id) {
@@ -105,6 +107,8 @@ public class DrsObjectService {
         );
     }
 
+    // transactional so the internal visa lookup can load the object's lazy dataset relationship
+    @Transactional(readOnly = true)
     public MultiDrsObjectResponseDTO getMultiDrsObjects(List<String> passportTokens, List<String> bulkObjectIds) {
         int requested = 0;
         int resolved = 0;
@@ -160,10 +164,15 @@ public class DrsObjectService {
         );
     }
 
+    // transactional so the internal visa lookup can load the object's lazy dataset relationship
+    @Transactional(readOnly = true)
     public boolean validateUserIsAuthorizedForDrsObject(String userId, String objectId) {
-        String visaId = getVisaIdByDrsObjectId(objectId);
+        Optional<String> visaId = getVisaIdByDrsObjectId(objectId);
+        if (visaId.isEmpty()) {
+            return true; // open dataset, no visa required
+        }
 
-        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId);
+        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId.get());
         if (optionalAssertion.isPresent()) {
             PassportUserVisaAssertion assertion = optionalAssertion.get();
             if (assertion.getCurrentStatus() == PassportVisaAssertionStatus.Approved) {
