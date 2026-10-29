@@ -1,0 +1,36 @@
+{
+  "$id": "{{refcloud_base_url}}/ga4gh/data-connect/v1/table/{{table_name}}/info",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Datasets available on the GA4GH Reference Cloud",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Unique dataset identifier"
+    },
+    "name": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Human-readable dataset name"
+    },
+    "description": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Dataset description"
+    },
+    "tags": {
+      "type": "array",
+      "format": "json",
+      "description": "Tags associated with the dataset, sorted alphabetically",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires_visa": {
+      "type": "boolean",
+      "format": "boolean",
+      "description": "True if access to the dataset's records requires an approved GA4GH Passport visa, false if the dataset is open access"
+    }
+  }
+}

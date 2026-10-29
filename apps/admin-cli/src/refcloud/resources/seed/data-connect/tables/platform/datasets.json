@@ -1,0 +1,6 @@
+{
+  "table_name": "refcloud.platform.datasets",
+  "dataset_id": null,
+  "table_type": "datasets",
+  "description": "All datasets available on the GA4GH Reference Cloud"
+}
