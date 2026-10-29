@@ -6,10 +6,12 @@ Admin CLI for the GA4GH Reference Cloud.
 
 To run the admin CLI by itself, see below.
 
+**Note:** you MUST install all [required prerequisites](../../README.md#getting-started) AND run the [setup script](../../scripts/refcloud-setup.sh) first to create required resources
+
+## Run
+
 * Install python environment and dependencies: `uv sync`
 * Run admin CLI: `uv run refcloud`
-
-## Available Commands
 
 ### Seed Command
 
