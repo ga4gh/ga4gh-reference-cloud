@@ -1,5 +1,12 @@
 #!/bin/zsh
 
+typeset -A opts
+
+zparseopts -D -A opts \
+  r \
+  -reset \
+  -=opts
+
 log_info() {
   echo "[INFO] $1"
 }
@@ -14,10 +21,15 @@ init_db() {
   psql -d postgres -c "ALTER DATABASE $1 OWNER TO $1;"
 }
 
+destroy_db() {
+  psql -d postgres -c "DROP DATABASE $1;"
+  psql -d postgres -c "DROP ROLE $1;"
+}
+
 # script start
 
 log_info "running refcloud setup script"
-log_info "checking that required dependencies are installed"
+log_info "first checking that required dependencies are installed"
 
 # check for required dependencies
 
@@ -25,6 +37,15 @@ psql --version > /dev/null 2>&1 || { log_error "psql command not found, please i
 node -v > /dev/null 2>&1 || { log_error "node command not found, please install it and try again"; exit 1; }
 npm -v > /dev/null 2>&1 || { log_error "npm command not found, please install it and try again"; exit 1; }
 npx -v > /dev/null 2>&1 || { log_error "npx command not found, please install it and try again"; exit 1; }
+
+# run reset sequence if -r or --reset flag is detected
+
+if (( ${+opts[-r]} || ${+opts[--reset]} )); then
+    log_info "reset flag detected, running reset sequence prior to setup"
+    # Place your reset logic here
+else
+    log_info "reset flag not detected, running script normally"
+fi
 
 # setup required databases and roles
 
