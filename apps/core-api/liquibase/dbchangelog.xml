@@ -371,4 +371,13 @@
     <changeSet author="jadams" id="fkconstraint-tb-data-connect-search-row-column-search-id-refs-data-connect-search">
         <addForeignKeyConstraint baseColumnNames="search_id" baseTableName="data_connect_search_row" constraintName="data_connect_search_row_search_id_fkey" deferrable="false" initiallyDeferred="false" onDelete="CASCADE" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="data_connect_search" validate="true"/>
     </changeSet>
+    <changeSet author="jadams" id="grant-usage-schema-public-data-connect-reader">
+        <comment>Schema access for the Data Connect query engine role. Without it the table grants in grant-select-data-connect-reader are unreachable wherever USAGE on public has been revoked from PUBLIC: public drops out of the role's search_path and queries fail with "relation does not exist". Requires the database owner on Postgres 15+</comment>
+        <sql dbms="postgresql">
+            GRANT USAGE ON SCHEMA public TO data_connect_reader;
+        </sql>
+        <rollback>
+            <sql>REVOKE USAGE ON SCHEMA public FROM data_connect_reader;</sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>
