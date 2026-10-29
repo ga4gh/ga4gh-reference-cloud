@@ -1,0 +1,19 @@
+name: Push Docker Image - Core API
+on:
+  push:
+    branches:
+      - develop
+      - ja-iss-30-monorepo-structure # for testing, delete later
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-push:
+    uses: ./.github/workflows/push-docker-image.yml
+    with:
+      app-path: apps/core-api
+      docker-repo: refcloud-core-api
+    secrets: inherit
