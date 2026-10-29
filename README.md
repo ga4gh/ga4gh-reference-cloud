@@ -41,6 +41,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | Gradle 9+ | Install through sdkman using `sdk install gradle 9.5.1` |
 | Node Version Manager (nvm) | visit [nodejs.org](https://nodejs.org/en/download) and follow instructions |
 | Node.js v24+ | Install through nvm using `nvm install v24.15.0` then activate with `nvm use v24.15.0` |
+| uv 0.11+ | `brew install uv` |
 | kubectl v1.36+ | `brew install kubectl` |
 | minikube v1.38+ | `brew install minikube` |
 | helm v4.2+ | `brew install kubernetes-helm` |
