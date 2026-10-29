@@ -12,7 +12,7 @@ RUN \
   else echo "Lockfile not found." && exit 1; \
   fi
 
-FROM node:24.15.0 AS builder
+FROM node:24.15.0-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
