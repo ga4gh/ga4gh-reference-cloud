@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - develop
-      - ja-iss-30-monorepo-structure # for testing, delete later
 permissions:
   contents: read
   id-token: write

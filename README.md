@@ -12,16 +12,20 @@ Please see the [documentation page](./docs) for high-level design decisions, ADR
 
 This multi-app repo contains the following apps/components:
 
-* `apps/core-api` - core backend app implementing multiple GA4GH APIs
-* `apps/researcher-ui` - researcher UI for profile registration, data access requests, browsing datasets, etc.
-* `apps/admin-cli` - administrative CLI for dataset registration, onboarding data, processing data access requests, etc.
-* `apps/docs` - public documentation site
-* `deploy/helm` - helm chart for deploying the entire reference cloud in a kubernetes cluster
+* [`apps/core-api`](./apps/core-api/) - core backend app implementing multiple GA4GH APIs
+* [`apps/researcher-ui`](./apps/researcher-ui/) - researcher UI for profile registration, data access requests, browsing datasets, etc.
+* [`apps/admin-cli`](./apps/admin-cli/) - administrative CLI for dataset registration, onboarding data, processing data access requests, etc.
+* [`apps/docs`](./apps/docs/) - public documentation site
 
 The refcloud also includes the following dependency services (run via docker / docker-compose). Expected config for each service when running locally is included in `deploy/local/`
 
-* Ory Kratos (`deploy/local/ory/kratos`) - manages researcher identities
-* Ory Hydra (`deploy/local/ory/hydra`) - provisions GA4GH Passport / OAuth2.0 tokens
+* Ory Kratos ([`deploy/local/ory/kratos`](./deploy/local/ory/kratos)) - manages researcher identities
+* Ory Hydra ([`deploy/local/ory/hydra`](./deploy/local/ory/hydra)) - provisions GA4GH Passport / OAuth2.0 tokens
+
+We include configuration for the following deployment contexts:
+
+* [`deploy/local`](./deploy/local/) - local deployment of the refcloud on your machine
+* [`deploy/helm`](./deploy/helm/) - helm chart for deploying the refcloud in a kubernetes cluster
 
 ### Getting Started
 
