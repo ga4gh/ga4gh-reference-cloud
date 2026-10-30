@@ -11,7 +11,7 @@ services:
     command: -c /etc/config/kratos/kratos.yml migrate sql -e --yes
     volumes:
       - type: bind
-        source: ./contrib/kratos
+        source: ./ory/kratos
         target: /etc/config/kratos
     restart: on-failure
     networks:
@@ -30,7 +30,7 @@ services:
     command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
     volumes:
       - type: bind
-        source: ./contrib/kratos
+        source: ./ory/kratos
         target: /etc/config/kratos
     restart: unless-stopped
     networks:
@@ -43,7 +43,7 @@ services:
     command: -c /etc/config/hydra/hydra.yml migrate sql -e --yes
     volumes:
       - type: bind
-        source: ./contrib/hydra
+        source: ./ory/hydra
         target: /etc/config/hydra
     restart: on-failure
     networks:
@@ -63,7 +63,7 @@ services:
     command: -c /etc/config/hydra/hydra.yml serve all --dev
     volumes:
       - type: bind
-        source: ./contrib/hydra
+        source: ./ory/hydra
         target: /etc/config/hydra
     restart: unless-stopped
     networks:

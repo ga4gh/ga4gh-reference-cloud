@@ -42,6 +42,8 @@ To run the reference cloud locally, you will need the following tools installed 
 | Node Version Manager (nvm) | visit [nodejs.org](https://nodejs.org/en/download) and follow instructions |
 | Node.js v24+ | Install through nvm using `nvm install v24.15.0` then activate with `nvm use v24.15.0` |
 | uv 0.11+ | `brew install uv` |
+| ory hydra client v26+ | `brew install ory-hydra` |
+| ory kratos client v26+ | `brew install ory/tap/kratos` |
 | kubectl v1.36+ | `brew install kubectl` |
 | minikube v1.38+ | `brew install minikube` |
 | helm v4.2+ | `brew install kubernetes-helm` |
