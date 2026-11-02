@@ -191,7 +191,7 @@ start_docker_compose
 find_hydra_client "$ORY_HYDRA_RESEARCHER_CLIENT_ID" "$ORY_HYDRA_ENDPOINT"
 if [[ $? -ne 0 ]]; then
     log_info "ORY Hydra client '$ORY_HYDRA_RESEARCHER_CLIENT_ID' does not exist, creating it"
-    create_hydra_client "$ORY_HYDRA_RESEARCHER_CLIENT_ID" "secret" "https://refcloud.ga4gh.local/passport,https://refcloud.ga4gh.local/drs" "authorization_code,refresh_token" "code" "openid,offline_access,profile" "$ORY_HYDRA_ENDPOINT"
+    create_hydra_client "$ORY_HYDRA_RESEARCHER_CLIENT_ID" "secret" "https://refcloud.ga4gh.localhost/passport/callback,https://refcloud.ga4gh.localhost/drs" "authorization_code,refresh_token" "code" "openid,offline_access,profile" "$ORY_HYDRA_ENDPOINT"
 fi
 stop_docker_compose
 

@@ -8,10 +8,10 @@ secrets:
 
 urls:
   self:
-    issuer: http://127.0.0.1:4444
-  consent: http://127.0.0.1:3000/api/oauth/consent
-  login: http://127.0.0.1:3000/api/oauth/login
-  logout: http://127.0.0.1:3000/api/oauth/logout
+    issuer: https://refcloud.ga4gh.localhost
+  consent: https://refcloud.ga4gh.localhost/api/oauth/consent
+  login: https://refcloud.ga4gh.localhost/api/oauth/login
+  logout: https://refcloud.ga4gh.localhost/api/oauth/logout
 
 oidc:
   subject_identifiers:

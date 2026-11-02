@@ -11,7 +11,7 @@ readinessProbe:
 
 ga4gh:
   referenceCloud:
-    baseURL: refcloud.ga4gh.local
+    baseURL: refcloud.ga4gh.localhost
     cloudEnvironment: local
     drs:
       serviceInfo:

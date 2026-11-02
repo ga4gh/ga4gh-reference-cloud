@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   });
 
   if (!kratosRes.ok) {
-    return NextResponse.redirect(`${process.env.HYDRA_ADMIN_API_BASE_URL}/login?login_challenge=${loginChallenge}`);
+    return NextResponse.redirect(`${process.env.PUB_UI_BASE_URL}/login?login_challenge=${loginChallenge}`);
   }
 
   const sessionData = await kratosRes.json();

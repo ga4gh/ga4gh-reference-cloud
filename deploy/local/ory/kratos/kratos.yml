@@ -4,11 +4,11 @@ dsn: memory
 
 serve:
   public:
-    base_url: http://127.0.0.1:4433/
+    base_url: https://refcloud.ga4gh.localhost/
     cors:
       enabled: true
       allowed_origins:
-        - http://127.0.0.1:3000
+        - https://refcloud.ga4gh.localhost
       allowed_methods:
         - POST
         - GET
@@ -27,7 +27,7 @@ serve:
 selfservice:
   default_browser_return_url: http://127.0.0.1:4455/
   allowed_return_urls:
-    - http://127.0.0.1:4455
+    - https://refcloud.ga4gh.localhost
 
   methods:
     password:
@@ -35,33 +35,33 @@ selfservice:
 
   flows:
     error:
-      ui_url: http://127.0.0.1:4455/error
+      ui_url: https://refcloud.ga4gh.localhost/error
 
     settings:
-      ui_url: http://127.0.0.1:4455/settings
+      ui_url: https://refcloud.ga4gh.localhost/settings
       privileged_session_max_age: 15m
 
     recovery:
       enabled: true
-      ui_url: http://127.0.0.1:4455/recovery
+      ui_url: https://refcloud.ga4gh.localhost/recovery
 
     verification:
       enabled: true
-      ui_url: http://127.0.0.1:4455/verification
+      ui_url: https://refcloud.ga4gh.localhost/verification
       after:
-        default_browser_return_url: http://127.0.0.1:4455/
+        default_browser_return_url: https://refcloud.ga4gh.localhost/
 
     logout:
       after:
-        default_browser_return_url: http://127.0.0.1:4455/login
+        default_browser_return_url: https://refcloud.ga4gh.localhost/login
 
     login:
-      ui_url: http://127.0.0.1:4455/login
+      ui_url: https://refcloud.ga4gh.localhost/login
       lifespan: 10m
 
     registration:
       lifespan: 10m
-      ui_url: http://127.0.0.1:4455/registration
+      ui_url: https://refcloud.ga4gh.localhost/registration
       after:
         password:
           hooks:

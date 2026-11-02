@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const hydraGetRes = await fetch(
-      `${process.env.HYDRA_ADMIN_API_BASE_URL}/oauth2/auth/requests/consent?consent_challenge=${consent_challenge}`,
+      `${process.env.HYDRA_ADMIN_API_BASE_URL}/admin/oauth2/auth/requests/consent?consent_challenge=${consent_challenge}`,
       { cache: 'no-store' }
     );
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const consentRequestDetails = await hydraGetRes.json();
 
     const hydraAcceptRes = await fetch(
-      `${process.env.HYDRA_ADMIN_API_BASE_URL}/oauth2/auth/requests/consent/accept?consent_challenge=${consent_challenge}`,
+      `${process.env.HYDRA_ADMIN_API_BASE_URL}/admin/oauth2/auth/requests/consent/accept?consent_challenge=${consent_challenge}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

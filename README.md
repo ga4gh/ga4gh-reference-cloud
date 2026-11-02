@@ -54,20 +54,12 @@ To run the reference cloud locally, you will need the following tools installed 
 
 In order to run the reference cloud, you will first need to perform initial setup of local resources, including:
 
-* create local host mappings
 * create databases and roles 
 * create OAuth 2.0 client(s)
 * load dependencies
 * create reference datasets and onboard data
 
-First, add the following 2 lines at the bottom of your `/etc/hosts` file (ensure there is a tab separation between the IP address and hostname):
-
-```
-127.0.0.1   refcloud.ga4gh.local
-127.0.0.1   docs.refcloud.ga4gh.local
-```
-
-Next, run `./scripts/refcloud-setup.sh --reset` to perform the remaining setup steps.
+Run `./scripts/refcloud-setup.sh --reset` to perform all setup steps.
 
 ### Running the Reference Cloud natively
 
@@ -75,7 +67,7 @@ When running the refcloud natively, all apps in the `apps/` folder will run dire
 
 All dependency services (i.e. Ory Kratos, Ory, Hydra, etc.) will be run via docker-compose.
 
-To start all services in native mode, run `./scripts/refcloud-run-native.sh`
+To start all services in native mode, run `./scripts/refcloud-run-native.sh`. Follow the links provided in the terminal to access the various services.
 
 ### Running the Reference Cloud via Helm
 
