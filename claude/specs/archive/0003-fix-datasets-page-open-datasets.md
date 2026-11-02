@@ -1,8 +1,8 @@
 # Feature Spec: Fix the researcher UI `/datasets` page for open datasets
 
-**Branch:** TBD
+**Branch:** ja-iss-36-fix-datasets-page
 
-**Linked GitHub Issue:** TBD
+**Linked GitHub Issue:** [Issue 36](https://github.com/ga4gh/ga4gh-reference-cloud/issues/36)
 
 ## Objective
 
@@ -47,6 +47,12 @@ The `/datasets` page in `apps/researcher-ui` errors since the data model changes
 ### Task 4: Harden the datasets fetch
 
 * In `DatasetsClient.tsx`, only replace the dataset map when the response is an array; otherwise log the error and keep the current state, so a bad backend response doesn't crash the page.
+
+### Task 5: Fix passport token validation in core-api (native mode)
+
+* Found while testing the `/drs` page: loading manifests failed because core-api rejected every passport token.
+* Hydra's issuer is `https://refcloud.ga4gh.localhost` (`deploy/local/ory/hydra/hydra.yml`), but `apps/core-api/src/main/resources/application.yml` expected `http://127.0.0.1:4444`, so the `iss` check failed.
+* Set `issuer-uri` to the public Hydra URL and add `jwk-set-uri: http://127.0.0.1:4444/.well-known/jwks.json`, matching the Helm chart (public issuer, internal JWKS). With `jwk-set-uri` set, Spring validates `iss` without calling discovery on the public URL, so core-api doesn't need to trust Caddy's local CA.
 
 ## Open Questions
 

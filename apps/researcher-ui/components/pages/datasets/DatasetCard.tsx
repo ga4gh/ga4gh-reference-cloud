@@ -7,12 +7,13 @@ interface DatasetCardProps {
   title: string
   description: string
   tags: string[]
+  isOpen: boolean
   currentStatus: PassportVisaAssertionStatus
   datasetMap: Record<string, Dataset>
   setDatasetMap: Dispatch<SetStateAction<Record<string, Dataset>>>
 }
 
-const DatasetCard = ({ id, title, description, tags, currentStatus, datasetMap, setDatasetMap}: DatasetCardProps) => {
+const DatasetCard = ({ id, title, description, tags, isOpen, currentStatus, datasetMap, setDatasetMap}: DatasetCardProps) => {
 
   const accessBadgeClassesMap: Record<string, string> = {
     NotRequested: "ga4gh-status ga4gh-status--not-requested",
@@ -23,7 +24,9 @@ const DatasetCard = ({ id, title, description, tags, currentStatus, datasetMap, 
     Expired: "ga4gh-status ga4gh-status--denied"
   };
 
-  const accessBadgeClasses = accessBadgeClassesMap[currentStatus];
+  // open datasets have no visa, so they show a fixed badge instead of an access status
+  const accessBadgeClasses = isOpen ? accessBadgeClassesMap.Approved : accessBadgeClassesMap[currentStatus];
+  const accessBadgeLabel = isOpen ? "Open Access" : currentStatus;
 
   return (
     <div className="card bg-base-100 w-96 box-shadow-card">
@@ -45,9 +48,9 @@ const DatasetCard = ({ id, title, description, tags, currentStatus, datasetMap, 
         </div>
         <div className="card-actions items-center mt-4">
           <div className="ga4gh-cta">Access Status:</div>
-          <div className={accessBadgeClasses}>{currentStatus}</div>
+          <div className={accessBadgeClasses}>{accessBadgeLabel}</div>
         </div>
-        {currentStatus === "NotRequested" ? <DatasetRequestAccessButton id={id} datasetMap={datasetMap} setDatasetMap={setDatasetMap} /> : null}
+        {!isOpen && currentStatus === "NotRequested" ?<DatasetRequestAccessButton id={id} datasetMap={datasetMap} setDatasetMap={setDatasetMap} /> : null}
       </div>
     </div>
   )

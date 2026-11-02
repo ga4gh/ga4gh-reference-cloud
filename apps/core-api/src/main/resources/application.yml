@@ -22,7 +22,10 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://127.0.0.1:4444
+          # must match the "iss" claim Hydra puts in tokens (its public URL); keys are fetched from
+          # Hydra directly so startup doesn't depend on Caddy or trusting Caddy's local CA
+          issuer-uri: https://refcloud.ga4gh.localhost
+          jwk-set-uri: http://127.0.0.1:4444/.well-known/jwks.json
 
 ga4gh:
   refcloud:
