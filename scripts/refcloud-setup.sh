@@ -23,8 +23,6 @@ PSQL_DATABASE="refcloudapi"
 ORY_HYDRA_RESEARCHER_CLIENT_ID="ga4gh-reference-cloud-researcher-client"
 ORY_HYDRA_ENDPOINT="http://localhost:4445"
 
-
-
 # ##############################
 # FUNCTIONS
 # ##############################
@@ -81,6 +79,7 @@ apply_liquibase_migrations() {
 
 create_data_connect_reader_role() {
   log_info "creating data connect reader role in database"
+  psql -d postgres -c "CREATE ROLE data_connect_reader LOGIN;"
   psql -d postgres -c "ALTER ROLE data_connect_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'secret';"
   psql -d postgres -c "ALTER ROLE data_connect_reader SET default_transaction_read_only = on;"
   psql -d postgres -c "ALTER ROLE data_connect_reader SET statement_timeout = '30s';"
@@ -159,10 +158,14 @@ npx -v > /dev/null 2>&1 || { log_error "npx command not found, please install it
 
 if (( ${+opts[-r]} || ${+opts[--reset]} )); then
     log_info "reset flag detected, running reset sequence prior to setup"
-    destroy_data_connect_reader_role
+    rm -rf ./apps/admin-cli/.venv
+    rm -rf ./apps/docs/node_modules
+    rm -rf ./apps/researcher-ui/node_modules
+    rm -rf ./apps/core-api/.gradle ./apps/core-api/build
     destroy_db "kratos"
     destroy_db "hydra"
     destroy_db "refcloudapi"
+    destroy_data_connect_reader_role
 else
     log_info "reset flag not detected, running script normally"
 fi
@@ -192,20 +195,48 @@ if [[ $? -ne 0 ]]; then
 fi
 stop_docker_compose
 
+# APP SETUP
+
+log_info "installing dependencies for all apps"
+
+# apps/core-api
+
+log_info "installing dependencies for apps/core-api"
+
+cd apps/core-api && ./gradlew dependencies > /dev/null 2>&1 || { log_error "failed to install dependencies for apps/core-api"; exit 1; }
+cd ../..
+
 # apps/researcher-ui
 
-log_info "installing all required dependencies for apps/docs"
-log_info "installing node_modules for apps/docs"
+log_info "installing dependencies for apps/researcher-ui"
 
 cd apps/researcher-ui && npm install > /dev/null 2>&1 || { log_error "failed to install dependencies for apps/researcher-ui"; exit 1; }
 cd ../..
 
 # apps/docs
 
-log_info "installing all required dependencies for apps/docs"
-log_info "installing node_modules for apps/docs"
+log_info "installing dependencies for apps/docs"
 
 cd apps/docs && npm install > /dev/null 2>&1 || { log_error "failed to install dependencies for apps/docs"; exit 1; }
 cd ../..
+
+# apps/admin-cli
+
+log_info "installing dependencies for apps/admin-cli"
+
+cd apps/admin-cli && uv sync > /dev/null 2>&1 || { log_error "failed to install dependencies for apps/admin-cli"; exit 1; }
+cd ../..
+
+# DATASET ONBOARDING
+
+log_info "onboarding datasets into the reference cloud"
+
+cd apps/admin-cli && \
+uv run refcloud seed && \
+uv run refcloud dataset init -d aws_opendata_registry_1000_genomes && \
+uv run refcloud dataset onboard -d aws_opendata_registry_1000_genomes && \
+uv run refcloud dataset init -d ga4gh_refget_sequences_v2_conformance && \
+uv run refcloud dataset onboard -d ga4gh_refget_sequences_v2_conformance \
+> /dev/null 2>&1 || { log_error "failed to onboard refcloud datasets"; exit 1; }
 
 log_info "refcloud setup complete, you may now proceed to run the reference cloud locally"

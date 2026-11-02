@@ -67,7 +67,7 @@ First, add the following 2 lines at the bottom of your `/etc/hosts` file (ensure
 127.0.0.1   docs.refcloud.ga4gh.local
 ```
 
-Next, run `./scripts/refcloud-setup.sh` to perform the remaining setup steps.
+Next, run `./scripts/refcloud-setup.sh --reset` to perform the remaining setup steps.
 
 ### Running the Reference Cloud natively
 
