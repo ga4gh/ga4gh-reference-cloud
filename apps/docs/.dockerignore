@@ -1,0 +1,8 @@
+# Dockerfile and .dockerignore must stay in the context: 'minikube image build' (helm mode)
+# builds from the filtered context, so ignoring them makes the build fail
+.docusaurus
+.git
+.gitignore
+build
+node_modules
+npm-debug.log

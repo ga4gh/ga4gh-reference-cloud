@@ -17,7 +17,7 @@ spec:
           configMap:
             name: kratos-config-map
       containers:
-        - image: oryd/kratos:v0.9.0-alpha.2
+        - image: {{ include "refcloud.kratosImage" . }}
           name: kratos
           volumeMounts:
             - name: kratos-config-map

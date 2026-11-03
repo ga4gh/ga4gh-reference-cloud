@@ -13,7 +13,8 @@ spec:
         app.kubernetes.io/name: refcloud-api
     spec:
       containers:
-        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-api:v0.3.2-99-g5f94342
+        - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-core-api") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-api
           ports:
             - containerPort: 8080
@@ -67,6 +68,22 @@ spec:
                 secretKeyRef:
                   name: refcloud-api-kratos-webhook
                   key: password
+            - name: GA4GH_REFCLOUD_DATACONNECT_BASEURL
+              value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
+            - name: DATA_CONNECT_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-data-connect-db-credentials
+                  key: username
+            - name: GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_URL
+              value: jdbc:postgresql://$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)
+            - name: GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_USERNAME
+              value: $(DATA_CONNECT_DB_USER)
+            - name: GA4GH_REFCLOUD_DATACONNECT_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-data-connect-db-credentials
+                  key: password
             - name: GA4GH_REFCLOUD_DRS_SCHEME
               value: https
             - name: GA4GH_REFCLOUD_DRS_HOST_DOMAIN
@@ -93,5 +110,4 @@ spec:
               value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.environment }}
             - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_VERSION
               value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.version }}
-      imagePullSecrets:
-        - name: ecr-registry-key
+      {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

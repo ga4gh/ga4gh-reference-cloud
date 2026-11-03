@@ -18,16 +18,33 @@ spec:
   tls:
     - hosts:
       - {{ .Values.ga4gh.referenceCloud.baseURL }}
+      - docs.{{ .Values.ga4gh.referenceCloud.baseURL }}
       secretName: refcloud-tls
   {{- end }}
   {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
   ingressClassName: alb
   {{- end }}
+  # Routes must be kept in sync with deploy/local/Caddyfile.
+  # Never route to Hydra admin (4445) or Kratos admin (4434).
   rules:
     - host: {{ .Values.ga4gh.referenceCloud.baseURL }}
       http:
         paths:
           - path: /self-service/
+            pathType: Prefix
+            backend:
+              service:
+                name: kratos
+                port:
+                  number: 4433
+          - path: /sessions/
+            pathType: Prefix
+            backend:
+              service:
+                name: kratos
+                port:
+                  number: 4433
+          - path: /schemas/
             pathType: Prefix
             backend:
               service:
@@ -48,7 +65,28 @@ spec:
                 name: hydra
                 port:
                   number: 4444
+          - path: /webhook/kratos/
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-api
+                port:
+                  number: 8080
           - path: /ga4gh/drs/v1/
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-api
+                port:
+                  number: 8080
+          - path: /ga4gh/refget/v2/
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-api
+                port:
+                  number: 8080
+          - path: /ga4gh/data-connect/v1/
             pathType: Prefix
             backend:
               service:

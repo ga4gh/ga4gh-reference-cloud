@@ -20,25 +20,7 @@ TRAPINT() {
     exit
 }
 
-log_info() {
-  echo "[INFO] $1"
-}
-
-log_error() {
-  echo "[ERROR] $1"
-}
-
-# DOCKER COMPOSE
-
-start_docker_compose() {
-  log_info "starting docker compose"
-  docker compose -f ./deploy/local/docker-compose.yml up -d --wait > /dev/null 2>&1 || { log_error "failed to start docker compose"; exit 1; }
-}
-
-stop_docker_compose() {
-  log_info "stopping docker compose"
-  docker compose -f ./deploy/local/docker-compose.yml down > /dev/null 2>&1 || { log_error "failed to stop docker compose"; exit 1; }
-}
+source ./scripts/lib/common.sh
 
 # ##############################
 # MAIN SCRIPT
@@ -65,16 +47,7 @@ cd deploy/local && caddy run --config Caddyfile > /dev/null 2>&1 &
 CADDY_PID=$!
 cd ../..
 
-log_info ""
-log_info "Refcloud dev services are now running:"
-log_info " * Researcher UI service: https://refcloud.ga4gh.localhost"
-log_info " * Docs Service: https://docs.refcloud.ga4gh.localhost"
-log_info " * Core API Services:"
-log_info "   * Data Connect: https://refcloud.ga4gh.localhost/ga4gh/data-connect/v1"
-log_info "   * DRS: https://refcloud.ga4gh.localhost/ga4gh/drs/v1"
-log_info "   * RefGet: https://refcloud.ga4gh.localhost/ga4gh/refget/v2"
-log_info ""
-log_info "To begin, visit the Researcher UI service and register a new researcher account."
+print_service_urls
 log_info "press Ctrl+C to stop all services and exit"
 
 while true; do

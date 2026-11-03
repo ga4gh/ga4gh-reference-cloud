@@ -37,4 +37,5 @@ This repo serves to provide configuration for the local deployment context
 ## Things to Note:
 
 * All browser-facing traffic goes through Caddy. Any new backend path, whether a Kratos endpoint or a core-api route, needs a handle block, or it falls through to Next.js and returns a 404 page.
+* Caddyfile routes must be kept in sync with the Helm ingress (`deploy/helm/charts/app/templates/common/ingress.yaml`). Add any new path to both.
 * Docker containers reach host services through host.docker.internal, never the public hostname.

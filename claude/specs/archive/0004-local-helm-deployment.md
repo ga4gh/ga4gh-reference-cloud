@@ -1,8 +1,8 @@
 # Feature Spec: Run the Reference Cloud locally via Helm
 
-**Branch:** `ja-iss-TBD-local-helm-deployment` (branched from `ja-iss-30-monorepo-structure`)
+**Branch:** `ja-iss-38-helm-setup-and-run-scripts`
 
-**Linked GitHub Issue:** TBD
+**Linked GitHub Issue:** [Issue 38](https://github.com/ga4gh/ga4gh-reference-cloud/issues/38)
 
 ## Objective
 
@@ -42,7 +42,11 @@ Make it possible to run the whole refcloud in a local minikube cluster using the
 * The Hydra admin API (4445) must **not** be exposed through the ingress.
 * Add a note to `deploy/helm` and `deploy/local` CLAUDE.md files: routes must be kept in sync between the Caddyfile and the ingress.
 
-### Task 3: Connect in-cluster services to host Postgres and align config with native mode
+### Task 3: Add admin-cli to the helm chart
+
+* Add an "admin-cli" deployment to the helm chart so that admin commands can be run from within the cluster
+
+### Task 4: Connect in-cluster services to host Postgres and align config with native mode
 
 * Point `common-db-info` at the host: `PSQL_HOST=host.docker.internal` (or `host.minikube.internal`) — verify which name resolves from a pod and that host Postgres accepts the connection without `pg_hba.conf`/`listen_addresses` changes (docker compose already reaches host Postgres via `host.docker.internal`, so this is expected to work with minikube's docker driver).
 * Kratos and Hydra in the cluster share databases with the compose instances, so their **secrets must match** `deploy/local/ory`:
@@ -52,12 +56,14 @@ Make it possible to run the whole refcloud in a local minikube cluster using the
 * Check the UI and core-api deployment env against `apps/researcher-ui/.env.development` and native core-api config (e.g. `HYDRA_ADMIN_API_BASE_URL` → `http://hydra:4445`, any AWS/S3 settings core-api needs).
 * The chart's migration jobs (Liquibase, Kratos, Hydra) still run on install; they are idempotent against the already-migrated host DBs.
 
-### Task 4: Extract shared script helpers
+### Task 5: Extract shared script helpers
 
 * Move duplicated helpers (`log_info`, `log_error`, docker compose start/stop, DB and Hydra functions) into `scripts/lib/common.sh`, sourced by all scripts.
-* No behaviour change to the native scripts.
+* No behaviour change to the native scripts, except: make `./scripts/refcloud-setup.sh` safe to re-run without `--reset`, so contributors can re-run it (e.g. to get the Kubernetes setup) without breaking existing data:
+  * `init_db` / `create_data_connect_reader_role` skip databases and roles that already exist instead of erroring.
+  * Dataset onboarding (`refcloud seed`, `dataset init`, `dataset onboard`) is skipped for datasets that are already onboarded, since onboarding is not idempotent and re-running hits duplicate keys.
 
-### Task 5: Extend the setup script with Kubernetes setup
+### Task 6: Extend the setup script with Kubernetes setup
 
 * Keep a single entry point: `./scripts/refcloud-setup.sh [--reset]`. DB, Liquibase, Hydra client and dataset onboarding steps are unchanged and shared by both modes.
 * Add a Kubernetes section that:
@@ -67,17 +73,18 @@ Make it possible to run the whole refcloud in a local minikube cluster using the
   * creates/updates all secrets the chart needs (idempotent, e.g. `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -`), using the same values as native mode
 * `--reset` also deletes the refcloud k8s secrets (and the Helm release, if installed) before recreating them.
 
-### Task 6: Create `scripts/refcloud-run-helm.sh`
+### Task 7: Create `scripts/refcloud-run-helm.sh`
 
 * Fails fast if Caddy/native mode is holding port 443.
-* Computes the lockstep tag: `git describe --tags --match 'v[0-9]*' --always --dirty`.
+* Computes the lockstep tag: `git describe --tags --match 'v[0-9]*' --always`, with `-uncommitted` appended when `git status --porcelain` shows any changes (including untracked files, which `git describe --dirty` misses).
 * Builds all app images into minikube (`minikube image build`) with that tag.
-* `helm upgrade --install` with the tag; forces a rollout when the tag is unchanged (dirty-tree rebuilds reuse the same tag), e.g. via a build-timestamp pod annotation.
+* `helm upgrade --install` with the tag, then `kubectl rollout restart` the refcloud deployments so rebuilt images with an unchanged tag (uncommitted changes) are picked up. The chart is unchanged; in AWS every deploy has a new tag.
+* Migration Jobs (Liquibase, Kratos, Hydra) become Helm pre-install/pre-upgrade hooks, since a Job's pod template is immutable and the tag changes between runs.
 * Waits for rollouts, prints the same service URL list as the native script, then runs `minikube tunnel` in the foreground (prompts for sudo to bind 443).
 * Ctrl+C stops the tunnel only; the release keeps running so the next run is fast.
 * `--down` uninstalls the Helm release (and optionally stops minikube).
 
-### Task 7: Documentation
+### Task 8: Documentation
 
 * Update root `README.md`, `deploy/helm/README.md`, root `CLAUDE.md` and add `deploy/helm/CLAUDE.md`: prerequisites, setup, run, teardown, and the "one mode at a time" rule.
 * Remove the manual ECR secret and manual TLS steps from `deploy/helm/README.md` (now handled by setup), keeping ECR notes only for AWS deployments.

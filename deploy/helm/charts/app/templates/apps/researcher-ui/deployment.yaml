@@ -13,7 +13,8 @@ spec:
         app.kubernetes.io/name: refcloud-ui
     spec:
       containers:
-        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-ui:v0.1.0-18-g7a32e0f
+        - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-researcher-ui") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-ui
           ports:
             - containerPort: 3000
@@ -44,5 +45,4 @@ spec:
               value: http://hydra:4445
             - name: REFCLOUD_API_BASE_URL
               value: http://refcloud-api:8080
-      imagePullSecrets:
-        - name: ecr-registry-key
+      {{- include "refcloud.imagePullSecrets" . | nindent 6 }}
