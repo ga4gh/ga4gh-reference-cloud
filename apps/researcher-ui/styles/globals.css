@@ -893,48 +893,48 @@
   }
 }
 
-/* GA4GH DRS manifest table: cell text wraps within its column instead of
+/* GA4GH data tables (Data Connect table and DRS manifest table): cell text wraps within its column instead of
    forcing the table wider (word-break covers long unbroken values, like a
    DRS ID with no spaces, that word-wrap alone wouldn't catch) - applies at
    every width. The clickable DRS ID spans just wrap like any inline text;
    the whole wrapped span stays a single click target either way. */
 @layer components {
-  .ga4gh-drs-table td,
-  .ga4gh-drs-table th {
+  .ga4gh-data-table td,
+  .ga4gh-data-table th {
     white-space: normal;
     overflow-wrap: break-word;
     word-break: break-word;
   }
 }
 
-/* GA4GH DRS manifest table: below 768px or on touch screens, each row
+/* GA4GH data tables: below 768px or on touch screens, each row
    becomes a stacked card - every column's label (from its data-label
    attribute) sits above its value, instead of a horizontally-scrolling row. */
 @layer components {
   @media (max-width: 767px), (pointer: coarse) {
-    .ga4gh-drs-table thead {
+    .ga4gh-data-table thead {
       display: none;
     }
 
-    .ga4gh-drs-table,
-    .ga4gh-drs-table tbody,
-    .ga4gh-drs-table tr {
+    .ga4gh-data-table,
+    .ga4gh-data-table tbody,
+    .ga4gh-data-table tr {
       display: block;
       width: 100%;
       white-space: normal !important;
     }
 
-    .ga4gh-drs-table tbody tr {
+    .ga4gh-data-table tbody tr {
       margin-bottom: 1rem;
       border: 1px solid #dcdcdc;
     }
 
-    .ga4gh-drs-table tbody tr:last-child {
+    .ga4gh-data-table tbody tr:last-child {
       margin-bottom: 0;
     }
 
-    .ga4gh-drs-table td,
-    .ga4gh-drs-table th {
+    .ga4gh-data-table td,
+    .ga4gh-data-table th {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
@@ -951,13 +951,13 @@
       box-shadow: none !important;
     }
 
-    .ga4gh-drs-table tbody tr td:last-child,
-    .ga4gh-drs-table tbody tr th:last-child {
+    .ga4gh-data-table tbody tr td:last-child,
+    .ga4gh-data-table tbody tr th:last-child {
       border-bottom: none;
     }
 
-    .ga4gh-drs-table td::before,
-    .ga4gh-drs-table th::before {
+    .ga4gh-data-table td::before,
+    .ga4gh-data-table th::before {
       content: attr(data-label);
       font-family: theme('fontFamily.heading');
       font-weight: 700;

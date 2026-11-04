@@ -39,7 +39,7 @@ cd apps/researcher-ui && npm run dev -- --port 3000 > /dev/null 2>&1 &
 RESEARCHER_UI_PID=$!
 cd ../..
 
-cd apps/docs && npm run start -- --port 3001 --no-open > /dev/null 2>&1 &
+cd apps/docs && npm run start -- --host 127.0.0.1 --port 3001 --no-open > /dev/null 2>&1 &
 APPS_DOCS_PID=$!
 cd ../..
 

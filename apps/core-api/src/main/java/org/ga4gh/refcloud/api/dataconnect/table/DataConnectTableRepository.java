@@ -43,6 +43,10 @@ public interface DataConnectTableRepository extends JpaRepository<DataConnectTab
         return findAllVisibleToUser(userId, PassportVisaAssertionStatus.Approved);
     }
 
+    default List<DataConnectTable> findAllVisibleToUserByDatasetId(String datasetId, String userId) {
+        return findAllVisibleToUserByDatasetId(datasetId, userId, PassportVisaAssertionStatus.Approved);
+    }
+
     default Optional<DataConnectTable> findVisibleByTableName(String tableName, String userId) {
         return findVisibleByTableName(tableName, userId, PassportVisaAssertionStatus.Approved);
     }
@@ -52,6 +56,13 @@ public interface DataConnectTableRepository extends JpaRepository<DataConnectTab
     // match the postgres enum (passport_visa_assertion_status)
     @Query("SELECT t " + VISIBLE_TO_USER_FROM_WHERE + " ORDER BY t.tableName")
     List<DataConnectTable> findAllVisibleToUser(
+        @Param("userId") String userId,
+        @Param("approvedStatus") PassportVisaAssertionStatus approvedStatus
+    );
+
+    @Query("SELECT t " + VISIBLE_TO_USER_FROM_WHERE + " AND d.id = :datasetId ORDER BY t.tableName")
+    List<DataConnectTable> findAllVisibleToUserByDatasetId(
+        @Param("datasetId") String datasetId,
         @Param("userId") String userId,
         @Param("approvedStatus") PassportVisaAssertionStatus approvedStatus
     );

@@ -30,7 +30,7 @@ If you do not yet have access, click the **Request Access** button to submit you
 
 DRS acts strictly as a **data access** API. When a researcher has a specific **DRS ID**, they may provide that ID to the DRS API to obtain file metadata as well as access methods to download the file. However, DRS is not a **discovery** API, meaning that it does not provide any way for researchers to search for new DRS IDs. Typically, DRS ID discovery is handled by other GA4GH APIs, such as Beacon or Data Connect (this will be explored in future demos).
 
-Fortunately, the reference cloud has a built-in way to discover DRS IDs. Navigate to the [DRS page](https://refcloud.ga4gh.org/drs) and select **1000 Genomes** from the dropdown menu to render a table of DRS IDs. Each row represents all DRS Objects associated with the exome sequencing files for a single individual (BAM, BAI, CRAM, CRAI, etc).
+Fortunately, the reference cloud has a built-in way to discover DRS IDs. Navigate to the [Explore Data page](https://refcloud.ga4gh.org/data-connect?dataset=aws_opendata_registry_1000_genomes&table=drs-manifests), select **1000 Genomes** from the dataset dropdown, and select **DRS IDs by Manifest** from the table dropdown to render a table of DRS IDs. Each row represents all DRS Objects associated with the exome sequencing files for a single individual (BAM, BAI, CRAM, CRAI, etc).
 
 <CenteredImage src={OneThousandGenomesDrsObjectTableImage} alt="1000 Genomes DRS Object Table" maxWidth="85%" />
 

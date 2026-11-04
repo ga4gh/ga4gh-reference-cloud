@@ -1,6 +1,8 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
 import org.ga4gh.refcloud.api.core.tag.Tag;
+import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTable;
+import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableRepository;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectRepository;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectService;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,12 +45,15 @@ public class DatasetService {
 
     private final DrsObjectRepository drsObjectRepository;
 
-    public DatasetService(DatasetRepository datasetRepository, PassportUserVisaAssertionService passportUserVisaAssertionService, PassportUserRepository passportUserRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository, DrsObjectRepository drsObjectRepository) {
+    private final DataConnectTableRepository dataConnectTableRepository;
+
+    public DatasetService(DatasetRepository datasetRepository, PassportUserVisaAssertionService passportUserVisaAssertionService, PassportUserRepository passportUserRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository, DrsObjectRepository drsObjectRepository, DataConnectTableRepository dataConnectTableRepository) {
         this.datasetRepository = datasetRepository;
         this.passportUserVisaAssertionService = passportUserVisaAssertionService;
         this.passportUserRepository = passportUserRepository;
         this.passportUserVisaAssertionRepository = passportUserVisaAssertionRepository;
         this.drsObjectRepository = drsObjectRepository;
+        this.dataConnectTableRepository = dataConnectTableRepository;
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +71,19 @@ public class DatasetService {
                 (existing, replacement) -> existing              // Merge function: handles unexpected duplicates safely
             ));
 
+        // collect the Data Connect tables visible to the user, grouped by dataset id.
+        // platform-wide tables (no dataset) are skipped, as they belong to no dataset
+        Map<String, List<DatasetTableResponseDTO>> tablesByDatasetId = dataConnectTableRepository.findAllVisibleToUser(userId)
+            .stream()
+            .filter(table -> table.getDataset() != null)
+            .collect(Collectors.groupingBy(
+                table -> table.getDataset().getId(),
+                Collectors.mapping(DatasetService::convertToTableDto, Collectors.toList())
+            ));
+
+        // datasets with at least one manifest DRS object, regardless of the user's access
+        Set<String> datasetIdsWithManifests = new HashSet<>(drsObjectRepository.findDatasetIdsWithManifests());
+
         // prepare DTOs, affixing assertion information if it exists for the user
         List<DatasetResponseDTO> datasetDtos = new ArrayList<>();
 
@@ -73,7 +92,12 @@ public class DatasetService {
             PassportUserVisaAssertion assertion = dataset.getPassportVisa() == null
                 ? null
                 : assertionMap.get(dataset.getPassportVisa().getId());
-            datasetDtos.add(convertToResponseDto(dataset, assertion));
+            datasetDtos.add(convertToResponseDto(
+                dataset,
+                assertion,
+                tablesByDatasetId.getOrDefault(dataset.getId(), List.of()),
+                datasetIdsWithManifests.contains(dataset.getId())
+            ));
         }
 
         return datasetDtos;
@@ -96,7 +120,12 @@ public class DatasetService {
             }
         }
 
-        return convertToResponseDto(dataset, assertion);
+        List<DatasetTableResponseDTO> tables = dataConnectTableRepository.findAllVisibleToUserByDatasetId(datasetId, userId)
+            .stream()
+            .map(DatasetService::convertToTableDto)
+            .toList();
+
+        return convertToResponseDto(dataset, assertion, tables, drsObjectRepository.existsManifestByDatasetId(datasetId));
     }
 
     // empty when the dataset is open (has no visa)
@@ -138,7 +167,8 @@ public class DatasetService {
         assertion.setCurrentStatusAt(LocalDateTime.now());
         passportUserVisaAssertionRepository.save(assertion);
 
-        return convertToResponseDto(dataset, assertion);
+        // tables and hasManifests are only returned by the read endpoints
+        return convertToResponseDto(dataset, assertion, null, null);
     }
 
     @Transactional
@@ -163,10 +193,15 @@ public class DatasetService {
         return manifestDtoPage;
     }
 
+    // userId is null for anonymous requests, which may only access open datasets
     public boolean validateUserIsAuthorizedForDataset(String userId, String datasetId) {
         Optional<String> visaId = getVisaIdByDatasetId(datasetId);
         if (visaId.isEmpty()) {
             return true; // open dataset, no visa required
+        }
+
+        if (userId == null) {
+            return false;
         }
 
         Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId.get());
@@ -184,7 +219,12 @@ public class DatasetService {
         return datasetRepository.findByIdWithTagsAndVisas(id).orElseThrow(() -> new ResourceNotFoundException("No Dataset with ID: " + id));
     }
 
-    private DatasetResponseDTO convertToResponseDto(Dataset dataset, PassportUserVisaAssertion assertion) {
+    private static DatasetTableResponseDTO convertToTableDto(DataConnectTable table) {
+        return new DatasetTableResponseDTO(table.getTableName(), table.getTableType().getId());
+    }
+
+    // tables and hasManifests are null when the caller should not return them
+    private DatasetResponseDTO convertToResponseDto(Dataset dataset, PassportUserVisaAssertion assertion, List<DatasetTableResponseDTO> tables, Boolean hasManifests) {
         // prepare tags
         Set<String> tagDtos = dataset.getTags()
                 .stream()
@@ -218,7 +258,9 @@ public class DatasetService {
                 dataset.getName(),
                 dataset.getDescription(),
                 tagDtos,
-                visaDto
+                visaDto,
+                tables,
+                hasManifests
         );
     }
 }

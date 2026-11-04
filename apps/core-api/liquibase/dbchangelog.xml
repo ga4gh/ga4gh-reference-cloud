@@ -380,4 +380,12 @@
             <sql>REVOKE USAGE ON SCHEMA public FROM data_connect_reader;</sql>
         </rollback>
     </changeSet>
+    <changeSet author="jadams" id="modify-type-tb-data-connect-table-type-column-data-model-template-json">
+        <sql dbms="postgresql">
+            ALTER TABLE data_connect_table_type ALTER COLUMN data_model_template TYPE json USING data_model_template::json;
+        </sql>
+        <rollback>
+            <sql>ALTER TABLE data_connect_table_type ALTER COLUMN data_model_template TYPE jsonb USING data_model_template::jsonb;</sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

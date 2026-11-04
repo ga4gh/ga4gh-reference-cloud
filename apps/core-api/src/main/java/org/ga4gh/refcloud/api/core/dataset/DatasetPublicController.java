@@ -7,7 +7,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 import org.ga4gh.refcloud.api.security.KratosSessionResponse.Identity;
 
 @RestController
