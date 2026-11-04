@@ -1,0 +1,74 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ga4gh-reference-cloud
+  annotations:
+    {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+    kubernetes.io/ingress.class: nginx
+    {{- end }}
+    {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
+      alb.ingress.kubernetes.io/ssl-redirect: '443'
+      alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ga4gh.referenceCloud.aws.certificateARN }}
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      kubernetes.io/ingress.class: alb
+    {{- end }}
+spec:
+  {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+  ingressClassName: nginx
+  tls:
+    - hosts:
+      - {{ .Values.ga4gh.referenceCloud.baseURL }}
+      secretName: refcloud-tls
+  {{- end }}
+  {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
+  ingressClassName: alb
+  {{- end }}
+  rules:
+    - host: {{ .Values.ga4gh.referenceCloud.baseURL }}
+      http:
+        paths:
+          - path: /self-service/
+            pathType: Prefix
+            backend:
+              service:
+                name: kratos
+                port:
+                  number: 4433
+          - path: /oauth2/
+            pathType: Prefix
+            backend:
+              service:
+                name: hydra
+                port:
+                  number: 4444
+          - path: /.well-known/
+            pathType: Prefix
+            backend:
+              service:
+                name: hydra
+                port:
+                  number: 4444
+          - path: /ga4gh/drs/v1/
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-api
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-ui
+                port:
+                  number: 3000
+    - host: docs.{{ .Values.ga4gh.referenceCloud.baseURL }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-docs
+                port:
+                  number: 80

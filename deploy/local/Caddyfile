@@ -1,0 +1,43 @@
+refcloud.ga4gh.localhost {
+	handle /self-service/* {
+		reverse_proxy * 127.0.0.1:4433
+	}
+
+	handle /sessions/* {
+		reverse_proxy * 127.0.0.1:4433
+	}
+
+	handle /schemas/* {
+		reverse_proxy * 127.0.0.1:4433
+	}
+
+	handle /oauth2/* {
+		reverse_proxy * 127.0.0.1:4444
+	}
+
+	handle /.well-known/* {
+		reverse_proxy * 127.0.0.1:4444
+	}
+
+	handle /webhook/kratos/* {
+		reverse_proxy * 127.0.0.1:8080
+	}
+
+	handle /ga4gh/drs/v1/* {
+		reverse_proxy * 127.0.0.1:8080
+	}
+
+	handle /ga4gh/refget/v2/* {
+		reverse_proxy * 127.0.0.1:8080
+	}
+
+	handle /ga4gh/data-connect/v1/* {
+		reverse_proxy * 127.0.0.1:8080
+	}
+
+	reverse_proxy * 127.0.0.1:3000
+}
+
+docs.refcloud.ga4gh.localhost {
+	reverse_proxy * 127.0.0.1:3001
+}

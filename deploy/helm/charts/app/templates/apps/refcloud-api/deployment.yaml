@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: refcloud-api
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-api
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: refcloud-api
+    spec:
+      containers:
+        - image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-api:v0.3.2-99-g5f94342
+          name: refcloud-api
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: username
+            - name: PSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: host
+            - name: PSQL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: port
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: password
+            - name: SPRING_JPA_SHOW_SQL
+              value: "false"
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+              value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
+            {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+            - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+              value: http://hydra:4444/.well-known/jwks.json
+            {{- end }}
+            - name: GA4GH_REFCLOUD_SECURITY_CORS_ALLOWED_ORIGINS_0
+              value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
+            - name: GA4GH_REFCLOUD_SECURITY_KRATOS_PUBLIC_BASE_URL
+              value: http://kratos:4433
+            - name: GA4GH_REFCLOUD_SECURITY_KRATOS_WEBHOOK_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-kratos-webhook
+                  key: username
+            - name: GA4GH_REFCLOUD_SECURITY_KRATOS_WEBHOOK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-kratos-webhook
+                  key: password
+            - name: GA4GH_REFCLOUD_DRS_SCHEME
+              value: https
+            - name: GA4GH_REFCLOUD_DRS_HOST_DOMAIN
+              value: {{ .Values.ga4gh.referenceCloud.baseURL }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ID
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.id }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_NAME
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.name }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_DESCRIPTION
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.description }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ORGANIZATION_NAME
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.organization.name }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ORGANIZATION_URL
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.organization.url }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_CONTACT_URL
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.contactUrl }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_DOCUMENTATION_URL
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.documentationUrl }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_CREATED_AT
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.createdAt }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_UPDATED_AT
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.updatedAt }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ENVIRONMENT
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.environment }}
+            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_VERSION
+              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.version }}
+      imagePullSecrets:
+        - name: ecr-registry-key

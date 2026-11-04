@@ -1,0 +1,56 @@
+{
+  "$id": "{{refcloud_base_url}}/ga4gh/data-connect/v1/table/{{table_name}}/info",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Refget reference sequences belonging to a dataset",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "varchar",
+      "description": "GA4GH sequence identifier (SQ. + sha512t24u digest), resolvable at /ga4gh/refget/v2/sequence/{id}"
+    },
+    "md5": {
+      "type": "string",
+      "format": "varchar",
+      "description": "MD5 digest of the sequence"
+    },
+    "trunc512": {
+      "type": "string",
+      "format": "varchar",
+      "description": "TRUNC512 digest of the sequence"
+    },
+    "length": {
+      "type": "string",
+      "format": "bigint",
+      "description": "Sequence length in bases (bigint, represented as a string per the Data Connect type mapping)"
+    },
+    "circular": {
+      "type": "boolean",
+      "format": "boolean",
+      "description": "True if the sequence is circular"
+    },
+    "aliases": {
+      "type": "array",
+      "format": "json",
+      "description": "Alternative names for the sequence, sorted by naming authority then alias",
+      "items": {
+        "type": "object",
+        "properties": {
+          "naming_authority": {
+            "type": "string",
+            "description": "Authority that issued the alias, e.g. insdc, refseq"
+          },
+          "alias": {
+            "type": "string",
+            "description": "Alias value"
+          }
+        }
+      }
+    },
+    "drs_uri": {
+      "type": "string",
+      "format": "varchar",
+      "description": "Hostname-based DRS URI of the DRS object backing this sequence; joins to drs_object.drs_uri"
+    }
+  }
+}

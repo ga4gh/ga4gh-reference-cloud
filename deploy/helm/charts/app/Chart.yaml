@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ga4gh-reference-cloud-helm
+description: Helm Chart for the GA4GH Reference Cloud
+type: application
+version: 0.1.0
+appVersion: "1.16.0"

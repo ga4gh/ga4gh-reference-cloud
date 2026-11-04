@@ -1,0 +1,58 @@
+name: Push Docker Image
+on:
+  workflow_call:
+    inputs:
+      app-path:
+        description: Docker build context, e.g. apps/admin-cli
+        required: true
+        type: string
+      docker-repo:
+        description: ECR repository name, e.g. refcloud-admin-cli
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ inputs.docker-repo }}
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: compute image tag
+        run: echo "DOCKER_TAG=$(git describe --tags --match 'v[0-9]*' --always)" >> "$GITHUB_ENV"
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Amazon ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.app-path }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.DOCKER_TAG }}
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+            ${{ env.IMAGE }}:develop
+          cache-from: type=gha,scope=${{ inputs.docker-repo }}
+          cache-to: type=gha,scope=${{ inputs.docker-repo }},mode=max

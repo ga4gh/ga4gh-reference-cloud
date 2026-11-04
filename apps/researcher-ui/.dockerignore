@@ -1,0 +1,10 @@
+.dockerignore
+.env*.local
+.git
+.gitignore
+.next
+build
+Dockerfile
+node_modules
+npm-debug.log
+out

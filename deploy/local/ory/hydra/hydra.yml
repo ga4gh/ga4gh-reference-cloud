@@ -1,0 +1,25 @@
+serve:
+  cookies:
+    same_site_mode: Lax
+
+secrets:
+  system:
+    - b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397
+
+urls:
+  self:
+    issuer: https://refcloud.ga4gh.localhost
+  consent: https://refcloud.ga4gh.localhost/api/oauth/consent
+  login: https://refcloud.ga4gh.localhost/api/oauth/login
+  logout: https://refcloud.ga4gh.localhost/api/oauth/logout
+
+oidc:
+  subject_identifiers:
+    supported_types:
+      - pairwise
+      - public
+    pairwise:
+      salt: b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397
+
+strategies:
+  access_token: jwt
