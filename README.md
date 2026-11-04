@@ -29,7 +29,7 @@ We include configuration for the following deployment contexts:
 
 ### Getting Started
 
-To run the reference cloud locally, you will need the following tools installed on your machine. The suggested commands for installing each tool on macOS are provided.
+To run the reference cloud locally, you will need the following tools installed on your machine. The suggested commands for installing each tool on macOS are provided. The actual installation commands for your machine may be different.
 
 | Requirement | Install (macOS) |
 |---|---|
@@ -46,7 +46,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | ory kratos client v26+ | `brew install ory/tap/kratos` |
 | kubectl v1.36+ | `brew install kubectl` |
 | minikube v1.38+ | `brew install minikube` |
-| helm v4.2+ | `brew install kubernetes-helm` |
+| helm v4.2+ | `brew install helm` |
 | mkcert v1.4.4+ | `brew install mkcert` |
 | caddy v2.11+ | `brew install caddy` then `brew services start caddy` |
 

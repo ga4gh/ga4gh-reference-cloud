@@ -50,12 +50,14 @@ stop_docker_compose() {
 # DATABASE
 
 init_db() {
+  log_info "initializing $1 db and role"
   psql -d postgres -c "CREATE DATABASE $1;"
   psql -d postgres -c "CREATE ROLE $1 WITH LOGIN ENCRYPTED PASSWORD 'secret';"
   psql -d postgres -c "ALTER DATABASE $1 OWNER TO $1;"
 }
 
 destroy_db() {
+  log_info "deleting $1 db and role"
   psql -d postgres -c "DROP DATABASE $1;"
   psql -d postgres -c "DROP ROLE $1;"
 }
@@ -158,9 +160,13 @@ npx -v > /dev/null 2>&1 || { log_error "npx command not found, please install it
 
 if (( ${+opts[-r]} || ${+opts[--reset]} )); then
     log_info "reset flag detected, running reset sequence prior to setup"
+    log_info "deleting dependencies for admin-cli"
     rm -rf ./apps/admin-cli/.venv
+    log_info "deleting dependencies for docs"
     rm -rf ./apps/docs/node_modules
+    log_info "deleting dependencies for researcher-ui"
     rm -rf ./apps/researcher-ui/node_modules
+    log_info "deleting dependencies for core-api"
     rm -rf ./apps/core-api/.gradle ./apps/core-api/build
     destroy_db "kratos"
     destroy_db "hydra"
