@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import AppLayout from '@/components/layout/AppLayout';
-import DatasetCard from '@/components/pages/datasets/DatasetCard';
-import { useState, useEffect } from 'react';
+import AppLayout from "@/components/layout/AppLayout";
+import DatasetCard from "@/components/pages/datasets/DatasetCard";
+import { useState, useEffect } from "react";
 
 export enum PassportVisaAssertionStatus {
   NotRequested = "NotRequested",
@@ -10,44 +10,44 @@ export enum PassportVisaAssertionStatus {
   Approved = "Approved",
   Denied = "Denied",
   Revoked = "Revoked",
-  Expired = "Expired"
+  Expired = "Expired",
 }
 
 // a Data Connect table belonging to a dataset. type is the table type id (e.g. drs_object)
 export type DatasetTable = {
-  name: string
-  type: string
-}
+  name: string;
+  type: string;
+};
 
 export type Dataset = {
-  id: string
-  name: string
-  description: string
-  tags: string[]
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
   // returned by GET /datasets and GET /datasets/{id} only. tables lists the Data Connect tables the user can read
-  tables?: DatasetTable[]
-  hasManifests?: boolean
+  tables?: DatasetTable[];
+  hasManifests?: boolean;
   // null for open datasets, which require no visa
   visa: {
-    id: string
-    name: string
-    description: string
+    id: string;
+    name: string;
+    description: string;
     // null until the user requests access
     assertion: {
-      userId: string
-      currentStatus: PassportVisaAssertionStatus
-      currentStatusAt: string
-    } | null
-  } | null
-}
+      userId: string;
+      currentStatus: PassportVisaAssertionStatus;
+      currentStatusAt: string;
+    } | null;
+  } | null;
+};
 
 interface DatasetsClientProps {
   initialDatasets: Dataset[];
 }
 
 export default function DatasetsClient({ initialDatasets }: DatasetsClientProps) {
-  const [datasetMap, setDatasetMap] = useState<Record<string, Dataset>>(() => 
-    Object.fromEntries(initialDatasets.map((dataset) => [dataset.id, dataset]))
+  const [datasetMap, setDatasetMap] = useState<Record<string, Dataset>>(() =>
+    Object.fromEntries(initialDatasets.map((dataset) => [dataset.id, dataset])),
   );
 
   const getValidAssertionStatus = (dataset: Dataset): PassportVisaAssertionStatus => {
@@ -60,18 +60,16 @@ export default function DatasetsClient({ initialDatasets }: DatasetsClientProps)
   useEffect(() => {
     const fetchDatasets = async () => {
       try {
-        const response = await fetch('/api/datasets');
-        if (!response.ok) throw new Error('datasets API response was not ok');
-        
-        const result = await response.json();
-        if (!Array.isArray(result)) throw new Error('datasets API response was not a list');
+        const response = await fetch("/api/datasets");
+        if (!response.ok) throw new Error("datasets API response was not ok");
 
-        const newDatasetMap = Object.fromEntries(
-          result.map((dataset: Dataset) => [dataset.id, dataset])
-        );
+        const result = await response.json();
+        if (!Array.isArray(result)) throw new Error("datasets API response was not a list");
+
+        const newDatasetMap = Object.fromEntries(result.map((dataset: Dataset) => [dataset.id, dataset]));
         setDatasetMap(newDatasetMap);
       } catch (error) {
-        console.error('Failed to fetch datasets', error);
+        console.error("Failed to fetch datasets", error);
       }
     };
 

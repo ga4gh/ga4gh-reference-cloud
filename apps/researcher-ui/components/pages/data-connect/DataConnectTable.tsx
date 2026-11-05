@@ -1,32 +1,32 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Info } from 'lucide-react';
-import DrsObjectModal from '@/components/drs/DrsObjectModal';
-import RefgetSequenceModal from '@/components/refget/RefgetSequenceModal';
-import { CellActions, TABLE_RENDERERS } from '@/components/pages/data-connect/tableRenderers';
+import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
+import DrsObjectModal from "@/components/drs/DrsObjectModal";
+import RefgetSequenceModal from "@/components/refget/RefgetSequenceModal";
+import { CellActions, TABLE_RENDERERS } from "@/components/pages/data-connect/tableRenderers";
 
 type DataModelProperty = {
-  description?: string
-}
+  description?: string;
+};
 
 type TableDataResponse = {
-  data_model: { properties: Record<string, DataModelProperty> }
-  data: Record<string, unknown>[]
+  data_model: { properties: Record<string, DataModelProperty> };
+  data: Record<string, unknown>[];
   // omitted entirely on the last page
-  pagination?: { next_page_url?: string }
-}
+  pagination?: { next_page_url?: string };
+};
 
 // a page the user has visited: its token (null for the first page) and the number of rows before it
 type PageCursor = {
-  token: string | null
-  rowStart: number
-}
+  token: string | null;
+  rowStart: number;
+};
 
 interface DataConnectTableProps {
-  tableName: string
+  tableName: string;
   // the table type (e.g. drs_object), which selects the type-specific cell renderers
-  tableType: string
+  tableType: string;
 }
 
 // collapsed arrays and objects show this many characters of their one-line JSON
@@ -36,7 +36,7 @@ const JSON_PREVIEW_LENGTH = 40;
 const pageTokenFrom = (nextPageUrl?: string): string | null => {
   if (!nextPageUrl) return null;
   try {
-    return new URL(nextPageUrl).searchParams.get('page_token');
+    return new URL(nextPageUrl).searchParams.get("page_token");
   } catch {
     return null;
   }
@@ -45,10 +45,12 @@ const pageTokenFrom = (nextPageUrl?: string): string | null => {
 // only accept a response with the expected shape, so a bad backend response shows an error instead of crashing
 const isTableDataResponse = (body: unknown): body is TableDataResponse => {
   const candidate = body as TableDataResponse | null;
-  return !!candidate
-    && Array.isArray(candidate.data)
-    && typeof candidate.data_model?.properties === 'object'
-    && candidate.data_model.properties !== null;
+  return (
+    !!candidate &&
+    Array.isArray(candidate.data) &&
+    typeof candidate.data_model?.properties === "object" &&
+    candidate.data_model.properties !== null
+  );
 };
 
 const JsonCell = ({ value }: { value: object }) => {
@@ -56,7 +58,7 @@ const JsonCell = ({ value }: { value: object }) => {
   const compact = JSON.stringify(value);
 
   // nothing to expand
-  if (compact === '[]' || compact === '{}') {
+  if (compact === "[]" || compact === "{}") {
     return <span className="font-mono">{compact}</span>;
   }
 
@@ -70,10 +72,12 @@ const JsonCell = ({ value }: { value: object }) => {
         aria-expanded={isExpanded}
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        {isExpanded ? '▾' : '▸'} {isExpanded ? 'collapse' : preview}
+        {isExpanded ? "▾" : "▸"} {isExpanded ? "collapse" : preview}
       </button>
       {isExpanded ? (
-        <pre className="mt-1 p-2 bg-base-300 text-base-content overflow-x-auto"><code>{JSON.stringify(value, null, 2)}</code></pre>
+        <pre className="mt-1 p-2 bg-base-300 text-base-content overflow-x-auto">
+          <code>{JSON.stringify(value, null, 2)}</code>
+        </pre>
       ) : null}
     </div>
   );
@@ -81,7 +85,7 @@ const JsonCell = ({ value }: { value: object }) => {
 
 const renderCell = (value: unknown) => {
   if (value === null || value === undefined) return null; // empty cell
-  if (typeof value === 'object') return <JsonCell value={value} />;
+  if (typeof value === "object") return <JsonCell value={value} />;
   return String(value); // strings (including bigint and timestamp values), numbers and booleans
 };
 
@@ -98,8 +102,14 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
 
   const renderers = TABLE_RENDERERS[tableType] ?? {};
   const actions: CellActions = {
-    openDrsObject: (drsId) => { setModalSequenceId(null); setModalDrsId(drsId); },
-    openRefgetSequence: (sequenceId) => { setModalDrsId(null); setModalSequenceId(sequenceId); },
+    openDrsObject: (drsId) => {
+      setModalSequenceId(null);
+      setModalDrsId(drsId);
+    },
+    openRefgetSequence: (sequenceId) => {
+      setModalDrsId(null);
+      setModalSequenceId(sequenceId);
+    },
   };
 
   const renderColumnCell = (name: string, row: Record<string, unknown>) =>
@@ -113,7 +123,7 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
       setIsLoading(true);
       setError(null);
       try {
-        const query = current.token ? `?page_token=${encodeURIComponent(current.token)}` : '';
+        const query = current.token ? `?page_token=${encodeURIComponent(current.token)}` : "";
         const response = await fetch(`/api/data-connect/table/${encodeURIComponent(tableName)}/data${query}`);
         const body = await response.json().catch(() => null);
 
@@ -123,14 +133,14 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
           throw new Error(`${response.status}: ${detail}`);
         }
         if (!isTableDataResponse(body)) {
-          throw new Error('unexpected response from Data Connect');
+          throw new Error("unexpected response from Data Connect");
         }
 
         setResult(body);
       } catch (err) {
         console.error(`Failed to fetch Data Connect table ${tableName}:`, err);
         setResult(null); // drop the previous page, so Next can't follow its stale token
-        setError(err instanceof Error ? err.message : 'Failed to load table data');
+        setError(err instanceof Error ? err.message : "Failed to load table data");
       } finally {
         setIsLoading(false);
       }
@@ -162,7 +172,7 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
     <div className="w-full max-w-full min-w-0 mt-8 space-y-4">
       <div className="flex flex-col md:flex-row w-full justify-between items-center gap-4 p-4 bg-base-200 text-base-content rounded-none">
         <p className="text-sm font-semibold">
-          {error ? '' : rows.length > 0 ? `Rows ${current.rowStart + 1}–${current.rowStart + rows.length}` : 'No rows'}
+          {error ? "" : rows.length > 0 ? `Rows ${current.rowStart + 1}–${current.rowStart + rows.length}` : "No rows"}
         </p>
 
         {/* forward-only paging: Data Connect gives no total count, so there is no page count or last page */}
@@ -170,8 +180,20 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
           <p className="text-sm font-semibold mr-2 text-base-content">Page:</p>
 
           {/* previous page arrow */}
-          <button className="ga4gh-pagination-arrow" aria-label="Previous page" onClick={goToPreviousPage} disabled={isLoading || pageNumber <= 1}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+          <button
+            className="ga4gh-pagination-arrow"
+            aria-label="Previous page"
+            onClick={goToPreviousPage}
+            disabled={isLoading || pageNumber <= 1}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="2.5"
+              stroke="currentColor"
+              className="w-4 h-4"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
           </button>
@@ -180,8 +202,20 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
           <button className="ga4gh-pagination-item active">{pageNumber}</button>
 
           {/* next page arrow */}
-          <button className="ga4gh-pagination-arrow" aria-label="Next page" onClick={goToNextPage} disabled={isLoading || !nextToken}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+          <button
+            className="ga4gh-pagination-arrow"
+            aria-label="Next page"
+            onClick={goToNextPage}
+            disabled={isLoading || !nextToken}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth="2.5"
+              stroke="currentColor"
+              className="w-4 h-4"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
             </svg>
           </button>
@@ -190,18 +224,27 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
 
       {error ? (
         <div role="alert" className="alert alert-error rounded-none">
-          <span>Could not load table <code>{tableName}</code>: {error}</span>
+          <span>
+            Could not load table <code>{tableName}</code>: {error}
+          </span>
         </div>
       ) : rows.length === 0 ? (
         <div className="p-4 bg-base-200 text-base-content rounded-none">This table has no rows.</div>
       ) : (
-        <div className={`w-full overflow-x-auto border border-base-300 rounded-none ${isLoading ? 'opacity-50' : ''}`} aria-busy={isLoading}>
+        <div
+          className={`w-full overflow-x-auto border border-base-300 rounded-none ${isLoading ? "opacity-50" : ""}`}
+          aria-busy={isLoading}
+        >
           <table className="ga4gh-data-table table table-zebra table-xs w-full rounded-none">
             <thead>
               <tr>
                 <th className="sticky top-0 left-0 z-30 bg-base-200 text-base-content shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
                 {columns.map(([name, property]) => (
-                  <th key={name} title={property.description} className="sticky top-0 z-10 bg-base-200 text-base-content text-xs">
+                  <th
+                    key={name}
+                    title={property.description}
+                    className="sticky top-0 z-10 bg-base-200 text-base-content text-xs"
+                  >
                     <span className="inline-flex items-center gap-1">
                       {name}
                       {property.description ? <Info size={12} aria-label={property.description} /> : null}
@@ -213,9 +256,16 @@ export default function DataConnectTable({ tableName, tableType }: DataConnectTa
             <tbody>
               {rows.map((row, i) => (
                 <tr key={current.rowStart + i}>
-                  <th data-label="Row" className={`sticky left-0 z-10 whitespace-nowrap ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{current.rowStart + i + 1}</th>
+                  <th
+                    data-label="Row"
+                    className={`sticky left-0 z-10 whitespace-nowrap ${i % 2 === 0 ? "bg-base-100" : "bg-base-200"} shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}
+                  >
+                    {current.rowStart + i + 1}
+                  </th>
                   {columns.map(([name]) => (
-                    <td key={name} data-label={name}>{renderColumnCell(name, row)}</td>
+                    <td key={name} data-label={name}>
+                      {renderColumnCell(name, row)}
+                    </td>
                   ))}
                 </tr>
               ))}

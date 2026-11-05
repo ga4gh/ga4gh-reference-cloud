@@ -1,27 +1,35 @@
-import React, {Dispatch, SetStateAction} from 'react';
-import { Dataset, PassportVisaAssertionStatus } from './DatasetsClient';
-import DatasetRequestAccessButton from './DatasetRequestAccessButton';
+import React, { Dispatch, SetStateAction } from "react";
+import { Dataset, PassportVisaAssertionStatus } from "./DatasetsClient";
+import DatasetRequestAccessButton from "./DatasetRequestAccessButton";
 
 interface DatasetCardProps {
-  id: string
-  title: string
-  description: string
-  tags: string[]
-  isOpen: boolean
-  currentStatus: PassportVisaAssertionStatus
-  datasetMap: Record<string, Dataset>
-  setDatasetMap: Dispatch<SetStateAction<Record<string, Dataset>>>
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  isOpen: boolean;
+  currentStatus: PassportVisaAssertionStatus;
+  datasetMap: Record<string, Dataset>;
+  setDatasetMap: Dispatch<SetStateAction<Record<string, Dataset>>>;
 }
 
-const DatasetCard = ({ id, title, description, tags, isOpen, currentStatus, datasetMap, setDatasetMap}: DatasetCardProps) => {
-
+const DatasetCard = ({
+  id,
+  title,
+  description,
+  tags,
+  isOpen,
+  currentStatus,
+  datasetMap,
+  setDatasetMap,
+}: DatasetCardProps) => {
   const accessBadgeClassesMap: Record<string, string> = {
     NotRequested: "ga4gh-status ga4gh-status--not-requested",
     Requested: "ga4gh-status ga4gh-status--requested",
     Approved: "ga4gh-status ga4gh-status--approved",
     Denied: "ga4gh-status ga4gh-status--denied",
     Revoked: "ga4gh-status ga4gh-status--denied",
-    Expired: "ga4gh-status ga4gh-status--denied"
+    Expired: "ga4gh-status ga4gh-status--denied",
   };
 
   // open datasets have no visa, so they show a fixed badge instead of an access status
@@ -50,10 +58,12 @@ const DatasetCard = ({ id, title, description, tags, isOpen, currentStatus, data
           <div className="ga4gh-cta">Access Status:</div>
           <div className={accessBadgeClasses}>{accessBadgeLabel}</div>
         </div>
-        {!isOpen && currentStatus === "NotRequested" ?<DatasetRequestAccessButton id={id} datasetMap={datasetMap} setDatasetMap={setDatasetMap} /> : null}
+        {!isOpen && currentStatus === "NotRequested" ? (
+          <DatasetRequestAccessButton id={id} datasetMap={datasetMap} setDatasetMap={setDatasetMap} />
+        ) : null}
       </div>
     </div>
-  )
-}
+  );
+};
 
 export default DatasetCard;

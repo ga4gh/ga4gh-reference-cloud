@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { RegistrationFlow, UpdateRegistrationFlowBody } from "@ory/client";
 import { AxiosError } from "axios";
@@ -82,7 +82,12 @@ export default function RegistrationClient() {
         <div className="flex w-full flex-col">
           <div className="divider" />
         </div>
-        <p>Already registered? <Link href="/login"><span className="ga4gh-link">Log in</span></Link></p>
+        <p>
+          Already registered?{" "}
+          <Link href="/login">
+            <span className="ga4gh-link">Log in</span>
+          </Link>
+        </p>
       </div>
     </div>
   );

@@ -9,11 +9,13 @@ export const metadata: Metadata = {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={
-      <div className="p-8 flex items-center justify-center">
-        <span className="loading loading-spinner loading-md">Loading settings...</span>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="p-8 flex items-center justify-center">
+          <span className="loading loading-spinner loading-md">Loading settings...</span>
+        </div>
+      }
+    >
       <SettingsClient />
     </Suspense>
   );

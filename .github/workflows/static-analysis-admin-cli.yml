@@ -22,16 +22,24 @@ jobs:
               - 'apps/admin-cli/**'
               - '.github/workflows/static-analysis-admin-cli.yml'
 
-  # required status check. skipped (which GitHub counts as passing) when admin-cli is unchanged
+  # required status check. skipped (which GitHub counts as passing) when admin-cli is unchanged.
+  # runs and fails if detect-changes didn't succeed, since a skip would otherwise let the PR merge unchecked
   static-analysis:
     name: Static Analysis (admin-cli)
     needs: detect-changes
-    if: needs.detect-changes.outputs.admin-cli == 'true'
+    if: ${{ !cancelled() && (needs.detect-changes.result != 'success' || needs.detect-changes.outputs.admin-cli == 'true') }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/admin-cli
     steps:
+      - name: Fail if change detection failed
+        if: needs.detect-changes.result != 'success'
+        working-directory: . # runs before checkout, so apps/<app> doesn't exist yet
+        run: |
+          echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
+          exit 1
+
       - uses: actions/checkout@v7.0.1
 
       - uses: astral-sh/setup-uv@v10.3.3

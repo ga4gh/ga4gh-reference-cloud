@@ -1,9 +1,9 @@
-import { UiNode, UiNodeTextAttributes, UiText } from "@ory/client"
-import styled from "styled-components"
+import { UiNode, UiNodeTextAttributes, UiText } from "@ory/client";
+import styled from "styled-components";
 
 interface Props {
-  node: UiNode
-  attributes: UiNodeTextAttributes
+  node: UiNode;
+  attributes: UiNodeTextAttributes;
 }
 
 // Replaces <CodeBox> and <ScrollableCodeBox>
@@ -23,7 +23,7 @@ const CustomCodeBox = styled.pre`
     padding: 0;
     color: inherit;
   }
-`
+`;
 
 // Replaces <P> for the meta label text
 const LabelText = styled.p`
@@ -31,32 +31,23 @@ const LabelText = styled.p`
   color: #4a5568;
   margin-bottom: 0.5rem;
   font-weight: 500;
-`
+`;
 
-const Content = ({ node, attributes }: Props) => {
+const Content = ({ attributes }: Pick<Props, "attributes">) => {
   switch (attributes.text.id) {
     case 1050015:
       // This text node contains lookup secrets. Let's make them a bit more beautiful!
-      const secrets = (attributes.text.context as any).secrets.map(
-        (text: UiText, k: number) => (
-          <div
-            key={k}
-            data-testid={`node/text/${attributes.id}/lookup_secret`}
-            className="col-xs-3"
-          >
-            {/* Used lookup_secret has ID 1050014 */}
-            <code>{text.id === 1050014 ? "Used" : text.text}</code>
-          </div>
-        ),
-      )
+      const secrets = (attributes.text.context as { secrets: UiText[] }).secrets.map((text, k) => (
+        <div key={k} data-testid={`node/text/${attributes.id}/lookup_secret`} className="col-xs-3">
+          {/* Used lookup_secret has ID 1050014 */}
+          <code>{text.id === 1050014 ? "Used" : text.text}</code>
+        </div>
+      ));
       return (
-        <div
-          className="container-fluid"
-          data-testid={`node/text/${attributes.id}/text`}
-        >
+        <div className="container-fluid" data-testid={`node/text/${attributes.id}/text`}>
           <div className="row">{secrets}</div>
         </div>
-      )
+      );
   }
 
   return (
@@ -65,16 +56,14 @@ const Content = ({ node, attributes }: Props) => {
         <code>{attributes.text.text}</code>
       </CustomCodeBox>
     </div>
-  )
-}
+  );
+};
 
 export const NodeText = ({ node, attributes }: Props) => {
   return (
     <>
-      <LabelText data-testid={`node/text/${attributes.id}/label`}>
-        {node.meta?.label?.text}
-      </LabelText>
-      <Content node={node} attributes={attributes} />
+      <LabelText data-testid={`node/text/${attributes.id}/label`}>{node.meta?.label?.text}</LabelText>
+      <Content attributes={attributes} />
     </>
-  )
-}
+  );
+};

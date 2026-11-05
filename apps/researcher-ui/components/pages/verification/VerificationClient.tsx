@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { VerificationFlow, UpdateVerificationFlowBody } from "@ory/client";
 import { AxiosError } from "axios";
@@ -80,9 +80,7 @@ export default function VerificationClient() {
             const newFlowID = String(err.response?.data?.use_flow_id);
             router.push(`/verification?flow=${newFlowID}`);
 
-            ory
-              .getVerificationFlow({ id: newFlowID })
-              .then(({ data }) => setFlow(data));
+            ory.getVerificationFlow({ id: newFlowID }).then(({ data }) => setFlow(data));
             return;
         }
         throw err;
@@ -92,9 +90,7 @@ export default function VerificationClient() {
   return (
     <>
       <MarginCard>
-        <h1 className="text-xl font-semibold text-gray-900 mb-4">
-          Verify your account
-        </h1>
+        <h1 className="text-xl font-semibold text-gray-900 mb-4">Verify your account</h1>
         <Flow onSubmit={onSubmit} flow={flow} />
       </MarginCard>
       <ActionCard>

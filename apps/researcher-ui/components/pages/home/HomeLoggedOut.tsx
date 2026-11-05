@@ -1,10 +1,10 @@
-'use client';
-import type { NextPage } from 'next'
-import { useEnv } from '@/components/context/EnvContext'
-import Link from 'next/link'
+"use client";
+import type { NextPage } from "next";
+import { useEnv } from "@/components/context/EnvContext";
+import Link from "next/link";
 
 const HomeLoggedOut: NextPage = () => {
-  const env = useEnv()
+  const env = useEnv();
 
   return (
     <div>
@@ -13,6 +13,7 @@ const HomeLoggedOut: NextPage = () => {
         <div className="hero-overlay bg-[#363636]/60"></div>
         <div className="hero-content ga4gh-home-hero-content text-neutral-content">
           <div className="ga4gh-home-hero-intro max-w-md">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static svg logo; next/image doesn't optimize svgs */}
             <img
               src="/logos/logo-mark-color.svg"
               alt="The Global Alliance for Genomics and Health"
@@ -41,8 +42,8 @@ const HomeLoggedOut: NextPage = () => {
           </div>
         </div>
       </div>
-    </div>  
-  )
-}
+    </div>
+  );
+};
 
-export default HomeLoggedOut
+export default HomeLoggedOut;
