@@ -1,0 +1,59 @@
+name: Static Analysis - Admin CLI
+on:
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # always runs (no workflow-level paths filter), so the required check below always reports a status
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      admin-cli: ${{ steps.filter.outputs.admin-cli }}
+    steps:
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            admin-cli:
+              - 'apps/admin-cli/**'
+              - '.github/workflows/static-analysis-admin-cli.yml'
+
+  # required status check. skipped (which GitHub counts as passing) when admin-cli is unchanged
+  static-analysis:
+    name: Static Analysis (admin-cli)
+    needs: detect-changes
+    if: needs.detect-changes.outputs.admin-cli == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin-cli
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.11.24"
+          enable-cache: true
+          cache-dependency-glob: apps/admin-cli/uv.lock
+
+      # installs python (from .python-version) and the pinned dev tools from uv.lock; fails if the lock is stale
+      - name: Install dependencies
+        id: sync
+        run: uv sync --locked
+
+      # each check runs even if an earlier one fails, so a single run reports every problem
+      - name: Check formatting (ruff format)
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --no-sync ruff format --check --diff
+
+      - name: Lint and security rules (ruff check)
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --no-sync ruff check --output-format=github
+
+      - name: Type check (pyright)
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --no-sync pyright

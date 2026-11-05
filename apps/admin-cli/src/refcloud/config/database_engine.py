@@ -1,6 +1,8 @@
-from sqlalchemy import create_engine, MetaData, select, insert, delete
+from sqlalchemy import MetaData, create_engine, delete, insert, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+
 from refcloud.config.env_config import EnvConfig
+
 
 class DatabaseEngine:
     _instance = None
@@ -10,25 +12,27 @@ class DatabaseEngine:
             cls._instance = super().__new__(cls)
             cls._instance._load_engine()
         return cls._instance
-    
+
     def _load_engine(self):
         config = EnvConfig()
-        self._engine = create_engine(f"postgresql+psycopg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}")
+        self._engine = create_engine(
+            f"postgresql+psycopg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
+        )
         self._metadata = MetaData()
         self._metadata.reflect(bind=self._engine)
 
-        self._dataset_table = self._metadata.tables['dataset']
-        self._tag_table = self._metadata.tables['tag']
-        self._dataset_tag_table = self._metadata.tables['dataset_tag']
-        self._passport_visa_table = self._metadata.tables['passport_visa']
-        self._drs_object_table = self._metadata.tables['drs_object']
-        self._drs_object_alias_table = self._metadata.tables['drs_object_alias']
-        self._drs_object_checksum_table = self._metadata.tables['drs_object_checksum']
-        self._aws_s3_access_object_table = self._metadata.tables['aws_s3_access_object']
-        self._refget_sequence_table = self._metadata.tables['refget_sequence']
-        self._refget_sequence_alias_table = self._metadata.tables['refget_sequence_alias']
-        self._data_connect_table_table = self._metadata.tables['data_connect_table']
-        self._data_connect_table_type_table = self._metadata.tables['data_connect_table_type']
+        self._dataset_table = self._metadata.tables["dataset"]
+        self._tag_table = self._metadata.tables["tag"]
+        self._dataset_tag_table = self._metadata.tables["dataset_tag"]
+        self._passport_visa_table = self._metadata.tables["passport_visa"]
+        self._drs_object_table = self._metadata.tables["drs_object"]
+        self._drs_object_alias_table = self._metadata.tables["drs_object_alias"]
+        self._drs_object_checksum_table = self._metadata.tables["drs_object_checksum"]
+        self._aws_s3_access_object_table = self._metadata.tables["aws_s3_access_object"]
+        self._refget_sequence_table = self._metadata.tables["refget_sequence"]
+        self._refget_sequence_alias_table = self._metadata.tables["refget_sequence_alias"]
+        self._data_connect_table_table = self._metadata.tables["data_connect_table"]
+        self._data_connect_table_type_table = self._metadata.tables["data_connect_table_type"]
 
     def _insert(self, table, **kwargs):
         stmt = insert(table).values(**kwargs)
@@ -93,8 +97,10 @@ class DatabaseEngine:
         # deletes all data (drs objects and data connect tables) but preserves the dataset, its tags,
         # and its passport visas/user assertions. drs sub-objects are removed via ON DELETE CASCADE
         drs_object_stmt = delete(self._drs_object_table).where(self._drs_object_table.c.dataset_id == id)
-        data_connect_table_stmt = delete(self._data_connect_table_table).where(self._data_connect_table_table.c.dataset_id == id)
-        with self._engine.begin() as conn: # single transaction, rolls back if either delete fails
+        data_connect_table_stmt = delete(self._data_connect_table_table).where(
+            self._data_connect_table_table.c.dataset_id == id
+        )
+        with self._engine.begin() as conn:  # single transaction, rolls back if either delete fails
             conn.execute(drs_object_stmt)
             conn.execute(data_connect_table_stmt)
 
@@ -108,7 +114,7 @@ class DatabaseEngine:
                 "data_model_template": stmt.excluded.data_model_template,
                 "internal_query": stmt.excluded.internal_query,
                 "updated_at": stmt.excluded.updated_at,
-            }
+            },
         )
         conn.execute(stmt)
 
@@ -123,7 +129,7 @@ class DatabaseEngine:
             return set(conn.execute(stmt).scalars())
 
     def upsert_data_connect_table_types(self, table_types):
-        with self._engine.begin() as conn: # single transaction, rolls back if any upsert fails
+        with self._engine.begin() as conn:  # single transaction, rolls back if any upsert fails
             for table_type in table_types:
                 self._upsert_data_connect_table_type(conn, **table_type)
 
@@ -137,11 +143,11 @@ class DatabaseEngine:
                 "table_type": stmt.excluded.table_type,
                 "description": stmt.excluded.description,
                 "updated_at": stmt.excluded.updated_at,
-            }
+            },
         )
         conn.execute(stmt)
 
     def upsert_data_connect_tables(self, tables):
-        with self._engine.begin() as conn: # single transaction, rolls back if any upsert fails
+        with self._engine.begin() as conn:  # single transaction, rolls back if any upsert fails
             for table in tables:
                 self._upsert_data_connect_table(conn, **table)
