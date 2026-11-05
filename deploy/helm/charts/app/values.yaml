@@ -1,5 +1,21 @@
 replicaCount: 1
 
+# Refcloud app images (core-api, core-api-liquibase, researcher-ui, docs).
+# Defaults target images built directly into minikube; override for remote
+# registries (e.g. AWS ECR) at deploy time.
+image:
+  # Registry host prefix. Empty for local minikube builds,
+  # e.g. <account>.dkr.ecr.<region>.amazonaws.com for AWS.
+  registry: ""
+  # Lockstep tag shared by all refcloud app images (required, no default),
+  # e.g. --set image.tag=$(git describe --tags --match 'v[0-9]*' --always)
+  # (scripts/refcloud-run-helm.sh appends -uncommitted for builds with uncommitted changes)
+  tag: ""
+  # Never for local minikube builds; IfNotPresent/Always for remote registries.
+  pullPolicy: Never
+  # Names of image pull secrets. Empty locally; e.g. [ecr-registry-key] in AWS.
+  pullSecrets: []
+
 livenessProbe:
   httpGet:
     path: /

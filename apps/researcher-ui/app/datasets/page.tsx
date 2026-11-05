@@ -1,6 +1,7 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import ory from "@/utils/ory/sdk";
+import { fetchDatasets } from "@/utils/api/datasets";
 import DatasetsClient, { Dataset } from "@/components/pages/datasets/DatasetsClient";
 
 export default async function DatasetsPage() {
@@ -15,17 +16,17 @@ export default async function DatasetsPage() {
 
   let initialDatasets: Dataset[] = [];
 
-  try {
-    const baseUrl = process.env.PUB_UI_BASE_URL
-    const response = await fetch(`${baseUrl}/api/datasets`, {
-      headers: { cookie }
-    });
-
-    if (response.ok) {
-      initialDatasets = await response.json();
+  // call core-api directly over the internal URL, not this app's public /api/datasets route
+  const sessionToken = (await cookies()).get("ory_kratos_session")?.value;
+  if (sessionToken) {
+    try {
+      const { status, data } = await fetchDatasets(sessionToken);
+      if (status >= 200 && status < 300 && Array.isArray(data)) {
+        initialDatasets = data as Dataset[];
+      }
+    } catch (error) {
+      console.error("Server-side dataset fetch failed:", error);
     }
-  } catch (error) {
-    console.error("Server-side dataset fetch failed:", error);
   }
 
   return <DatasetsClient initialDatasets={initialDatasets} />;

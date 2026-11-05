@@ -1,13 +1,19 @@
+# Runs as a Helm hook before every install/upgrade (a Job's pod template is immutable, so a plain
+# Job can't be upgraded when the image tag changes).
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: refcloud-api-db-migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     spec:
       containers:
         - name: refcloud-api-db-migration
-          image: 282236276875.dkr.ecr.us-east-2.amazonaws.com/refcloud-api-liquibase:v0.3.2-99-g5f94342
+          image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-core-api-liquibase") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: PSQL_HOST
               valueFrom:
@@ -32,6 +38,5 @@ spec:
             - name: LIQUIBASE_COMMAND_URL
               value: jdbc:postgresql://$(PSQL_HOST):$(PSQL_PORT)/$(LIQUIBASE_COMMAND_USERNAME)
       restartPolicy: Never
-      imagePullSecrets:
-        - name: ecr-registry-key
+      {{- include "refcloud.imagePullSecrets" . | nindent 6 }}
   backoffLimit: 4

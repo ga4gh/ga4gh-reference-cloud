@@ -15,7 +15,7 @@ data:
       self:
         issuer: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
       consent: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/api/oauth/consent
-      login: https://{{ .Values.ga4gh.referenceCloud.baseURL }}//api/oauth/login
+      login: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/api/oauth/login
       logout: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/api/oauth/logout
 
     oidc:

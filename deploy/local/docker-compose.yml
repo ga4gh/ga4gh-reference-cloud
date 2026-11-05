@@ -3,6 +3,8 @@ version: "3.7"
 networks:
   intranet:
 
+# Ory Kratos/Hydra image versions must stay in sync with
+# deploy/helm/charts/app/templates/_helpers.tpl (refcloud.kratosImage / refcloud.hydraImage).
 services:
   kratos-migrate:
     image: oryd/kratos:v0.9.0-alpha.2

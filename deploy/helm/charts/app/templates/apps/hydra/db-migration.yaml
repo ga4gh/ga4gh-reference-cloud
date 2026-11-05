@@ -1,22 +1,20 @@
+# Runs as a Helm hook before every install/upgrade (a Job's pod template is immutable, so a plain
+# Job can't be upgraded). Only needs the DSN, so it doesn't mount the hydra ConfigMap, which
+# doesn't exist yet when pre-install hooks run.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: hydra-db-migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     spec:
-      volumes:
-        - name: hydra-config-map
-          configMap:
-            name: hydra-config-map
       containers:
         - name: hydra-db-migration
-          image: oryd/hydra:v26.2.0
-          volumeMounts:
-            - name: hydra-config-map
-              mountPath: /etc/config
-              readOnly: true
-          command: ["hydra", "-c", "/etc/config/hydra.yaml", "migrate", "sql", "-e", "--yes"]
+          image: {{ include "refcloud.hydraImage" . }}
+          command: ["hydra", "migrate", "sql", "-e", "--yes"]
           env:
             - name: PSQL_USER
               valueFrom:
@@ -40,15 +38,5 @@ spec:
                   key: port
             - name: DSN
               value: postgres://$(PSQL_USER):$(PSQL_PASSWORD)@$(PSQL_HOST):$(PSQL_PORT)/$(PSQL_USER)
-            - name: SECRETS_SYSTEM
-              valueFrom:
-                secretKeyRef:
-                  name: hydra-secrets
-                  key: system-secret
-            - name: OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT
-              valueFrom:
-                secretKeyRef:
-                  name: hydra-secrets
-                  key: pairwise-salt
       restartPolicy: Never
   backoffLimit: 4

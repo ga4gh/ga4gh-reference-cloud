@@ -17,7 +17,7 @@ spec:
           configMap:
             name: hydra-config-map
       containers:
-        - image: oryd/hydra:v26.2.0
+        - image: {{ include "refcloud.hydraImage" . }}
           name: hydra
           volumeMounts:
             - name: hydra-config-map

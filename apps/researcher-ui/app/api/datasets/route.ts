@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { fetchDatasets } from '@/utils/api/datasets';
 
 export async function GET() {
   const apiBaseUrl = process.env.REFCLOUD_API_BASE_URL;
@@ -16,13 +17,8 @@ export async function GET() {
   }
 
   try {
-    const result = await fetch(`${apiBaseUrl}/datasets`, {
-      headers: { 'X-Session-Token': sessionToken },
-    });
-
-    const data = await result.json().catch(() => null);
-    
-    return NextResponse.json(data, { status: result.status });
+    const { status, data } = await fetchDatasets(sessionToken);
+    return NextResponse.json(data, { status });
   } catch (error) {
     console.error("Backend fetch error on datasets endpoint:", error);
     return NextResponse.json({ message: 'Gateway Fetch Failure' }, { status: 502 });

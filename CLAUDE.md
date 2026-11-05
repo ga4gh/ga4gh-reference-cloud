@@ -10,8 +10,11 @@ This repo serves as the multi-app repository for all apps involved in the refclo
 
 High-level bash/zsh scripts are located in the `scripts/` directory. Scripts include:
 
-* reset baseline resources: `./scripts/refcloud-setup.sh --reset`
+* set up baseline resources (safe to re-run): `./scripts/refcloud-setup.sh` (`--reset` to start fresh)
 * run all refcloud services from source: `./scripts/refcloud-run-native.sh`
+* run all refcloud services in minikube via helm: `./scripts/refcloud-run-helm.sh` (`--down` to uninstall)
+
+Scripts are run from the repo root and share constants/functions in `scripts/lib/common.sh`.
 
 ## Repository Layout
 
@@ -40,5 +43,6 @@ Configuration code for deploying the refcloud is stored in the `deploy/` directo
 
 ## Things to Note
 
-* When running the refcloud locally via either `deploy/local` or `deploy/helm`, the expected base URL is `https://refcloud.ga4gh.localhost` for all backend & frontend services, and `https://docs.refcloud.ga4gh.org` for the docs
-* Versioning of the refcloud apps follows a "lockstep versioning" pattern. When a new release is minted, all apps will have the same docker tag. Docker tags are derived from `git describe --tags`
+* When running the refcloud locally via either `deploy/local` or `deploy/helm`, the expected base URL is `https://refcloud.ga4gh.localhost` for all backend & frontend services, and `https://docs.refcloud.ga4gh.localhost` for the docs
+* Only one local mode (native or helm) runs at a time: Caddy and `minikube tunnel` both bind port 443. Both modes share the host Postgres databases.
+* Versioning of the refcloud apps follows a "lockstep versioning" pattern. When a new release is minted, all apps will have the same docker tag. Docker tags are derived from `git describe --tags` (local helm builds append `-uncommitted` when the working tree has changes)

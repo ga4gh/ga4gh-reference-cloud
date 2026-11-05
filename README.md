@@ -59,7 +59,7 @@ In order to run the reference cloud, you will first need to perform initial setu
 * load dependencies
 * create reference datasets and onboard data
 
-Run `./scripts/refcloud-setup.sh --reset` to perform all setup steps.
+Run `./scripts/refcloud-setup.sh` to perform all setup steps (safe to re-run), or add `--reset` to start fresh.
 
 ### Running the Reference Cloud natively
 
@@ -73,7 +73,9 @@ To start all services in native mode, run `./scripts/refcloud-run-native.sh`. Fo
 
 When running the refcloud via helm, all services will be run through a helm chart rather than through the source code in the `apps/` folder.
 
-To start all services in helm mode, run `./scripts/refcloud-run-helm.sh`
+To start all services in helm mode, run `./scripts/refcloud-run-helm.sh` (`--down` to uninstall). See [`deploy/helm/README.md`](./deploy/helm/README.md) for details.
+
+Native and helm mode both use port 443, so only one can run at a time.
 
 ## Contributing
 

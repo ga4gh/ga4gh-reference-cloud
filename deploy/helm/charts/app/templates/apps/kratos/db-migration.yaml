@@ -1,22 +1,20 @@
+# Runs as a Helm hook before every install/upgrade (a Job's pod template is immutable, so a plain
+# Job can't be upgraded). Only needs the DSN, so it doesn't mount the kratos ConfigMap, which
+# doesn't exist yet when pre-install hooks run.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: kratos-db-migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     spec:
-      volumes:
-        - name: kratos-config-map
-          configMap:
-            name: kratos-config-map
       containers:
         - name: kratos-db-migration
-          image: oryd/kratos:v0.9.0-alpha.2
-          volumeMounts:
-            - name: kratos-config-map
-              mountPath: /etc/config
-              readOnly: true
-          command: ["kratos", "-c", "/etc/config/kratos.yaml", "migrate", "sql", "-e", "--yes"]
+          image: {{ include "refcloud.kratosImage" . }}
+          command: ["kratos", "migrate", "sql", "-e", "--yes"]
           env:
             - name: PSQL_USER
               valueFrom:

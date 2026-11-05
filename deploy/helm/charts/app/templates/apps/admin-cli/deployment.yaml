@@ -1,0 +1,47 @@
+# Long-running admin CLI pod. It has no Service: it only makes outbound
+# connections (Postgres, public S3). Run commands with:
+#   kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: refcloud-admin-cli
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-admin-cli
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: refcloud-admin-cli
+    spec:
+      containers:
+        - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-admin-cli") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          name: refcloud-admin-cli
+          # Image entrypoint is `refcloud`; keep the pod alive for `kubectl exec`.
+          command: ["sleep", "infinity"]
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: port
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: password
+            - name: POSTGRES_DB
+              value: $(POSTGRES_USER)
+      {{- include "refcloud.imagePullSecrets" . | nindent 6 }}
