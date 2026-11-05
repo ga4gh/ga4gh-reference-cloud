@@ -11,27 +11,20 @@
  * links' container's left edge - and so its wrapped second line - sits
  * to the right of the brand instead of underneath it.
  */
-import React, {type ReactNode} from 'react';
-import clsx from 'clsx';
-import {
-  useThemeConfig,
-  ErrorCauseBoundary,
-  ThemeClassNames,
-} from '@docusaurus/theme-common';
-import {
-  splitNavbarItems,
-  useNavbarMobileSidebar,
-} from '@docusaurus/theme-common/internal';
-import NavbarItem, {type Props as NavbarItemConfig} from '@theme/NavbarItem';
-import NavbarMobileSidebarToggle from '@theme/Navbar/MobileSidebar/Toggle';
-import NavbarLogo from '@theme/Navbar/Logo';
+import { type ReactNode } from "react";
+import clsx from "clsx";
+import { useThemeConfig, ErrorCauseBoundary, ThemeClassNames } from "@docusaurus/theme-common";
+import { splitNavbarItems, useNavbarMobileSidebar } from "@docusaurus/theme-common/internal";
+import NavbarItem, { type Props as NavbarItemConfig } from "@theme/NavbarItem";
+import NavbarMobileSidebarToggle from "@theme/Navbar/MobileSidebar/Toggle";
+import NavbarLogo from "@theme/Navbar/Logo";
 
 function useNavbarItems() {
   // TODO temporary casting until ThemeConfig type is improved
   return useThemeConfig().navbar.items as NavbarItemConfig[];
 }
 
-function NavbarItems({items}: {items: NavbarItemConfig[]}): ReactNode {
+function NavbarItems({ items }: { items: NavbarItemConfig[] }): ReactNode {
   return (
     <>
       {items.map((item, i) => (
@@ -42,9 +35,10 @@ function NavbarItems({items}: {items: NavbarItemConfig[]}): ReactNode {
               `A theme navbar item failed to render.
 Please double-check the following navbar item (themeConfig.navbar.items) of your Docusaurus config:
 ${JSON.stringify(item, null, 2)}`,
-              {cause: error},
+              { cause: error },
             )
-          }>
+          }
+        >
           <NavbarItem {...item} />
         </ErrorCauseBoundary>
       ))}
@@ -64,18 +58,10 @@ export default function NavbarContent(): ReactNode {
         {!mobileSidebar.disabled && <NavbarMobileSidebarToggle />}
         <NavbarLogo />
       </div>
-      <div
-        className={clsx(
-          ThemeClassNames.layout.navbar.containerLeft,
-          'navbar__items',
-        )}>
+      <div className={clsx(ThemeClassNames.layout.navbar.containerLeft, "navbar__items")}>
         <NavbarItems items={leftItems} />
       </div>
-      <div
-        className={clsx(
-          ThemeClassNames.layout.navbar.containerRight,
-          'navbar__items navbar__items--right',
-        )}>
+      <div className={clsx(ThemeClassNames.layout.navbar.containerRight, "navbar__items navbar__items--right")}>
         <NavbarItems items={rightItems} />
       </div>
     </div>

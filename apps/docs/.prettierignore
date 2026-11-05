@@ -1,0 +1,9 @@
+# prettier formats code only. node_modules, build, .docusaurus and .gitignore'd paths are ignored by default
+package-lock.json
+static/
+openapi/
+# markdown/mdx: the repo-wide docs style (* bullets), and prettier's mdx support predates mdx 3
+*.md
+*.mdx
+# generated from openapi/ by docusaurus-plugin-openapi-docs
+docs/api-reference/

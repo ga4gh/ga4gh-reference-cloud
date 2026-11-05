@@ -62,3 +62,27 @@ Lastly, include caching techniques to streamline CI wherever possible. For examp
 * **Semgrep:** run via a pinned `uvx semgrep@1.184.0` (uv is already required for admin-cli) with `p/nodejs`, `p/typescript`, `p/react` and `p/nextjs`, `--metrics=off`; no login needed. The binary is pinned but registry rules are fetched live, so rule drift is accepted.
 * **Workflow:** same pattern as Task 1 (required job `Static Analysis (researcher-ui)`). Also runs weekly (Mondays 06:00 UTC) and on `workflow_dispatch`, checking everything regardless of changes, so new advisories surface without UI PRs; failures appear in the Actions tab. Node is pinned to 24.15.0 (matches the Dockerfile) with the `setup-node` npm cache; the uv cache (for semgrep) is keyed on `package.json`.
 * Dependabot security updates (PRs for fixable advisories) are a repo setting, not part of this task.
+
+### Task 3: Add Static Analysis to docs
+
+* The docs app is a TypeScript Docusaurus app, so include the following static analysis methods:
+  * Use `tsc --noEmit` for type checking and compilation
+  * Use ESLint configured with `@docusaurus/eslint-plugin` (plus `typescript-eslint`, `eslint-plugin-react` and `eslint-plugin-react-hooks`) for linting
+  * Use `npm audit` (via `audit-ci`, to allow documented exceptions) to track package-level security vulnerabilities
+  * Use semgrep rules tailored for Node.js
+* static analysis tools must be invokable both by devs locally and within CI.
+* include the static analysis commands that should be run in `apps/docs/README.md` as well as `apps/docs/CLAUDE.md`
+* add a github actions workflow file at `.github/workflows/static-analysis-docs.yml` that performs static analysis checks, failing the overall workflow if any of the tests fail. Configure the workflow to only run when there are changes to `apps/docs/**`
+* follow conventions established in the previous two tasks (file naming, job naming, detect-changes job, etc.)
+
+Note: Overall this is very similar to Task 2, just applied to the docs app.
+
+**Decisions (Task 3):**
+
+* **ESLint:** `eslint-config-next` is Next.js-specific, so the docs use Docusaurus' official `@docusaurus/eslint-plugin` (recommended rules) with `typescript-eslint` (recommended), `eslint-plugin-react` (recommended + jsx-runtime), `eslint-plugin-react-hooks` and `eslint-config-prettier`; `--max-warnings 0`. The app is on TypeScript 6, so no alias is needed (unlike Task 2). Fixed the existing problems, including a conditional `useBaseUrl` hook call in the swizzled `Navbar/Logo`; raw headings now use `@theme/Heading`; `sidebars.ts` imports the generated DRS sidebar instead of `require()`-ing it.
+* **tsc** was failing on PNG imports (Docusaurus only declares `*.svg`); added a `*.png` declaration to `src/env.d.ts`.
+* **Prettier** added with the same config as Task 2. Markdown/MDX (repo style, and Prettier's MDX support predates MDX 3), `static/`, `openapi/` and the generated `docs/api-reference/` are excluded from Prettier and ESLint.
+* **npm audit:** 50 advisories (18 critical, 19 high), mostly from transitive dependencies of Docusaurus 3.10.2 (the latest release) and `docusaurus-plugin-openapi-docs`. Resolved by bumping the OpenAPI plugins to 5.2.0, `npm audit fix`, and npm `overrides` forcing patched `tinypool` (^2.2.0), `serialize-javascript` (^7.1.4) and `js-yaml` (4.3.2, only under `openapi-to-postmanv2`, which pins 4.3.0). The site builds from a clean `npm ci`.
+* **Audit exceptions (option b):** the one remaining high advisory, `@faker-js/faker` 5.x `helpers.fake` (GHSA-qxc2-j82w-r537, via the OpenAPI plugin's Postman code-sample generator), has no compatible fix (forcing faker 10 breaks the build) and only runs at build time on our own specs. It is allowlisted with a reason in `audit-ci.jsonc` (`audit-ci` 7.1.0, pinned), which otherwise fails at `high` and above like Task 2; any new advisory still fails CI. Remove entries and overrides once upstream ships fixes.
+* **Semgrep:** `p/nodejs`, `p/typescript`, `p/react` (no `p/nextjs`).
+* **Workflow:** same as Task 2 (`Static Analysis (docs)` is the required job; weekly + manual runs; Node 24.15.0 to match the Dockerfile).
