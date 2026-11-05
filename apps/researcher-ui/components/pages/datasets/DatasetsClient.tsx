@@ -18,16 +18,18 @@ export type Dataset = {
   name: string
   description: string
   tags: string[]
+  // null for open datasets, which require no visa
   visa: {
     id: string
     name: string
     description: string
+    // null until the user requests access
     assertion: {
       userId: string
       currentStatus: PassportVisaAssertionStatus
       currentStatusAt: string
-    }
-  }
+    } | null
+  } | null
 }
 
 interface DatasetsClientProps {
@@ -40,7 +42,7 @@ export default function DatasetsClient({ initialDatasets }: DatasetsClientProps)
   );
 
   const getValidAssertionStatus = (dataset: Dataset): PassportVisaAssertionStatus => {
-    if (dataset.visa.assertion === null) {
+    if (dataset.visa === null || dataset.visa.assertion === null) {
       return PassportVisaAssertionStatus.NotRequested;
     }
     return dataset.visa.assertion.currentStatus;
@@ -53,6 +55,8 @@ export default function DatasetsClient({ initialDatasets }: DatasetsClientProps)
         if (!response.ok) throw new Error('datasets API response was not ok');
         
         const result = await response.json();
+        if (!Array.isArray(result)) throw new Error('datasets API response was not a list');
+
         const newDatasetMap = Object.fromEntries(
           result.map((dataset: Dataset) => [dataset.id, dataset])
         );
@@ -79,6 +83,7 @@ export default function DatasetsClient({ initialDatasets }: DatasetsClientProps)
             title={datasetMap[key].name}
             description={datasetMap[key].description}
             tags={datasetMap[key].tags}
+            isOpen={datasetMap[key].visa === null}
             currentStatus={getValidAssertionStatus(datasetMap[key])}
             datasetMap={datasetMap}
             setDatasetMap={setDatasetMap}
