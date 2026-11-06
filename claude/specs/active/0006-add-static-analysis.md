@@ -168,9 +168,18 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
   * `.gitleaksignore` pins by fingerprint the simulated GA4GH Starter Kit `visaSecret` values in a doc that has since been removed (confirmed not real).
 * Verified: a staged GitHub-format token, a changed `system-secret` in `scripts/lib/common.sh`, and a correctly formatted AWS key committed and then removed are all caught.
 
-### Task 8 (draft): Dependency audit for admin-cli
+### Task 8: Dependency audit for admin-cli
 
 * Ruff's `S` rules only check admin-cli's own code. Add a dependency CVE audit of `uv.lock` (e.g. `pip-audit` via a pinned `uvx`, or `trivy fs`) to `static-analysis-admin-cli.yml`, failing at high and above like the other apps, with a weekly run.
+
+**Decisions (Task 8):**
+
+* **Importance:** medium-low (an operator CLI with 19 locked packages), but the first run found real issues: `urllib3` 2.7.0 (transitive, via `boto3` → `botocore`) had 2 high and 1 medium CVE. Fixed by `uv lock --upgrade-package urllib3` (2.8.0, lock-only change).
+* **Tool: `trivy fs`** (0.76.2, the same image and digest as `scripts/refcloud-static-analysis-deploy-local.sh`; each script notes the other). It reads `uv.lock` natively and is the only option that fails at HIGH and above (`--severity HIGH,CRITICAL --exit-code 1`). Not `uv audit` (experimental in uv 0.11.24 and no severity threshold) or `pip-audit` (no `uv.lock` support without `uv export`, no severity threshold).
+* **Scope:** runtime and dev dependencies (`--include-dev-deps`, 20 packages), like the Node apps' audits. Vulnerabilities fail whether or not a fix exists, like `npm audit`; an unfixable one can be accepted in `apps/admin-cli/.trivyignore` with a reason.
+* **Command:** `apps/admin-cli/scripts/audit-deps.sh` (bash, needs only Docker), run from `apps/admin-cli` like the `uv run` checks. It mounts only `uv.lock` and `.trivyignore` read-only and keeps Trivy's DB in `~/.cache/trivy`, so nothing is written to the repo. The Dockerfile copies only named files, so the script isn't in the image. Documented in the admin-cli `README.md` and `CLAUDE.md`; Dependabot can't bump the pin (noted in `dependabot.yml`).
+* **Workflow:** a new step in `static-analysis-admin-cli.yml` (same required job, `Static Analysis (admin-cli)`) that runs even if `uv sync` fails. The workflow now also runs weekly (Mondays 06:00 UTC) and on `workflow_dispatch`, checking everything regardless of changes, like Tasks 2 and 3.
+* Verified: passes on the fixed lock; fails (exit 1) on the previous lock with the two high `urllib3` CVEs; passes again with those IDs in `.trivyignore`.
 
 ### Task 9 (draft): Static analysis for the Helm chart
 

@@ -1,6 +1,11 @@
 name: Static Analysis - Admin CLI
 on:
   pull_request:
+  # weekly run on the default branch, so new advisories for locked dependencies surface even without CLI changes.
+  # failures show in the Actions tab and email whoever last edited this schedule
+  schedule:
+    - cron: "0 6 * * 1" # mondays 06:00 UTC
+  workflow_dispatch:
 permissions:
   contents: read
   pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
@@ -12,10 +17,12 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      admin-cli: ${{ steps.filter.outputs.admin-cli }}
+      # scheduled and manual runs always check everything
+      admin-cli: ${{ github.event_name != 'pull_request' || steps.filter.outputs.admin-cli == 'true' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
+        if: github.event_name == 'pull_request'
         with:
           filters: |
             admin-cli:
@@ -67,3 +74,8 @@ jobs:
       - name: Type check (pyright)
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         run: uv run --no-sync pyright
+
+      # needs only the checkout and docker (trivy runs from a pinned image), so it runs even if uv sync failed
+      - name: Audit dependencies (trivy fs, high and above)
+        if: ${{ !cancelled() }}
+        run: ./scripts/audit-deps.sh

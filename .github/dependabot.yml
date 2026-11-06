@@ -5,7 +5,8 @@
 # (Settings -> Advanced Security -> Dependabot security updates), not part of this file.
 #
 # Not covered (update by hand): versions pinned inside scripts and package.json scripts, e.g. the tool images
-# and digests in scripts/refcloud-static-analysis-*.sh and `uvx semgrep@...` in apps/*/package.json.
+# and digests in scripts/refcloud-static-analysis-*.sh and apps/admin-cli/scripts/audit-deps.sh, and
+# `uvx semgrep@...` in apps/*/package.json.
 # The Ory images in deploy/local/docker-compose.yml are left out on purpose: they must change together with
 # deploy/helm/charts/app/templates/_helpers.tpl, which Dependabot can't update.
 version: 2
