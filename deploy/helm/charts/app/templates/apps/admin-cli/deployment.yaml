@@ -15,12 +15,20 @@ spec:
       labels:
         app.kubernetes.io/name: refcloud-admin-cli
     spec:
+      {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-admin-cli") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-admin-cli
           # Image entrypoint is `refcloud`; keep the pod alive for `kubectl exec`.
           command: ["sleep", "infinity"]
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           env:
             - name: POSTGRES_HOST
               valueFrom:

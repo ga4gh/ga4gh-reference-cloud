@@ -1,0 +1,11 @@
+# trivy findings ignored for the helm chart (run via ./scripts/refcloud-static-analysis-helm.sh trivy-config).
+# every entry needs a statement (the reason) and should be scoped to the paths it applies to. remove an entry
+# once it no longer applies.
+misconfigurations:
+  # the ConfigMaps hold only `<SECRET>` placeholders: the real values come from kubernetes Secrets through env
+  # vars in the kratos and hydra deployments (SECRETS_*, *_AUTH_CONFIG_*), which override the config file
+  - id: KSV-0109
+    paths:
+      - "templates/apps/hydra/config-map.yaml"
+      - "templates/apps/kratos/config-map.yaml"
+    statement: ConfigMaps contain only <SECRET> placeholders; real secrets come from Kubernetes Secrets via env vars

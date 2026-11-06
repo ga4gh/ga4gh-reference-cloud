@@ -11,8 +11,16 @@ metadata:
 spec:
   template:
     spec:
+      {{- include "refcloud.podSecurityContext" 10000 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: kratos-db-migration
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           image: {{ include "refcloud.kratosImage" . }}
           command: ["kratos", "migrate", "sql", "-e", "--yes"]
           env:

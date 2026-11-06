@@ -1,7 +1,6 @@
 # trivy findings ignored repo-wide (run via ./scripts/refcloud-static-analysis-deploy-local.sh trivy-config).
 # one ID per line; every entry needs a reason. remove an entry once it no longer applies.
 
-# DS-0026 (LOW): no HEALTHCHECK instruction. kubernetes ignores docker healthchecks (it only uses liveness and
-# readiness probes), and docker compose runs none of these images. note: the helm chart doesn't wire up probes yet
-# (see the helm static analysis task in claude/specs)
+# DS-0026 (LOW): no HEALTHCHECK instruction. kubernetes ignores docker healthchecks: the helm chart defines
+# liveness and readiness probes per app instead. docker compose runs none of these images
 DS-0026

@@ -49,6 +49,9 @@ public class SecurityConfig {
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/service-info"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/service-info"),
+            // kubernetes liveness/readiness probes; status only (no details), and never routed by the ingress
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/actuator/health/liveness"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/actuator/health/readiness"),
             PathPatternRequestMatcher.withDefaults()
                     .matcher("/error") // Spring Boot error page, otherwise errors raised via sendError (e.g. 406)
             // surface as 401 for anonymous requests

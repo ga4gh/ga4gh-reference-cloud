@@ -16,15 +16,6 @@ image:
   # Names of image pull secrets. Empty locally; e.g. [ecr-registry-key] in AWS.
   pullSecrets: []
 
-livenessProbe:
-  httpGet:
-    path: /
-    port: http
-readinessProbe:
-  httpGet:
-    path: /
-    port: http
-
 ga4gh:
   referenceCloud:
     baseURL: refcloud.ga4gh.localhost

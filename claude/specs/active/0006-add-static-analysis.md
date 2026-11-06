@@ -181,8 +181,25 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
 * **Workflow:** a new step in `static-analysis-admin-cli.yml` (same required job, `Static Analysis (admin-cli)`) that runs even if `uv sync` fails. The workflow now also runs weekly (Mondays 06:00 UTC) and on `workflow_dispatch`, checking everything regardless of changes, like Tasks 2 and 3.
 * Verified: passes on the fixed lock; fails (exit 1) on the previous lock with the two high `urllib3` CVEs; passes again with those IDs in `.trivyignore`.
 
-### Task 9 (draft): Static analysis for the Helm chart
+### Task 9: Static analysis for the Helm chart
 
 * Scan `deploy/helm` with `trivy config` (already flags `KSV-0109`: Kratos and Hydra secrets in ConfigMaps), plus `helm lint` and template rendering checks, in its own workflow following the same conventions.
 * Note: `values.yaml` defines `livenessProbe`/`readinessProbe`, but no template uses them, so no deployment has probes. Wire them up (or remove the unused values).
+
+**Decisions (Task 9):**
+
+* **Importance:** medium. Locally the chart only runs in minikube, but it is built for hosting (ECR values, gitignored staging/prod values). The probe gap was the most practical issue: rollouts sent traffic to pods before they were ready, and a hung pod was never restarted.
+* **Checks:** `scripts/refcloud-static-analysis-helm.sh` (bash, pinned images: `alpine/helm` 4.3.1, kubeconform 0.8.0, Trivy 0.76.2), called by `static-analysis-helm.yml` (required job `Static Analysis (helm)`, detect-changes on `deploy/helm/**`, PRs and `workflow_dispatch`, no weekly run since nothing it checks changes without a commit):
+  * `lint`: `helm lint --strict`.
+  * `kubeconform`: `helm template` output validated in strict mode against the Kubernetes 1.35.1 schemas (minikube's version), including the hook Jobs.
+  * `trivy-config`: HIGH/CRITICAL fail. Trivy's chart mode skips Helm hooks, so the migration Jobs are also scanned from the rendered output.
+  * Rendered with the default (local) values only; the remote (AWS) rendering is left out for now.
+* **KSV-0109** (ConfigMap with secrets) is a false positive: the Kratos and Hydra ConfigMaps hold only `<SECRET>` placeholders, overridden by env vars from Kubernetes Secrets. Accepted in `deploy/helm/.trivyignore.yaml`, scoped to those two files with a reason (verified that an entry with a wrong path no longer matches).
+* **Security contexts (fixes KSV-0014 and KSV-0118, and most mediums):** every pod and container, Jobs included, uses `refcloud.podSecurityContext` / `refcloud.containerSecurityContext` (`_helpers.tpl`): `runAsNonRoot`, explicit `runAsUser` matching the image (required for images with a named `USER`), RuntimeDefault seccomp, no privilege escalation, all capabilities dropped, read-only root filesystem with an `emptyDir` at `/tmp` (and researcher-ui's `/app/.next/cache`). The core-api image now creates its user with fixed id 10001 (`USER 10001`); researcher-ui and Liquibase use `USER 1001` (same ids as before, now numeric).
+* **Probes** (defined per template; the unused `values.yaml` probes are removed):
+  * core-api: `/actuator/health/liveness` and `/actuator/health/readiness` (option A). Both paths are added to `PUBLIC_ENDPOINTS` in `SecurityConfig` (GET only, status without details; the ingress doesn't route `/actuator`), and `management.endpoint.health.probes.enabled` is set explicitly so they also exist outside Kubernetes. A startup probe allows up to 3 minutes before liveness checks begin.
+  * Kratos: `/admin/health/alive` and `/admin/health/ready` on 4434 (Kratos 0.9 serves its admin API under `/admin`; the unprefixed paths only redirect). Hydra: `/health/alive` and `/health/ready` on 4445. Admin ports are never routed by the ingress.
+  * docs: `/` on 8080. researcher-ui: TCP on 3000 (its pages call Kratos and Hydra, so an HTTP check could flap). admin-cli: none (`sleep infinity`).
+  * The `.trivyignore` reason for `DS-0026` (no Dockerfile `HEALTHCHECK`) now points to the chart's probes.
+* **Chart metadata:** removed the boilerplate `appVersion: "1.16.0"` (the deployed version is the lockstep image tag). No `icon`: the repo has no logo yet (`helm lint` reports it as INFO only).
 

@@ -12,12 +12,34 @@ spec:
       labels:
         app.kubernetes.io/name: refcloud-ui
     spec:
+      {{- include "refcloud.podSecurityContext" 1001 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-researcher-ui") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-ui
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          # next.js writes its cache (e.g. optimized images) to .next/cache
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
           ports:
             - containerPort: 3000
+          # TCP, not HTTP: pages call kratos and hydra, so an HTTP check could fail when they are slow
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 10
           env:
             - name: PUB_UI_BASE_URL
               value: "https://{{ .Values.ga4gh.referenceCloud.baseURL }}"

@@ -35,7 +35,7 @@ All checks run through `./scripts/refcloud-static-analysis-deploy-local.sh` from
 * Scan images for CVEs (non-blocking report: compose images plus each Dockerfile's final base image): `./scripts/refcloud-static-analysis-deploy-local.sh images`
 * The CVE scan runs weekly in CI and uploads results to the GitHub Security tab (code scanning); it never fails a build, since findings come from upstream images.
 * Every ignored hadolint rule (`.hadolint.yaml`) or Trivy finding (`.trivyignore`) needs a reason. Bump a tool by changing its version and digest together in the script.
-* Every app image must run as a non-root user (Trivy `DS-0002`). The docs image uses `nginxinc/nginx-unprivileged` and listens on 8080 (the Helm chart targets that port).
+* Every app image must run as a non-root user (Trivy `DS-0002`), set by numeric id (e.g. `USER 10001`) so Kubernetes can verify `runAsNonRoot`; the Helm chart sets each pod's `runAsUser` to match. The docs image uses `nginxinc/nginx-unprivileged` and listens on 8080 (the Helm chart targets that port).
 
 ### Testing
 

@@ -12,14 +12,20 @@ spec:
       labels:
         app.kubernetes.io/name: kratos
     spec:
+      {{- include "refcloud.podSecurityContext" 10000 | nindent 6 }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: kratos-config-map
           configMap:
             name: kratos-config-map
       containers:
         - image: {{ include "refcloud.kratosImage" . }}
           name: kratos
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: kratos-config-map
               mountPath: /etc/config
               readOnly: true
@@ -27,6 +33,18 @@ spec:
           ports:
             - containerPort: 4433
             - containerPort: 4434
+          # health endpoints on the admin port (cluster-internal; the ingress never routes to it). kratos serves its
+          # admin API under /admin (the unprefixed paths only redirect there)
+          livenessProbe:
+            httpGet:
+              path: /admin/health/alive
+              port: 4434
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /admin/health/ready
+              port: 4434
+            periodSeconds: 10
           env:
             - name: PSQL_USER
               valueFrom:
