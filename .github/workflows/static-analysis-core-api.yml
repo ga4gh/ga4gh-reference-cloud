@@ -1,6 +1,10 @@
 name: Static Analysis - Core API
 on:
   pull_request:
+  # weekly run on the default branch, so new advisories for locked dependencies surface even without core-api
+  # changes. failures show in the Actions tab and email whoever last edited this schedule
+  schedule:
+    - cron: "0 6 * * 1" # mondays 06:00 UTC
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,7 +17,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      # manual runs always check everything
+      # scheduled and manual runs always check everything
       core-api: ${{ github.event_name != 'pull_request' || steps.filter.outputs.core-api == 'true' }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -53,8 +57,8 @@ jobs:
           distribution: corretto
           java-version: "25"
 
-      # caches gradle's dependency and wrapper downloads. PR runs write the cache too: this workflow doesn't
-      # run on the default branch, so read-only caching would never be populated
+      # caches gradle's dependency and wrapper downloads. PR runs write the cache too, not just the weekly runs on
+      # the default branch, so a PR's later pushes reuse its own cache
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: false
@@ -76,6 +80,28 @@ jobs:
       - name: Bugs and security rules (spotbugs + find-sec-bugs)
         if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
         run: ./gradlew spotbugsMain
+
+      # trivy's vulnerability db, shared across workflows (the scripts use ~/.cache/trivy). separate from the
+      # checks bundle cache, since each scan type downloads only what it uses. one key per day; trivy refreshes
+      # a stale db itself, so an older restored cache is still safe
+      - name: Get date for the Trivy vulnerability database cache key
+        id: trivy-cache-date
+        if: ${{ !cancelled() }}
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy vulnerability database
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/db
+          key: trivy-db-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
+      # scans gradle.lockfile, so it needs only the checkout and docker (trivy runs from a pinned image) and runs
+      # even if compilation failed
+      - name: Audit dependencies (trivy fs, high and above)
+        if: ${{ !cancelled() }}
+        run: ./scripts/audit-deps.sh
 
       - name: Upload reports
         if: ${{ failure() }}

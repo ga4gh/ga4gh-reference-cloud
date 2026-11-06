@@ -15,7 +15,7 @@ buildscript {
 plugins {
     id 'java'
     id 'base'
-    id 'org.springframework.boot' version '4.0.6'
+    id 'org.springframework.boot' version '4.0.9'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'checkstyle'
     id 'com.github.spotbugs' version '6.5.13'
@@ -38,6 +38,14 @@ java {
 
 repositories {
     mavenCentral()
+}
+
+// every resolved dependency version is pinned in gradle.lockfile (committed), which the dependency audit
+// (./scripts/audit-deps.sh) scans. after changing a dependency, refresh it with
+// `./gradlew dependencies --write-locks`; the build fails if the lockfile is missing or out of date
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
 }
 
 dependencies {

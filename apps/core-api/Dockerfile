@@ -2,7 +2,8 @@ FROM gradle:9.5.1-jdk25-corretto AS builder
 
 WORKDIR /home/gradle/project
 
-COPY --chown=gradle:gradle build.gradle* settings.gradle* ./
+# gradle.lockfile pins every dependency version (strict locking: the build fails without it)
+COPY --chown=gradle:gradle build.gradle* settings.gradle* gradle.lockfile ./
 COPY --chown=gradle:gradle src ./src
 
 # bootJar builds only the runnable jar: static analysis and tests (both part of `gradle build`) are CI's job

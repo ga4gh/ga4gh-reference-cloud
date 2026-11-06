@@ -19,7 +19,7 @@ set -uo pipefail
 
 # ##############################
 # PINNED TOOL IMAGES (bump version and digest together; TRIVY_IMAGE is also pinned in
-# scripts/refcloud-static-analysis-deploy-local.sh and apps/admin-cli/scripts/audit-deps.sh)
+# scripts/refcloud-static-analysis-deploy-local.sh and apps/{admin-cli,core-api}/scripts/audit-deps.sh)
 # ##############################
 
 HELM_IMAGE="alpine/helm:4.3.1@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e"

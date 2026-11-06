@@ -20,7 +20,8 @@
 set -uo pipefail
 
 # ##############################
-# PINNED TOOL IMAGES (bump version and digest together; TRIVY_IMAGE is also pinned in apps/admin-cli/scripts/audit-deps.sh)
+# PINNED TOOL IMAGES (bump version and digest together; TRIVY_IMAGE is also pinned in
+# apps/{admin-cli,core-api}/scripts/audit-deps.sh and scripts/refcloud-static-analysis-helm.sh)
 # ##############################
 
 TRIVY_IMAGE="aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb"

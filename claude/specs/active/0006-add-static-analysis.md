@@ -213,15 +213,24 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
   * GitHub dependency submission (`gradle/actions/dependency-submission`): feeds Dependabot alerts, but doesn't block PRs, so it complements rather than replaces a CI audit.
 * Open questions: lockfile (proposed) or built jar? Which configurations to lock and audit (runtime and compile classpaths only, or test and tooling too, like the other apps' dev dependencies)? Fix existing findings in this task?
 
+**Decisions (Task 10):**
+
+* **Approach (as proposed): Gradle dependency locking + `trivy fs`.** `build.gradle` locks every configuration (`lockAllConfigurations()`) in strict mode, so the build fails if `gradle.lockfile` (committed, 199 entries) is missing or out of date: changing a dependency means refreshing it with `./gradlew dependencies --write-locks`. The Dockerfile copies the lockfile, so images build with exactly the locked versions (verified: the built jar's Tomcat, Spring MVC, Jackson and Netty versions match the lockfile). Not chosen: Trivy on the built jar (needs a build plus Trivy's Java database, several hundred MB) and GitHub dependency submission (skipped: it feeds Dependabot alerts but can't block PRs, and needs its own write-access workflow on `main`).
+* **Scope:** every locked configuration, including test dependencies and the SpotBugs/Checkstyle tooling (`--include-dev-deps`), matching the other apps; this added no findings.
+* **Command:** `apps/core-api/scripts/audit-deps.sh` (bash, needs only Docker; same Trivy image and digest as the other scripts, which all cross-reference each other), run from `apps/core-api`. It mounts only `gradle.lockfile` and `.trivyignore` read-only. Exceptions go in `apps/core-api/.trivyignore` with a reason (empty for now). Documented in the core-api `README.md` and `CLAUDE.md`.
+* **Workflow:** a new step in `static-analysis-core-api.yml` (same required job, `Static Analysis (core-api)`) that runs even if compilation fails, with the shared `trivy-db-*` cache (Task 11). The workflow now also runs weekly (Mondays 06:00 UTC) and checks everything on scheduled and manual runs, like Tasks 2, 3 and 8.
+* **Existing findings fixed:** the first scan found 45 HIGH/CRITICAL (11 critical) vulnerabilities, all in Spring Boot 4.0.6's managed versions (Tomcat, Spring Framework, Jackson, Netty, the Postgres driver, Micrometer, Spring Data). Upgrading the Spring Boot plugin to **4.0.9** (latest 4.0.x patch) clears all of them; compilation, static analysis, `bootJar` and the unit tests pass. This upgrades Tomcat, Spring Framework, Jackson and Netty at runtime, so it belongs in the full app test pass.
+* Verified: passes on the new lockfile; fails (exit 1, 45 findings) on a lockfile generated with Spring Boot 4.0.6; a changed dependency without a refreshed lock fails the build; the Docker image builds.
+
 ### Task 11: Cache Trivy's databases in CI
 
-* Implements the objective's caching for the Trivy checks (deploy-local, admin-cli and helm workflows), which otherwise downloaded Trivy's data on every run.
+* Implements the objective's caching for the Trivy checks (deploy-local, admin-cli, helm and, since Task 10, core-api workflows), which otherwise downloaded Trivy's data on every run.
 
 **Decisions (Task 11):**
 
 * `actions/cache` (v6.1.0, SHA-pinned) caches `~/.cache/trivy` subdirectories, keyed by day with a prefix `restore-keys` fallback; Trivy refreshes stale data itself, so restoring an older entry is safe.
-* Two keys, because each scan type downloads only what it uses: `trivy-checks-*` (the misconfiguration checks bundle, `~/.cache/trivy/policy`) for the `trivy config` steps in deploy-local and helm, and `trivy-db-*` (the vulnerability database, `~/.cache/trivy/db`, about 99 MB compressed) for admin-cli's audit. With one shared key, a config-only job could save the day's entry without the database, and the audit could never cache it.
-* The weekly image CVE matrix only restores the database (`actions/cache/restore`): its jobs run in parallel and would race to save the same key. Image layer caches are never saved.
+* Two keys, because each scan type downloads only what it uses: `trivy-checks-*` (the misconfiguration checks bundle, `~/.cache/trivy/policy`) for the `trivy config` steps in deploy-local and helm, and `trivy-db-*` (the vulnerability database, `~/.cache/trivy/db`, about 99 MB compressed) for the admin-cli and core-api audits. With one shared key, a config-only job could save the day's entry without the database, and the audit could never cache it.
+* The weekly image CVE matrix only restores the database (`actions/cache/restore`): its jobs run in parallel and would race to save the same key. Image layer caches are never saved. The admin-cli and core-api weekly runs start at the same time and may both try to save the day's `trivy-db-*` entry; the second just logs a warning.
 * The scripts now run Trivy as the calling user (`--user $(id -u):$(id -g)`, cache mounted at `/cache`), so cached files are owned by the runner user and `actions/cache` can save them (it can't read root-owned files). Verified locally: all Trivy checks pass with a fresh cache, and every cached file is owned by the user.
 * GitHub cache scoping: an entry saved on a PR branch is only reused by that PR (and its reruns); entries saved by the scheduled runs on `main` are reused by every branch. So the main benefit is fewer downloads and less exposure to registry rate limits, not a faster first run on each PR.
 
@@ -267,7 +276,6 @@ GitHub settings to apply after this branch's PR is opened (some depend on its ch
 
 * After the first merge to `develop`, confirm all five `push-docker-image-*` runs succeed (Task 6 changed how the reusable workflow receives its AWS secrets).
 * The scheduled workflows and `dependabot.yml` run from `main` only, so they start once this work reaches `main`.
-* Check **Insights → Dependency graph** for Gradle packages, to see whether Dependabot alerts cover core-api (relevant to Task 10).
 
 ## Future Directions
 
@@ -278,6 +286,8 @@ Follow-ups outside this spec's scope:
 * **docs audit exceptions:** remove the `@faker-js/faker` allowlist entry in `apps/docs/audit-ci.jsonc` and the npm `overrides` once upstream ships fixes.
 * **Test commands** are still TBD across the apps (Task 1 onward).
 * **Helm chart rendered for AWS:** static analysis currently renders only the default (local) values (Task 9).
+* **AWS SDK:** core-api pins `software.amazon.awssdk:s3` at 2.25.15 (2024). It has no findings of its own (its Netty is managed by Spring Boot), but it is far behind (2.57.x); upgrade it deliberately, with S3 testing.
+* **FindSecBugs CORS detector crash:** SpotBugs logs "errors occurred during analysis" because FindSecBugs 1.14.0's `CorsRegistryCORSDetector` throws a `NullPointerException` on `CorsConfig$1`, so that class is never checked for permissive CORS settings (the build still passes). Pre-existing since Task 4; revisit with a FindSecBugs upgrade or by restructuring `CorsConfig`.
 * **Chart icon:** add `icon` to `Chart.yaml` once the project has a logo.
 * **admin-cli pod shutdown:** the pod takes the full 30-second grace period to stop on every redeploy, because `sleep infinity` (PID 1) ignores SIGTERM. Pre-existing; fix with `terminationGracePeriodSeconds: 5` or a shell that traps SIGTERM.
 * **docs pod IPv6:** with the read-only root filesystem, the nginx-unprivileged entrypoint can't enable its IPv6 listener (logged as info). Harmless in an IPv4 cluster; mount a writable `conf.d` or add the listener to the image's config if IPv6 is needed.
