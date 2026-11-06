@@ -12,6 +12,21 @@ To run the core API by itself, see below.
 
 * Run the core API server: `./gradlew bootRun`
 
+## Static Analysis
+
+Static analysis runs in CI on every pull request that changes `apps/core-api/`. All tools are pinned in `build.gradle`, so local runs match CI. Run everything with `./gradlew staticAnalysis`, or a single check:
+
+| Check | Command |
+|-|-|
+| Compilation (javac, all warnings as errors) | `./gradlew compileJava compileTestJava` |
+| Formatting ([Spotless](https://github.com/diffplug/spotless) with [palantir-java-format](https://github.com/palantir/palantir-java-format)) | `./gradlew spotlessCheck` |
+| Linting ([Checkstyle](https://checkstyle.org/), `config/checkstyle/checkstyle.xml`) | `./gradlew checkstyleMain` |
+| Bugs and security rules ([SpotBugs](https://spotbugs.github.io/) with [Find Security Bugs](https://find-sec-bugs.github.io/)) | `./gradlew spotbugsMain` |
+
+To fix formatting: `./gradlew spotlessApply`
+
+Reports are written to `build/reports/` (`checkstyle/main.html`, `spotbugs/main.html`).
+
 ## Configuration
 
 See [`src/main/resources/application.yml`](./src/main/resources/application.yml) for a list of configurable properties. Rather than making changes to the YAML file directly, we recommend setting environment variables that will override the defaults in `application.yml`. For example, the value:

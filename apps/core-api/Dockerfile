@@ -5,7 +5,8 @@ WORKDIR /home/gradle/project
 COPY --chown=gradle:gradle build.gradle* settings.gradle* ./
 COPY --chown=gradle:gradle src ./src
 
-RUN gradle build -x test --no-daemon
+# bootJar builds only the runnable jar: static analysis and tests (both part of `gradle build`) are CI's job
+RUN gradle bootJar --no-daemon
 
 FROM amazoncorretto:25.0.3-alpine
 

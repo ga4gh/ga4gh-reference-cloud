@@ -115,7 +115,8 @@ final class AstWalker {
             try {
                 walk(field.get(value), value, field.getName(), visitor, visited);
             } catch (IllegalAccessException e) {
-                throw new IllegalStateException("cannot read SQL AST field " + type.getName() + "." + field.getName(), e);
+                throw new IllegalStateException(
+                        "cannot read SQL AST field " + type.getName() + "." + field.getName(), e);
             }
         }
     }
@@ -131,7 +132,8 @@ final class AstWalker {
                     try {
                         field.setAccessible(true);
                     } catch (InaccessibleObjectException e) {
-                        throw new IllegalStateException("cannot access SQL AST field " + c.getName() + "." + field.getName(), e);
+                        throw new IllegalStateException(
+                                "cannot access SQL AST field " + c.getName() + "." + field.getName(), e);
                     }
                     fields.add(field);
                 }

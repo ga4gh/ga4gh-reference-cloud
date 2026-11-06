@@ -6,8 +6,7 @@ import tools.jackson.databind.annotation.JsonNaming;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record SingleDrsObjectAuthInfoResponseDTO(
-    String drsObjectId,
-    List<SupportedType> supportedTypes,
-    List<String> passportAuthIssuers,
-    List<String> bearerAuthIssuers
-) {}
+        String drsObjectId,
+        List<SupportedType> supportedTypes,
+        List<String> passportAuthIssuers,
+        List<String> bearerAuthIssuers) {}

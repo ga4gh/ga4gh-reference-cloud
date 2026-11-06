@@ -86,3 +86,41 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
 * **Audit exceptions (option b):** the one remaining high advisory, `@faker-js/faker` 5.x `helpers.fake` (GHSA-qxc2-j82w-r537, via the OpenAPI plugin's Postman code-sample generator), has no compatible fix (forcing faker 10 breaks the build) and only runs at build time on our own specs. It is allowlisted with a reason in `audit-ci.jsonc` (`audit-ci` 7.1.0, pinned), which otherwise fails at `high` and above like Task 2; any new advisory still fails CI. Remove entries and overrides once upstream ships fixes.
 * **Semgrep:** `p/nodejs`, `p/typescript`, `p/react` (no `p/nextjs`).
 * **Workflow:** same as Task 2 (`Static Analysis (docs)` is the required job; weekly + manual runs; Node 24.15.0 to match the Dockerfile).
+
+### Task 4: Add Static Analysis to core-api
+
+* The core-api is a Java Spring Boot app, so include the following static analysis methods:
+  * Compiling: Use javac (Gradle's `compileJava`) with all lint warnings enabled and treated as errors (`-Xlint:all -Werror`)
+  * Formatting: Use Spotless with `palantir-java-format` (4-space indent, 120 columns) to enforce and auto-fix code formatting
+  * Linting & Quality: Use SpotBugs to catch structural bugs, performance issues, and code smells. Use Checkstyle (custom config) to enforce non-formatting rules such as imports, naming, and common coding problems.
+  * Security Audits (SAST): Plug the FindSecBugs plugin into SpotBugs to scan for security issues like SQL injection, weak cryptography, improper authorization controls
+  * ~~Dependency Audits: Use the OWASP Dependency-Check Gradle Plugin to scan compiled .jar dependencies against known Common Vulnerabilities and Exposures (CVEs)~~ (deferred, see decisions)
+* static analysis tools must be invokable both by devs locally and within CI.
+* include the static analysis commands that should be run in `apps/core-api/README.md` as well as `apps/core-api/CLAUDE.md`
+* add a github actions workflow file at `.github/workflows/static-analysis-core-api.yml` that performs static analysis checks, failing the overall workflow if any of the tests fail. Configure the workflow to only run when there are changes to `apps/core-api/**`
+* follow conventions established in the previous task (file naming, job naming, detect-changes job, etc.)
+
+**Decisions (Task 4):**
+
+* **Compiling:** SpotBugs analyzes bytecode and does not compile, so compilation is checked by javac itself with `-Xlint:all -Werror` (`-Xlint:-processing` silences Lombok's annotation-processor noise). Fixed the 13 existing warnings by adding `serialVersionUID` (with `@Serial`) to exception and composite-ID classes.
+* **Formatting:** stock Checkstyle configs don't fit (`sun_checks`: 1,927 violations, mostly Javadoc/`final` parameters; `google_checks` requires 2-space indent while the code uses 4) and Checkstyle can't auto-fix. Formatting is enforced by Spotless with `palantir-java-format` (4-space indent, 120 columns, closest to the existing style), with `spotlessApply` to fix; the codebase was reformatted once. Checkstyle uses a small custom config (`config/checkstyle/checkstyle.xml`) with non-formatting rules only (imports, naming, empty blocks, `equals`/`hashCode`, switch defaults, boolean simplification, braces), so the two tools never conflict.
+* **SpotBugs + FindSecBugs:** effort `MAX`, fails on medium confidence and above, `main` sources only. Project-wide exclusions in `config/spotbugs/exclude.xml`: `EI_EXPOSE_REP`/`EI_EXPOSE_REP2` (Lombok getters/setters on entities and DTOs) and `SPRING_ENDPOINT` (an informational endpoint inventory). Individual findings were fixed or suppressed with `@SuppressFBWarnings(justification = ...)`:
+  * fixed: a possible null dereference in `OrySessionFilter` (`getBody()` called twice); `== true`/`== false` comparisons, including a nullable `Boolean isManifest` now read null-safely.
+  * suppressed with justification: CSRF disabled in `SecurityConfig` (core-api never authenticates from cookies: `X-Session-Token`, `Authorization: Bearer` and basic auth only), `SQL_INJECTION_SPRING_JDBC` in `DataConnectQueryExecutor` (the only concatenation is a numeric `SET LOCAL statement_timeout` from config), `REDOS` on the Data Connect table name pattern (segments separated by a literal `.`, no catastrophic backtracking), and `UWF_UNWRITTEN_FIELD` on the `@Immutable` Data Connect entities (populated by Hibernate).
+* **OWASP Dependency-Check: deferred.** It needs an NVD API key stored as a secret, which isn't available to fork or Dependabot PRs, and a cached NVD database. Revisit separately (Dependabot alerts cover Gradle dependencies in the meantime).
+* **Gradle:** a `staticAnalysis` task runs everything (tests excluded); a Java 25 toolchain is declared in `build.gradle` to match the Dockerfile and CI (Corretto 25). Pinned: SpotBugs plugin 6.5.13 (SpotBugs 4.10.5), FindSecBugs 1.14.0, Checkstyle 14.4.0, Spotless 8.11.0 (palantir-java-format 2.103.0).
+* **Docker:** the Dockerfile builds with `gradle bootJar` instead of `gradle build -x test`, so image builds don't run static analysis; CI is the gate.
+* **Workflow:** same detect-changes pattern (`Static Analysis (core-api)` is the required job) on `pull_request` and `workflow_dispatch`; no weekly run, since there's no dependency audit yet. `gradle/actions/setup-gradle` caches dependencies (writable on PRs, since the workflow doesn't run on the default branch); reports are uploaded as an artifact when a check fails.
+
+### Task 5: Add Static Analysis to Local Deployment Context
+
+* Local deployment files are included in `deploy/local/`. These include docker-compose configs for dependency services (Ory Kratos, Hydra) and the Caddyfile for setting up the local ingress controller.
+* Syntactically validate docker compose files
+* Run Trivy to scan docker files and compose files for base image vulnerabilities, root user execution, and insecure port errors.
+  * Would it also be good to run Trivy scanning for the Dockerfiles in "apps/" ? e.g.
+    * apps/core-api/Dockerfile
+    * apps/core-api/liquibase/Dockerfile
+    * apps/admin-cli/Dockerfile
+    * apps/researcher-ui/Dockerfile
+    * apps/docs/Dockerfile
+

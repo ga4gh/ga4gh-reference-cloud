@@ -21,9 +21,17 @@ This repo serves as the refcloud's core backend layer.
 
 ### Code Quality & Validation
 
-* TBD: Run linter
-* TBD: Fix linting/formatting errors
-* TBD: Run type check
+All tools are pinned in `build.gradle`, so local runs match CI (`.github/workflows/static-analysis-core-api.yml`).
+
+* Run all static analysis: `./gradlew staticAnalysis`
+* Compile (javac `-Xlint:all -Werror`, `processing` excluded for Lombok): `./gradlew compileJava compileTestJava`
+* Check formatting (Spotless + palantir-java-format, 4-space indent, 120 columns): `./gradlew spotlessCheck`
+* Run linter (Checkstyle, non-formatting rules only): `./gradlew checkstyleMain`
+* Find bugs and security issues (SpotBugs + Find Security Bugs, medium confidence and above): `./gradlew spotbugsMain`
+* Fix formatting: `./gradlew spotlessApply` (run it before committing; Checkstyle has no auto-fix)
+* Formatting belongs to Spotless only; `config/checkstyle/checkstyle.xml` must not add layout rules, or the two tools will disagree.
+* Suppress a SpotBugs finding in code with `@SuppressFBWarnings(value = "...", justification = "...")` (always with a justification); project-wide exclusions go in `config/spotbugs/exclude.xml`, each with a reason. Suppress Checkstyle with `@SuppressWarnings("checkstyle:<rule>")` and a comment.
+* The Dockerfile runs `gradle bootJar`, so the image build doesn't run static analysis or tests; CI is the gate.
 
 ### Testing
 

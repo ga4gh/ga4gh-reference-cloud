@@ -4,7 +4,4 @@ import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record RefgetSequenceAliasResponseDTO (
-    String alias,
-    String namingAuthority
-) {}
+public record RefgetSequenceAliasResponseDTO(String alias, String namingAuthority) {}

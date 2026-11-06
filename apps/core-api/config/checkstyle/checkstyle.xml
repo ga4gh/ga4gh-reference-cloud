@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!--
+  non-formatting rules only. layout (indentation, whitespace, line length, braces placement, import order)
+  is enforced by spotless with palantir-java-format, so the two tools never disagree.
+  suppress a rule locally with @SuppressWarnings("checkstyle:<rulename>") and a comment explaining why.
+-->
+<module name="Checker">
+    <property name="severity" value="error"/>
+    <module name="SuppressWarningsFilter"/>
+
+    <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
+
+        <!-- imports -->
+        <module name="AvoidStarImport"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports"/>
+        <module name="IllegalImport"/>
+
+        <!-- naming -->
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+        </module>
+        <module name="TypeName"/>
+        <module name="MethodName"/>
+        <module name="MemberName"/>
+        <module name="ParameterName"/>
+        <module name="LocalVariableName"/>
+        <module name="StaticVariableName"/>
+        <module name="ConstantName"/>
+
+        <!-- coding problems -->
+        <module name="EmptyBlock">
+            <property name="option" value="text"/>
+        </module>
+        <module name="EmptyCatchBlock"/>
+        <module name="EmptyStatement"/>
+        <module name="NeedBraces"/>
+        <module name="EqualsHashCode"/>
+        <module name="CovariantEquals"/>
+        <module name="StringLiteralEquality"/>
+        <module name="MissingSwitchDefault"/>
+        <module name="DefaultComesLast"/>
+        <module name="FallThrough"/>
+        <module name="ModifiedControlVariable"/>
+        <module name="OneStatementPerLine"/>
+        <module name="MultipleVariableDeclarations"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="UpperEll"/>
+        <module name="ArrayTypeStyle"/>
+        <module name="ModifierOrder"/>
+    </module>
+</module>

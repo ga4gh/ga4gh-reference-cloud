@@ -26,9 +26,9 @@ final class SearchDataModelBuilder {
         ObjectNode properties = dataModel.putObject("properties");
         for (QueryColumn column : columns) {
             String schemaRef = columnSchemaRefs.get(column.name());
-            properties.set(column.name(), schemaRef != null
-                ? NODES.objectNode().put("$ref", schemaRef)
-                : columnSchema(column.typeName()));
+            properties.set(
+                    column.name(),
+                    schemaRef != null ? NODES.objectNode().put("$ref", schemaRef) : columnSchema(column.typeName()));
         }
         return dataModel;
     }

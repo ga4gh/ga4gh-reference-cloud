@@ -1,9 +1,9 @@
 package org.ga4gh.refcloud.api.dataconnect.query;
 
 import java.util.Base64;
+import lombok.RequiredArgsConstructor;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 

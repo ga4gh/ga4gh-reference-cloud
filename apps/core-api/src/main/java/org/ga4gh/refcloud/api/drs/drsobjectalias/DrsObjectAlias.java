@@ -1,7 +1,5 @@
 package org.ga4gh.refcloud.api.drs.drsobjectalias;
 
-import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
-
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -13,6 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 
 @Entity
 @Table(name = "drs_object_alias")

@@ -4,7 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
+import java.io.IOException;
+import java.util.Collections;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -15,8 +16,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
-import java.io.IOException;
-import java.util.Collections;
 
 @Component
 public class OrySessionFilter extends OncePerRequestFilter {
@@ -42,16 +41,16 @@ public class OrySessionFilter extends OncePerRequestFilter {
                 HttpEntity<String> entity = new HttpEntity<>(headers);
 
                 // 3. Query Kratos to validate the token
-                ResponseEntity<KratosSessionResponse> kratosResponse = restTemplate.exchange(
-                        kratosUrl, HttpMethod.GET, entity, KratosSessionResponse.class);
+                ResponseEntity<KratosSessionResponse> kratosResponse =
+                        restTemplate.exchange(kratosUrl, HttpMethod.GET, entity, KratosSessionResponse.class);
 
-                if (kratosResponse.getStatusCode().is2xxSuccessful() && kratosResponse.getBody() != null) {
-                    KratosSessionResponse session = kratosResponse.getBody();
-                    
+                KratosSessionResponse session = kratosResponse.getBody();
+                if (kratosResponse.getStatusCode().is2xxSuccessful() && session != null) {
+
                     // 4. Populate Spring Security Context with the user's details
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             session.getIdentity(), null, Collections.emptyList());
-                    
+
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             } catch (Exception e) {

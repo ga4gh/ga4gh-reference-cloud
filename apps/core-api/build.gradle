@@ -17,6 +17,9 @@ plugins {
     id 'base'
     id 'org.springframework.boot' version '4.0.6'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'checkstyle'
+    id 'com.github.spotbugs' version '6.5.13'
+    id 'com.diffplug.spotless' version '8.11.0'
 }
 
 base {
@@ -25,6 +28,13 @@ base {
 
 group 'org.ga4gh'
 version '0.1.0'
+
+// same JDK locally and in CI (matches the Dockerfile's JDK 25); foojay downloads it if it isn't installed
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
 
 repositories {
     mavenCentral()
@@ -40,6 +50,7 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.25.15'
     implementation 'com.github.jsqlparser:jsqlparser:5.4' // Data Connect query parsing/rewriting, no Spring-managed alternative
     compileOnly 'org.projectlombok:lombok'
+    compileOnly 'com.github.spotbugs:spotbugs-annotations:4.10.5' // @SuppressFBWarnings(justification = ...)
     annotationProcessor 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -60,4 +71,55 @@ test {
         events "passed", "skipped", "failed"
         showStandardStreams = true // make true for log output to console
     }
+}
+
+// ---- static analysis: ./gradlew staticAnalysis (see README.md). versions are pinned so local runs match CI
+
+// compile: every javac lint warning is an error. 'processing' only warns about annotation processors (lombok)
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:all', '-Xlint:-processing', '-Werror']
+}
+
+// formatting: ./gradlew spotlessApply fixes, spotlessCheck verifies
+spotless {
+    java {
+        target 'src/**/*.java'
+        palantirJavaFormat('2.103.0')
+    }
+}
+
+// non-formatting rules (imports, naming, common coding problems); formatting is spotless' job
+checkstyle {
+    toolVersion = '14.4.0'
+    configFile = file('config/checkstyle/checkstyle.xml')
+    maxWarnings = 0
+}
+
+// bugs and, via find-sec-bugs, security issues. fails on medium confidence and above
+spotbugs {
+    toolVersion = '4.10.5'
+    effort = com.github.spotbugs.snom.Effort.valueOf('MAX')
+    reportLevel = com.github.spotbugs.snom.Confidence.valueOf('MEDIUM')
+    excludeFilter = file('config/spotbugs/exclude.xml')
+}
+
+dependencies {
+    spotbugsPlugins 'com.h3xstream.findsecbugs:findsecbugs-plugin:1.14.0'
+}
+
+// checkstyle and spotbugs analyze application code only; tests are still compiled and formatted
+tasks.named('checkstyleTest') { enabled = false }
+tasks.named('spotbugsTest') { enabled = false }
+
+tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
+    reports {
+        html { required = true }
+        xml { required = true }
+    }
+}
+
+tasks.register('staticAnalysis') {
+    group = 'verification'
+    description = 'Runs all static analysis: compile (warnings as errors), spotless, checkstyle, spotbugs + find-sec-bugs.'
+    dependsOn 'compileJava', 'compileTestJava', 'spotlessCheck', 'checkstyleMain', 'spotbugsMain'
 }

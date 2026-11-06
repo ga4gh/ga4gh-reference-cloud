@@ -6,13 +6,7 @@ import java.io.InputStream;
 // response headers (206 + Content-Range for Range requests, Accept-Ranges: none for start/end requests).
 // start is inclusive, end is exclusive; for circular sequences that wrap the origin, start > end
 public record RefgetSequenceContent(
-    InputStream content,
-    long contentLength,
-    RequestType requestType,
-    long start,
-    long end,
-    long sequenceLength
-) {
+        InputStream content, long contentLength, RequestType requestType, long start, long end, long sequenceLength) {
 
     public enum RequestType {
         FULL_SEQUENCE,

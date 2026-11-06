@@ -6,7 +6,6 @@ import tools.jackson.databind.annotation.JsonNaming;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record MultiDrsObjectAuthInfoResponseDTO(
-    MultiDrsObjectAuthInfoSummaryResponseDTO summary,
-    List<MultiDrsObjectAuthInfoUnresolvedIdSetResponseDTO> unresolvedDrsObjects,
-    List<SingleDrsObjectAuthInfoResponseDTO> resolvedDrsObjects
-) {}
+        MultiDrsObjectAuthInfoSummaryResponseDTO summary,
+        List<MultiDrsObjectAuthInfoUnresolvedIdSetResponseDTO> unresolvedDrsObjects,
+        List<SingleDrsObjectAuthInfoResponseDTO> resolvedDrsObjects) {}

@@ -18,12 +18,29 @@ public class CorsConfig {
     private Long maxAge;
 
     // Getters and Setters are required for binding
-    public void setAllowedOrigins(List<String> allowedOrigins) { this.allowedOrigins = allowedOrigins; }
-    public void setAllowedMethods(List<String> allowedMethods) { this.allowedMethods = allowedMethods; }
-    public void setAllowedHeaders(List<String> allowedHeaders) { this.allowedHeaders = allowedHeaders; }
-    public void setExposedHeaders(List<String> exposedHeaders) { this.exposedHeaders = exposedHeaders; }
-    public void setAllowCredentials(Boolean allowCredentials) { this.allowCredentials = allowCredentials; }
-    public void setMaxAge(Long maxAge) { this.maxAge = maxAge; }
+    public void setAllowedOrigins(List<String> allowedOrigins) {
+        this.allowedOrigins = allowedOrigins;
+    }
+
+    public void setAllowedMethods(List<String> allowedMethods) {
+        this.allowedMethods = allowedMethods;
+    }
+
+    public void setAllowedHeaders(List<String> allowedHeaders) {
+        this.allowedHeaders = allowedHeaders;
+    }
+
+    public void setExposedHeaders(List<String> exposedHeaders) {
+        this.exposedHeaders = exposedHeaders;
+    }
+
+    public void setAllowCredentials(Boolean allowCredentials) {
+        this.allowCredentials = allowCredentials;
+    }
+
+    public void setMaxAge(Long maxAge) {
+        this.maxAge = maxAge;
+    }
 
     @Bean
     public WebMvcConfigurer corsConfigurer() {

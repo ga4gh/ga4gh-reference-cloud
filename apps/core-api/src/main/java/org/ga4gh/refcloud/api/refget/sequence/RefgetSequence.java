@@ -1,9 +1,5 @@
 package org.ga4gh.refcloud.api.refget.sequence;
 
-import java.util.HashSet;
-import java.util.Set;
-import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
-import org.ga4gh.refcloud.api.refget.sequencealias.RefgetSequenceAlias;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -13,11 +9,15 @@ import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
+import org.ga4gh.refcloud.api.refget.sequencealias.RefgetSequenceAlias;
 
 @Entity
 @Table(name = "refget_sequence")

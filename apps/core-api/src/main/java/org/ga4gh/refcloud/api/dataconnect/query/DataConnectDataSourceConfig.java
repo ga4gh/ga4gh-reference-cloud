@@ -1,9 +1,9 @@
 package org.ga4gh.refcloud.api.dataconnect.query;
 
+import com.zaxxer.hikari.HikariDataSource;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import com.zaxxer.hikari.HikariDataSource;
 
 @Configuration
 public class DataConnectDataSourceConfig {

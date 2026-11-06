@@ -1,0 +1,84 @@
+name: Static Analysis - Core API
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # always runs (no workflow-level paths filter), so the required check below always reports a status
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      # manual runs always check everything
+      core-api: ${{ github.event_name != 'pull_request' || steps.filter.outputs.core-api == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            core-api:
+              - 'apps/core-api/**'
+              - '.github/workflows/static-analysis-core-api.yml'
+
+  # required status check. skipped (which GitHub counts as passing) when core-api is unchanged.
+  # runs and fails if detect-changes didn't succeed, since a skip would otherwise let the PR merge unchecked
+  static-analysis:
+    name: Static Analysis (core-api)
+    needs: detect-changes
+    if: ${{ !cancelled() && (needs.detect-changes.result != 'success' || needs.detect-changes.outputs.core-api == 'true') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/core-api
+    steps:
+      - name: Fail if change detection failed
+        if: needs.detect-changes.result != 'success'
+        working-directory: . # runs before checkout, so apps/<app> doesn't exist yet
+        run: |
+          echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
+          exit 1
+
+      - uses: actions/checkout@v7.0.1
+
+      # matches the Gradle toolchain (build.gradle) and the Dockerfile's JDK
+      - uses: actions/setup-java@v6.2.0
+        with:
+          distribution: corretto
+          java-version: "25"
+
+      # caches gradle's dependency and wrapper downloads. PR runs write the cache too: this workflow doesn't
+      # run on the default branch, so read-only caching would never be populated
+      - uses: gradle/actions/setup-gradle@v6.4.1
+        with:
+          cache-read-only: false
+
+      # each check runs even if an earlier one fails, so a single run reports every problem.
+      # checkstyle and spotbugs need compiled classes, so only the formatting step runs when compilation fails
+      - name: Compile (javac, warnings as errors)
+        id: compile
+        run: ./gradlew compileJava compileTestJava
+
+      - name: Check formatting (spotless, palantir-java-format)
+        if: ${{ !cancelled() }}
+        run: ./gradlew spotlessCheck
+
+      - name: Lint (checkstyle)
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        run: ./gradlew checkstyleMain
+
+      - name: Bugs and security rules (spotbugs + find-sec-bugs)
+        if: ${{ !cancelled() && steps.compile.outcome == 'success' }}
+        run: ./gradlew spotbugsMain
+
+      - name: Upload reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: core-api-static-analysis-reports
+          path: apps/core-api/build/reports/
+          retention-days: 7
