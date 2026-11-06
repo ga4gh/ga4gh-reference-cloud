@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
 import org.ga4gh.refcloud.api.dataconnect.error.InvalidQueryException;
 import org.ga4gh.refcloud.api.dataconnect.error.SearchNotFoundException;
@@ -19,7 +20,6 @@ import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 
 // Runs a search once. A result that fits on one page is returned directly; a longer result is
@@ -51,14 +51,12 @@ public class DataConnectSearchService {
         int pageSize = dataConnectConfig.query().pageSize();
 
         RewrittenQuery query = dataConnectQueryService.prepareQuery(
-            searchRequest.query(),
-            SearchParameterConverter.convert(searchRequest.parameters()),
-            userId
-        );
-        QueryResult result = dataConnectQueryExecutor.execute(query, limits.maxRows(), limits.maxBytes().toBytes());
+                searchRequest.query(), SearchParameterConverter.convert(searchRequest.parameters()), userId);
+        QueryResult result = dataConnectQueryExecutor.execute(
+                query, limits.maxRows(), limits.maxBytes().toBytes());
         if (result.hasMore()) {
             throw new InvalidQueryException("query returned more than " + limits.maxRows()
-                + " rows; narrow the query or add LIMIT (use /table/{table_name}/data to browse a whole table)");
+                    + " rows; narrow the query or add LIMIT (use /table/{table_name}/data to browse a whole table)");
         }
 
         JsonNode dataModel = SearchDataModelBuilder.build(result.columns(), query.columnSchemaRefs());
@@ -68,7 +66,8 @@ public class DataConnectSearchService {
         }
 
         // the first page is returned now and never served again, so only later rows are saved
-        UUID searchId = dataConnectSearchStorageService.save(userId, dataModel, query.tableNames(), rows.subList(pageSize, rows.size()), pageSize);
+        UUID searchId = dataConnectSearchStorageService.save(
+                userId, dataModel, query.tableNames(), rows.subList(pageSize, rows.size()), pageSize);
         return new TableDataResponseDTO(dataModel, rows.subList(0, pageSize), nextPage(searchId, pageSize));
     }
 
@@ -79,9 +78,9 @@ public class DataConnectSearchService {
         int pageSize = dataConnectConfig.query().pageSize();
 
         DataConnectSearch search = parseSearchId(searchId)
-            .flatMap(dataConnectSearchStorageService::findUnexpired)
-            .filter(found -> found.userId() == null || found.userId().equals(userId))
-            .orElseThrow(() -> searchNotFound(searchId));
+                .flatMap(dataConnectSearchStorageService::findUnexpired)
+                .filter(found -> found.userId() == null || found.userId().equals(userId))
+                .orElseThrow(() -> searchNotFound(searchId));
 
         // access may have changed since the search ran (e.g. a visa was revoked)
         for (String tableName : search.tableNames()) {
@@ -91,23 +90,23 @@ public class DataConnectSearchService {
         }
 
         // without a token, continue from the first saved row (the second page)
-        long offset = pageToken == null ? pageSize : pageTokenCodec.decode(pageToken).offset();
+        long offset =
+                pageToken == null ? pageSize : pageTokenCodec.decode(pageToken).offset();
 
         // one extra row shows whether another page exists
         List<Map<String, Object>> rows = dataConnectSearchStorageService.findRows(search.id(), offset, pageSize + 1);
         boolean hasMore = rows.size() > pageSize;
 
         return new TableDataResponseDTO(
-            search.dataModel(),
-            hasMore ? rows.subList(0, pageSize) : rows,
-            hasMore ? nextPage(search.id(), offset + pageSize) : null
-        );
+                search.dataModel(),
+                hasMore ? rows.subList(0, pageSize) : rows,
+                hasMore ? nextPage(search.id(), offset + pageSize) : null);
     }
 
     private PaginationDTO nextPage(UUID searchId, long offset) {
         return new PaginationDTO(dataConnectConfig.baseUrlWithoutTrailingSlash()
-            + "/ga4gh/data-connect/v1/search/" + searchId
-            + "?page_token=" + pageTokenCodec.encode(new PageToken(offset)));
+                + "/ga4gh/data-connect/v1/search/" + searchId
+                + "?page_token=" + pageTokenCodec.encode(new PageToken(offset)));
     }
 
     private static Optional<UUID> parseSearchId(String searchId) {

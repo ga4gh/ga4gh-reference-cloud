@@ -1,11 +1,18 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.ga4gh.refcloud.api.core.tag.Tag;
 import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTable;
 import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableRepository;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectRepository;
-import org.ga4gh.refcloud.api.drs.drsobject.DrsObjectService;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
@@ -23,14 +30,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class DatasetService {
@@ -47,7 +46,13 @@ public class DatasetService {
 
     private final DataConnectTableRepository dataConnectTableRepository;
 
-    public DatasetService(DatasetRepository datasetRepository, PassportUserVisaAssertionService passportUserVisaAssertionService, PassportUserRepository passportUserRepository, PassportUserVisaAssertionRepository passportUserVisaAssertionRepository, DrsObjectRepository drsObjectRepository, DataConnectTableRepository dataConnectTableRepository) {
+    public DatasetService(
+            DatasetRepository datasetRepository,
+            PassportUserVisaAssertionService passportUserVisaAssertionService,
+            PassportUserRepository passportUserRepository,
+            PassportUserVisaAssertionRepository passportUserVisaAssertionRepository,
+            DrsObjectRepository drsObjectRepository,
+            DataConnectTableRepository dataConnectTableRepository) {
         this.datasetRepository = datasetRepository;
         this.passportUserVisaAssertionService = passportUserVisaAssertionService;
         this.passportUserRepository = passportUserRepository;
@@ -61,25 +66,25 @@ public class DatasetService {
         // collect all datasets
         List<Dataset> datasets = datasetRepository.findAllWithTagsAndVisas();
 
-        // collect all assertions for the user, then place in a map where the key is the visaId and value is the assertion object
+        // collect all assertions for the user, then place in a map where the key is the visaId and value is the
+        // assertion object
         List<PassportUserVisaAssertion> assertions = passportUserVisaAssertionRepository.findAllByUserId(userId);
         Map<String, PassportUserVisaAssertion> assertionMap = assertions.stream()
-            .filter(a -> a.getPassportVisa() != null && a.getPassportVisa().getId() != null)
-            .collect(Collectors.toMap(
-                assertion -> assertion.getPassportVisa().getId(), // Key: Visa ID
-                assertion -> assertion,                           // Value: The assertion object
-                (existing, replacement) -> existing              // Merge function: handles unexpected duplicates safely
-            ));
+                .filter(a -> a.getPassportVisa() != null && a.getPassportVisa().getId() != null)
+                .collect(Collectors.toMap(
+                        assertion -> assertion.getPassportVisa().getId(), // Key: Visa ID
+                        assertion -> assertion, // Value: The assertion object
+                        (existing, replacement) -> existing // Merge function: handles unexpected duplicates safely
+                        ));
 
         // collect the Data Connect tables visible to the user, grouped by dataset id.
         // platform-wide tables (no dataset) are skipped, as they belong to no dataset
-        Map<String, List<DatasetTableResponseDTO>> tablesByDatasetId = dataConnectTableRepository.findAllVisibleToUser(userId)
-            .stream()
-            .filter(table -> table.getDataset() != null)
-            .collect(Collectors.groupingBy(
-                table -> table.getDataset().getId(),
-                Collectors.mapping(DatasetService::convertToTableDto, Collectors.toList())
-            ));
+        Map<String, List<DatasetTableResponseDTO>> tablesByDatasetId =
+                dataConnectTableRepository.findAllVisibleToUser(userId).stream()
+                        .filter(table -> table.getDataset() != null)
+                        .collect(Collectors.groupingBy(
+                                table -> table.getDataset().getId(),
+                                Collectors.mapping(DatasetService::convertToTableDto, Collectors.toList())));
 
         // datasets with at least one manifest DRS object, regardless of the user's access
         Set<String> datasetIdsWithManifests = new HashSet<>(drsObjectRepository.findDatasetIdsWithManifests());
@@ -90,14 +95,13 @@ public class DatasetService {
         for (Dataset dataset : datasets) {
             // open datasets have no visa, and so no assertion
             PassportUserVisaAssertion assertion = dataset.getPassportVisa() == null
-                ? null
-                : assertionMap.get(dataset.getPassportVisa().getId());
+                    ? null
+                    : assertionMap.get(dataset.getPassportVisa().getId());
             datasetDtos.add(convertToResponseDto(
-                dataset,
-                assertion,
-                tablesByDatasetId.getOrDefault(dataset.getId(), List.of()),
-                datasetIdsWithManifests.contains(dataset.getId())
-            ));
+                    dataset,
+                    assertion,
+                    tablesByDatasetId.getOrDefault(dataset.getId(), List.of()),
+                    datasetIdsWithManifests.contains(dataset.getId())));
         }
 
         return datasetDtos;
@@ -114,18 +118,20 @@ public class DatasetService {
         PassportUserVisaAssertion assertion = null;
         if (dataset.getPassportVisa() != null) {
             String visaId = dataset.getPassportVisa().getId();
-            Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(userId, visaId);
+            Optional<PassportUserVisaAssertion> optionalAssertion =
+                    passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(userId, visaId);
             if (optionalAssertion.isPresent()) {
                 assertion = optionalAssertion.get();
             }
         }
 
-        List<DatasetTableResponseDTO> tables = dataConnectTableRepository.findAllVisibleToUserByDatasetId(datasetId, userId)
-            .stream()
-            .map(DatasetService::convertToTableDto)
-            .toList();
+        List<DatasetTableResponseDTO> tables =
+                dataConnectTableRepository.findAllVisibleToUserByDatasetId(datasetId, userId).stream()
+                        .map(DatasetService::convertToTableDto)
+                        .toList();
 
-        return convertToResponseDto(dataset, assertion, tables, drsObjectRepository.existsManifestByDatasetId(datasetId));
+        return convertToResponseDto(
+                dataset, assertion, tables, drsObjectRepository.existsManifestByDatasetId(datasetId));
     }
 
     // empty when the dataset is open (has no visa)
@@ -145,7 +151,8 @@ public class DatasetService {
 
         // open datasets have no visa to request
         if (dataset.getPassportVisa() == null) {
-            throw new BadRequestException("Dataset with ID: " + datasetId + " is open access and does not require an access request");
+            throw new BadRequestException(
+                    "Dataset with ID: " + datasetId + " is open access and does not require an access request");
         }
 
         // retrieve user object from db
@@ -155,7 +162,9 @@ public class DatasetService {
         }
 
         // check if an assertion object alredy exists. If it does, do not attempt to save to db
-        Optional<PassportUserVisaAssertion> existingAssertion = passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(userId, dataset.getPassportVisa().getId());
+        Optional<PassportUserVisaAssertion> existingAssertion =
+                passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(
+                        userId, dataset.getPassportVisa().getId());
         if (existingAssertion.isPresent()) {
             return null;
         }
@@ -172,24 +181,24 @@ public class DatasetService {
     }
 
     @Transactional
-    public Page<ManifestResponseDTO> getDrsObjectManifestsForDataset(String datasetId, int page, int size, String sortBy, String direction) {
-        Sort sort = direction.equalsIgnoreCase("desc") ?
-                    Sort.by(sortBy).descending() :
-                    Sort.by(sortBy).ascending();
+    public Page<ManifestResponseDTO> getDrsObjectManifestsForDataset(
+            String datasetId, int page, int size, String sortBy, String direction) {
+        Sort sort = direction.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<DrsObject> drsObjectsPage = drsObjectRepository.findDrsObjectManifestsByDatasetId(datasetId, pageable);
         Page<ManifestResponseDTO> manifestDtoPage = drsObjectsPage.map(drsObject -> new ManifestResponseDTO(
-            drsObject.getId(),
-            drsObject.getName(),
-            drsObject.getSize(),
-            drsObject.getCreatedTime(),
-            drsObject.getUpdatedTime(),
-            drsObject.getVersion(),
-            drsObject.getMimeType(),
-            drsObject.getDescription(),
-            drsObject.getIsManifest(),
-            drsObject.getManifestContent()
-        ));
+                drsObject.getId(),
+                drsObject.getName(),
+                drsObject.getSize(),
+                drsObject.getCreatedTime(),
+                drsObject.getUpdatedTime(),
+                drsObject.getVersion(),
+                drsObject.getMimeType(),
+                drsObject.getDescription(),
+                drsObject.getIsManifest(),
+                drsObject.getManifestContent()));
         return manifestDtoPage;
     }
 
@@ -204,7 +213,8 @@ public class DatasetService {
             return false;
         }
 
-        Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId.get());
+        Optional<PassportUserVisaAssertion> optionalAssertion =
+                passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId.get());
         if (optionalAssertion.isPresent()) {
             PassportUserVisaAssertion assertion = optionalAssertion.get();
             if (assertion.getCurrentStatus() == PassportVisaAssertionStatus.Approved) {
@@ -212,55 +222,49 @@ public class DatasetService {
             }
         }
 
-        return false; // do not allow user to view the object if no record found in assertion table, or if status is anything other than "Approved"
+        return false; // do not allow user to view the object if no record found in assertion table, or if status is
+        // anything other than "Approved"
     }
 
     private Dataset loadDataset(String id) {
-        return datasetRepository.findByIdWithTagsAndVisas(id).orElseThrow(() -> new ResourceNotFoundException("No Dataset with ID: " + id));
+        return datasetRepository
+                .findByIdWithTagsAndVisas(id)
+                .orElseThrow(() -> new ResourceNotFoundException("No Dataset with ID: " + id));
     }
 
     private static DatasetTableResponseDTO convertToTableDto(DataConnectTable table) {
-        return new DatasetTableResponseDTO(table.getTableName(), table.getTableType().getId());
+        return new DatasetTableResponseDTO(
+                table.getTableName(), table.getTableType().getId());
     }
 
     // tables and hasManifests are null when the caller should not return them
-    private DatasetResponseDTO convertToResponseDto(Dataset dataset, PassportUserVisaAssertion assertion, List<DatasetTableResponseDTO> tables, Boolean hasManifests) {
+    private DatasetResponseDTO convertToResponseDto(
+            Dataset dataset,
+            PassportUserVisaAssertion assertion,
+            List<DatasetTableResponseDTO> tables,
+            Boolean hasManifests) {
         // prepare tags
-        Set<String> tagDtos = dataset.getTags()
-                .stream()
-                .map(Tag::getTag)
-                .collect(Collectors.toSet());
+        Set<String> tagDtos = dataset.getTags().stream().map(Tag::getTag).collect(Collectors.toSet());
 
         // prepare assertion
         PassportUserVisaAssertionResponseDTO assertionDto = null;
         if (assertion != null) {
             assertionDto = new PassportUserVisaAssertionResponseDTO(
-                assertion.getPassportUser().getId(),
-                assertion.getCurrentStatus(),
-                assertion.getCurrentStatusAt()
-            );
+                    assertion.getPassportUser().getId(), assertion.getCurrentStatus(), assertion.getCurrentStatusAt());
         }
 
         // prepare visa (null for open datasets)
         PassportVisaResponseDTO visaDto = null;
         if (dataset.getPassportVisa() != null) {
             visaDto = new PassportVisaResponseDTO(
-                dataset.getPassportVisa().getId(),
-                dataset.getPassportVisa().getName(),
-                dataset.getPassportVisa().getDescription(),
-                assertionDto
-            );
+                    dataset.getPassportVisa().getId(),
+                    dataset.getPassportVisa().getName(),
+                    dataset.getPassportVisa().getDescription(),
+                    assertionDto);
         }
 
         // prepare final dataset
         return new DatasetResponseDTO(
-                dataset.getId(),
-                dataset.getName(),
-                dataset.getDescription(),
-                tagDtos,
-                visaDto,
-                tables,
-                hasManifests
-        );
+                dataset.getId(), dataset.getName(), dataset.getDescription(), tagDtos, visaDto, tables, hasManifests);
     }
 }

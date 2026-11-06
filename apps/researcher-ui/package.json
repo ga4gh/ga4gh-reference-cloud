@@ -6,7 +6,13 @@
     "dev": "NODE_EXTRA_CA_CERTS=$HOME/Library/\"Application Support\"/Caddy/pki/authorities/local/root.crt next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "audit:deps": "npm audit --audit-level=high",
+    "semgrep": "uvx semgrep@1.184.0 scan --metrics=off --error --config p/nodejs --config p/typescript --config p/react --config p/nextjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -32,12 +38,15 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/styled-components": "^5.1.36",
+    "@typescript/native": "npm:typescript@7.0.2",
     "autoprefixer": "^10.5.0",
     "daisyui": "^5.7.19",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
+    "eslint-config-prettier": "10.1.8",
     "postcss": "^8.5.15",
+    "prettier": "3.9.10",
     "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2"
+    "typescript": "npm:@typescript/typescript6@6.0.2"
   }
 }

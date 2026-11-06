@@ -1,0 +1,7 @@
+# zizmor config (run via ./scripts/refcloud-static-analysis-workflows.sh). every disabled audit or ignored
+# finding needs a reason; remove it once it no longer applies.
+rules:
+  # wants GitHub's July 2026 self-repository syntax (`uses: $/...`) for the local reusable workflow, but
+  # actionlint 1.7.12 rejects that syntax. keep `uses: ./...` until actionlint supports it, then switch
+  self-repository:
+    disable: true

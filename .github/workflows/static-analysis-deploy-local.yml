@@ -1,0 +1,148 @@
+name: Static Analysis - Local Deployment
+on:
+  pull_request:
+  # weekly CVE scan of the images we run (compose images and the Dockerfiles' base images). new CVEs appear
+  # without any repo change, so this can't be tied to PRs; results go to the Security tab (code scanning)
+  schedule:
+    - cron: "0 6 * * 1" # mondays 06:00 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# every check runs through ./scripts/refcloud-static-analysis-deploy-local.sh, which pins each tool's image
+# (version + digest), so CI and local runs are identical
+jobs:
+  # always runs (no workflow-level paths filter), so the required check below always reports a status
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
+    outputs:
+      # scheduled and manual runs always check everything
+      deploy-local: ${{ github.event_name != 'pull_request' || steps.filter.outputs.deploy-local == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            deploy-local:
+              - 'deploy/local/**'
+              - 'apps/**/Dockerfile'
+              - '.hadolint.yaml'
+              - '.trivyignore'
+              - 'scripts/refcloud-static-analysis-deploy-local.sh'
+              - '.github/workflows/static-analysis-deploy-local.yml'
+
+  # required status check. skipped (which GitHub counts as passing) when nothing it checks changed.
+  # runs and fails if detect-changes didn't succeed, since a skip would otherwise let the PR merge unchecked
+  static-analysis:
+    name: Static Analysis (deploy-local)
+    needs: detect-changes
+    if: ${{ !cancelled() && (needs.detect-changes.result != 'success' || needs.detect-changes.outputs.deploy-local == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: |
+          echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # each check runs even if an earlier one fails, so a single run reports every problem
+      - name: Validate docker compose file
+        id: compose
+        run: ./scripts/refcloud-static-analysis-deploy-local.sh compose
+
+      - name: Validate and format-check Caddyfile (caddy)
+        if: ${{ !cancelled() }}
+        run: ./scripts/refcloud-static-analysis-deploy-local.sh caddy
+
+      - name: Lint Dockerfiles (hadolint)
+        if: ${{ !cancelled() }}
+        run: ./scripts/refcloud-static-analysis-deploy-local.sh hadolint
+
+      # trivy's checks bundle (misconfiguration rules), shared across workflows (the scripts use ~/.cache/trivy).
+      # separate from the vulnerability db cache, since each scan type downloads only what it uses. one key per
+      # day; trivy refreshes a stale bundle itself, so an older restored cache is still safe
+      - name: Get date for the Trivy checks bundle cache key
+        id: trivy-cache-date
+        if: ${{ !cancelled() }}
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy checks bundle
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/policy
+          key: trivy-checks-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-checks-${{ runner.os }}-
+
+      - name: Dockerfile security misconfigurations (trivy config)
+        if: ${{ !cancelled() }}
+        run: ./scripts/refcloud-static-analysis-deploy-local.sh trivy-config
+
+  # ---- non-blocking image CVE scan (scheduled and manual runs only, never part of the required check) ----
+
+  list-images:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.list.outputs.images }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: list
+        run: echo "images=$(./scripts/refcloud-static-analysis-deploy-local.sh --list-images | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+
+  # one job per image: code scanning needs a distinct category per SARIF upload
+  image-cves:
+    name: Image CVEs (${{ matrix.image }})
+    needs: list-images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # upload SARIF to code scanning
+      actions: read # needed by upload-sarif in private repos
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.list-images.outputs.images) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # trivy's vulnerability db, shared across workflows (the scripts use ~/.cache/trivy). separate from the
+      # checks bundle cache, since each scan type downloads only what it uses. one key per day; trivy refreshes
+      # a stale db itself, so an older restored cache is still safe
+      # restore only: the matrix jobs run in parallel and would race to save the same key (admin-cli's audit saves it)
+      - name: Get date for the Trivy vulnerability database cache key
+        id: trivy-cache-date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Trivy vulnerability database
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/db
+          key: trivy-db-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
+      # report only: HIGH/CRITICAL CVEs with a fix available. the script never fails on findings
+      - name: Scan image (trivy image)
+        env: # passed as env vars, never interpolated into the script
+          SCAN_IMAGES: ${{ matrix.image }}
+          SARIF_DIR: sarif
+        run: ./scripts/refcloud-static-analysis-deploy-local.sh images
+
+      # pinned to a commit SHA: this step holds a token that can write security events
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: sarif
+          category: trivy-image-${{ matrix.image }}

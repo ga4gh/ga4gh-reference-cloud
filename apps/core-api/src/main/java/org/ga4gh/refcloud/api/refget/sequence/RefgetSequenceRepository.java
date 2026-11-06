@@ -19,9 +19,7 @@ public interface RefgetSequenceRepository extends JpaRepository<RefgetSequence, 
         WHERE c.type = :type AND c.checksum = :checksum
         """)
     Optional<RefgetSequence> findSequenceByChecksum(
-        @Param("type") DrsChecksumType type,
-        @Param("checksum") String checksum
-    );
+            @Param("type") DrsChecksumType type, @Param("checksum") String checksum);
 
     // same lookup as findSequenceByChecksum, but also fetches the refget aliases
     // needed for the metadata response
@@ -33,7 +31,5 @@ public interface RefgetSequenceRepository extends JpaRepository<RefgetSequence, 
         WHERE c.type = :type AND c.checksum = :checksum
         """)
     Optional<RefgetSequence> findSequenceWithMetadataByChecksum(
-        @Param("type") DrsChecksumType type,
-        @Param("checksum") String checksum
-    );
+            @Param("type") DrsChecksumType type, @Param("checksum") String checksum);
 }

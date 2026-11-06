@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
 import React from "react";
-import { ThemeProvider, createGlobalStyle } from "styled-components"
-import { EnvProvider } from "@/components/context/EnvContext"
+import { ThemeProvider, createGlobalStyle } from "styled-components";
+import { EnvProvider } from "@/components/context/EnvContext";
 import { PassportTokenProvider } from "@/components/context/PassportTokenContext";
 
 interface ProvidersProps {
@@ -17,7 +17,7 @@ const defaultTheme = {
     border: "#e5e7eb",
   },
   fontFamily: "system-ui, -apple-system, sans-serif",
-}
+};
 
 const GlobalStyle = createGlobalStyle`
   html, body {
@@ -33,17 +33,17 @@ const GlobalStyle = createGlobalStyle`
   box-sizing-border-box, *, *::before, *::after {
     box-sizing: border-box;
   }
-`
+`;
 
 export function Providers({ children }: ProvidersProps) {
   return (
-      <EnvProvider>
-        <PassportTokenProvider>
-          <ThemeProvider theme={defaultTheme}>
-            <GlobalStyle />
-            {children}
-          </ThemeProvider>
-        </PassportTokenProvider>
-      </EnvProvider>
+    <EnvProvider>
+      <PassportTokenProvider>
+        <ThemeProvider theme={defaultTheme}>
+          <GlobalStyle />
+          {children}
+        </ThemeProvider>
+      </PassportTokenProvider>
+    </EnvProvider>
   );
 }

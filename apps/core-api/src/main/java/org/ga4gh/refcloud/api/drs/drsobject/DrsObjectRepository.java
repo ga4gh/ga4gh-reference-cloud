@@ -17,7 +17,7 @@ public interface DrsObjectRepository extends JpaRepository<DrsObject, String> {
     @Query("SELECT DISTINCT d.dataset.id FROM DrsObject d WHERE d.isManifest = true")
     List<String> findDatasetIdsWithManifests();
 
-    @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM DrsObject d WHERE d.dataset.id = :datasetId AND d.isManifest = true")
+    @Query(
+            "SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM DrsObject d WHERE d.dataset.id = :datasetId AND d.isManifest = true")
     boolean existsManifestByDatasetId(@Param("datasetId") String datasetId);
-
 }

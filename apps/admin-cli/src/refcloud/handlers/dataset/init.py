@@ -1,8 +1,9 @@
 import click
-from refcloud.config.database_engine import DatabaseEngine
+
 from refcloud.config.constants import SUPPORTED_DATASETS, validate_supported_datasets
+from refcloud.config.database_engine import DatabaseEngine
 from refcloud.handlers.seed import require_database_seeded
-from operator import itemgetter
+
 
 def dataset_init(dataset_id):
     database_engine = DatabaseEngine()
@@ -24,7 +25,7 @@ def dataset_init(dataset_id):
         raise SystemExit(1)
 
     # next check if the specified dataset already exists
-    if database_engine.get_dataset_by_id(dataset_id) != None:
+    if database_engine.get_dataset_by_id(dataset_id) is not None:
         click.echo(f"error: dataset with id ({dataset_id}) already exists in the database. exiting")
         raise SystemExit(1)
 
@@ -41,6 +42,9 @@ def dataset_init(dataset_id):
         if not tag:
             database_engine.insert_tag(tag=tag_name)
         tag = database_engine.get_tag(tag_name)
+        if tag is None:
+            click.echo(f"error: could not find or create tag ({tag_name}). exiting")
+            raise SystemExit(1)
         database_engine.insert_dataset_tag(dataset_id=dataset["id"], tag_id=tag.id)
 
     click.echo(f"done: successfully added new dataset ({dataset_id}) to the database")

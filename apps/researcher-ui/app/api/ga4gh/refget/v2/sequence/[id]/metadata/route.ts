@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 interface RouteContext {
   params: Promise<{
@@ -13,21 +13,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   const cookieStore = await cookies();
-  const accessToken = cookieStore.get('access_token')?.value;
+  const accessToken = cookieStore.get("access_token")?.value;
 
   if (!apiBaseUrl) {
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
   }
 
   try {
     const targetUrl = `${apiBaseUrl}/ga4gh/refget/v2/sequence/${encodeURIComponent(id)}/metadata`;
 
     // without a passport token the request is forwarded anonymously (sequences in open datasets only)
-    const headers: HeadersInit = accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
+    const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
 
     const result = await fetch(targetUrl, {
-      method: 'GET',
-      headers
+      method: "GET",
+      headers,
     });
 
     const data = await result.json().catch(() => null);
@@ -35,6 +35,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return NextResponse.json(data, { status: result.status });
   } catch (error) {
     console.error(`Backend connectivity failure on refget sequence ${id} metadata:`, error);
-    return NextResponse.json({ message: 'Refget Gateway Failure' }, { status: 502 });
+    return NextResponse.json({ message: "Refget Gateway Failure" }, { status: 502 });
   }
 }

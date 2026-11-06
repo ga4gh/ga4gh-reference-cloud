@@ -1,6 +1,5 @@
 package org.ga4gh.refcloud.api.security;
 
-import org.springframework.stereotype.Component;
 import org.ga4gh.refcloud.api.core.dataset.DatasetService;
 import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableService;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoRequestDTO;
@@ -14,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.stereotype.Component;
 
 @Component("GA4GHPassportTokenEvaluator")
 public class GA4GHPassportTokenEvaluator {
@@ -28,7 +28,12 @@ public class GA4GHPassportTokenEvaluator {
 
     private final DataConnectTableService dataConnectTableService;
 
-    public GA4GHPassportTokenEvaluator(JwtDecoder jwtDecoder, DrsObjectService drsObjectService, DatasetService datasetService, RefgetSequenceService refgetSequenceService, DataConnectTableService dataConnectTableService) {
+    public GA4GHPassportTokenEvaluator(
+            JwtDecoder jwtDecoder,
+            DrsObjectService drsObjectService,
+            DatasetService datasetService,
+            RefgetSequenceService refgetSequenceService,
+            DataConnectTableService dataConnectTableService) {
         this.jwtDecoder = jwtDecoder;
         this.drsObjectService = drsObjectService;
         this.datasetService = datasetService;
@@ -67,7 +72,8 @@ public class GA4GHPassportTokenEvaluator {
     }
 
     // anonymous requests are allowed through, but can only access platform-wide tables and tables in open datasets.
-    // inaccessible tables raise the same 404 as missing tables (rather than 401/403), so restricted tables cannot be discovered
+    // inaccessible tables raise the same 404 as missing tables (rather than 401/403), so restricted tables cannot be
+    // discovered
     public boolean canAccessDataConnectTable(Authentication authentication, String tableName) {
         String userId = null;
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
@@ -81,14 +87,16 @@ public class GA4GHPassportTokenEvaluator {
         return true;
     }
 
-    public boolean canAccessDrsObject(Authentication authentication, String objectId, SingleDrsObjectRequestDTO requestDTO) {
+    public boolean canAccessDrsObject(
+            Authentication authentication, String objectId, SingleDrsObjectRequestDTO requestDTO) {
         boolean authorized = false;
 
         for (String rawPassportToken : requestDTO.passports()) {
             try {
                 Jwt passportJwt = jwtDecoder.decode(rawPassportToken);
                 String userId = passportJwt.getSubject();
-                if (drsObjectService.validateUserIsAuthorizedForDrsObject(userId, objectId) == true) { // any valid token (where user is authorized for the underlying dataset)
+                if (drsObjectService.validateUserIsAuthorizedForDrsObject(
+                        userId, objectId)) { // any valid token (where user is authorized for the underlying dataset)
                     authorized = true;
                 }
             } catch (JwtException e) { // any invalid token will automatically fail the entire authorization process
@@ -99,7 +107,8 @@ public class GA4GHPassportTokenEvaluator {
         return authorized;
     }
 
-    public boolean validateBulkAuthInfoRequest(Authentication authentication, MultiDrsObjectAuthInfoRequestDTO requestDTO) {
+    public boolean validateBulkAuthInfoRequest(
+            Authentication authentication, MultiDrsObjectAuthInfoRequestDTO requestDTO) {
         if (!drsObjectService.bulkRequestWithinLimit(requestDTO.bulkObjectIds())) {
             throw new ContentTooLargeException("too many object ids submitted");
         }
@@ -114,7 +123,8 @@ public class GA4GHPassportTokenEvaluator {
 
         for (String rawPassportToken : requestDTO.passports()) {
             try {
-                jwtDecoder.decode(rawPassportToken); // decode all passport tokens, any invalid token will block the endpoint
+                jwtDecoder.decode(
+                        rawPassportToken); // decode all passport tokens, any invalid token will block the endpoint
             } catch (JwtException e) { // any invalid token will automatically fail the entire authorization process
                 throw new ForbiddenException("one or more invalid passport tokens detected");
             }

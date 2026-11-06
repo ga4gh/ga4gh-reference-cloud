@@ -11,8 +11,16 @@ metadata:
 spec:
   template:
     spec:
+      {{- include "refcloud.podSecurityContext" 65532 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: hydra-db-migration
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           image: {{ include "refcloud.hydraImage" . }}
           command: ["hydra", "migrate", "sql", "-e", "--yes"]
           env:

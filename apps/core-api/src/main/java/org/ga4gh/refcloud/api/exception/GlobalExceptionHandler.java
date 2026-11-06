@@ -19,13 +19,10 @@ public class GlobalExceptionHandler {
         BadRequestException.class
     })
     public ResponseEntity<ErrorDetails> handleHttpMessageNotReadableException(Exception exception, WebRequest request) {
-        
-        ErrorDetails errorDetails = new ErrorDetails(
-            exception.getMessage(),
-            HttpStatus.BAD_REQUEST.value(),
-            LocalDateTime.now()
-        );
-        
+
+        ErrorDetails errorDetails =
+                new ErrorDetails(exception.getMessage(), HttpStatus.BAD_REQUEST.value(), LocalDateTime.now());
+
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
 
@@ -35,25 +32,19 @@ public class GlobalExceptionHandler {
     })
     public ResponseEntity<ErrorDetails> handleHttpMessageForbiddenException(Exception exception, WebRequest request) {
 
-        ErrorDetails errorDetails = new ErrorDetails(
-            exception.getMessage(),
-            HttpStatus.FORBIDDEN.value(),
-            LocalDateTime.now()
-        );
+        ErrorDetails errorDetails =
+                new ErrorDetails(exception.getMessage(), HttpStatus.FORBIDDEN.value(), LocalDateTime.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
 
-
     // 404 Not Found
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorDetails> handleResourceNotFoundException(ResourceNotFoundException exception, WebRequest request) {
+    public ResponseEntity<ErrorDetails> handleResourceNotFoundException(
+            ResourceNotFoundException exception, WebRequest request) {
 
-        ErrorDetails errorDetails = new ErrorDetails(
-            exception.getMessage(),
-            HttpStatus.NOT_FOUND.value(),
-            LocalDateTime.now()
-        );
+        ErrorDetails errorDetails =
+                new ErrorDetails(exception.getMessage(), HttpStatus.NOT_FOUND.value(), LocalDateTime.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
     }
@@ -62,39 +53,33 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
         ContentTooLargeException.class,
     })
-    public ResponseEntity<ErrorDetails> handleHttpMessageContentTooLargeException(Exception exception, WebRequest request) {
+    public ResponseEntity<ErrorDetails> handleHttpMessageContentTooLargeException(
+            Exception exception, WebRequest request) {
 
-        ErrorDetails errorDetails = new ErrorDetails(
-            exception.getMessage(),
-            HttpStatus.CONTENT_TOO_LARGE.value(),
-            LocalDateTime.now()
-        );
+        ErrorDetails errorDetails =
+                new ErrorDetails(exception.getMessage(), HttpStatus.CONTENT_TOO_LARGE.value(), LocalDateTime.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.CONTENT_TOO_LARGE);
     }
 
     // 416 Range Not Satisfiable
     @ExceptionHandler(RangeNotSatisfiableException.class)
-    public ResponseEntity<ErrorDetails> handleRangeNotSatisfiableException(RangeNotSatisfiableException exception, WebRequest request) {
+    public ResponseEntity<ErrorDetails> handleRangeNotSatisfiableException(
+            RangeNotSatisfiableException exception, WebRequest request) {
 
         ErrorDetails errorDetails = new ErrorDetails(
-            exception.getMessage(),
-            HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value(),
-            LocalDateTime.now()
-        );
+                exception.getMessage(), HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value(), LocalDateTime.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
     }
 
     // 501 Not Implemented
     @ExceptionHandler(NotImplementedException.class)
-    public ResponseEntity<ErrorDetails> handleNotImplementedException(NotImplementedException exception, WebRequest request) {
+    public ResponseEntity<ErrorDetails> handleNotImplementedException(
+            NotImplementedException exception, WebRequest request) {
 
-        ErrorDetails errorDetails = new ErrorDetails(
-            exception.getMessage(),
-            HttpStatus.NOT_IMPLEMENTED.value(),
-            LocalDateTime.now()
-        );
+        ErrorDetails errorDetails =
+                new ErrorDetails(exception.getMessage(), HttpStatus.NOT_IMPLEMENTED.value(), LocalDateTime.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_IMPLEMENTED);
     }

@@ -4,10 +4,7 @@ import java.util.Locale;
 import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsChecksumType;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 
-public record RefgetSequenceIdentifier(
-    DrsChecksumType type,
-    String digest
-) {
+public record RefgetSequenceIdentifier(DrsChecksumType type, String digest) {
 
     private static final String GA4GH_NAMESPACE = "ga4gh:";
     private static final String MD5_NAMESPACE = "md5:";
@@ -20,10 +17,13 @@ public record RefgetSequenceIdentifier(
     // into the checksum type and unprefixed digest stored in drs_object_checksum
     public static RefgetSequenceIdentifier parse(String id) {
         if (id.startsWith(GA4GH_NAMESPACE + GA4GH_SEQUENCE_PREFIX)) {
-            return new RefgetSequenceIdentifier(DrsChecksumType.sha512t24u, id.substring(GA4GH_NAMESPACE.length() + GA4GH_SEQUENCE_PREFIX.length()));
+            return new RefgetSequenceIdentifier(
+                    DrsChecksumType.sha512t24u,
+                    id.substring(GA4GH_NAMESPACE.length() + GA4GH_SEQUENCE_PREFIX.length()));
         }
         if (id.startsWith(GA4GH_SEQUENCE_PREFIX)) {
-            return new RefgetSequenceIdentifier(DrsChecksumType.sha512t24u, id.substring(GA4GH_SEQUENCE_PREFIX.length()));
+            return new RefgetSequenceIdentifier(
+                    DrsChecksumType.sha512t24u, id.substring(GA4GH_SEQUENCE_PREFIX.length()));
         }
         if (id.startsWith(MD5_NAMESPACE)) {
             return hexIdentifier(DrsChecksumType.md5, id.substring(MD5_NAMESPACE.length()));

@@ -8,10 +8,5 @@ import tools.jackson.databind.annotation.JsonNaming;
 // checksums are null when the sequence has no stored checksum of that type.
 // trunc512 is not part of the refget v2 metadata response, but is included as an additional field
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record RefgetSequenceMetadataDTO (
-    String md5,
-    String trunc512,
-    String ga4gh,
-    Long length,
-    List<RefgetSequenceAliasResponseDTO> aliases
-) {}
+public record RefgetSequenceMetadataDTO(
+        String md5, String trunc512, String ga4gh, Long length, List<RefgetSequenceAliasResponseDTO> aliases) {}

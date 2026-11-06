@@ -46,7 +46,8 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./
 
-USER nextjs
+# numeric id (the nextjs user), so kubernetes can verify the user is non-root
+USER 1001
 
 EXPOSE 3000
 ENV PORT=3000

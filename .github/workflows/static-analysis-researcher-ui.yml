@@ -1,0 +1,91 @@
+name: Static Analysis - Researcher UI
+on:
+  pull_request:
+  # weekly run on the default branch, so new npm advisories and semgrep rules surface even without UI changes.
+  # failures show in the Actions tab and email whoever last edited this schedule
+  schedule:
+    - cron: "0 6 * * 1" # mondays 06:00 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # always runs (no workflow-level paths filter), so the required check below always reports a status
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      # scheduled and manual runs always check everything
+      researcher-ui: ${{ github.event_name != 'pull_request' || steps.filter.outputs.researcher-ui == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            researcher-ui:
+              - 'apps/researcher-ui/**'
+              - '.github/workflows/static-analysis-researcher-ui.yml'
+
+  # required status check. skipped (which GitHub counts as passing) when researcher-ui is unchanged.
+  # runs and fails if detect-changes didn't succeed, since a skip would otherwise let the PR merge unchecked
+  static-analysis:
+    name: Static Analysis (researcher-ui)
+    needs: detect-changes
+    if: ${{ !cancelled() && (needs.detect-changes.result != 'success' || needs.detect-changes.outputs.researcher-ui == 'true') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/researcher-ui
+    steps:
+      - name: Fail if change detection failed
+        if: needs.detect-changes.result != 'success'
+        working-directory: . # runs before checkout, so apps/<app> doesn't exist yet
+        run: |
+          echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.15.0" # matches the Dockerfile
+          cache: npm
+          cache-dependency-path: apps/researcher-ui/package-lock.json
+
+      # semgrep is a python tool, run via a pinned uvx (version in package.json's semgrep script)
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.24"
+          enable-cache: true
+          cache-dependency-glob: apps/researcher-ui/package.json
+
+      # installs the exact versions in package-lock.json; fails if it is out of sync with package.json
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      # each check runs even if an earlier one fails, so a single run reports every problem
+      - name: Check formatting (prettier)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run format:check
+
+      - name: Lint (eslint)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+
+      - name: Type check (tsc)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+
+      - name: Audit dependencies (npm audit, high and above)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run audit:deps
+
+      - name: Security rules (semgrep)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run semgrep

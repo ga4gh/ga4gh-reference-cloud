@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.dataconnect.table;
 
+import lombok.RequiredArgsConstructor;
 import org.ga4gh.refcloud.api.dataconnect.query.TableDataResponseDTO;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -10,7 +11,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/ga4gh/data-connect/v1")
@@ -38,10 +38,9 @@ public class DataConnectTableController {
     @GetMapping("/table/{table_name}/data")
     @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessDataConnectTable(authentication, #tableName)")
     public ResponseEntity<TableDataResponseDTO> getTableData(
-        @PathVariable("table_name") String tableName,
-        @RequestParam(name = "page_token", required = false) String pageToken,
-        @AuthenticationPrincipal Jwt jwt
-    ) {
+            @PathVariable("table_name") String tableName,
+            @RequestParam(name = "page_token", required = false) String pageToken,
+            @AuthenticationPrincipal Jwt jwt) {
         String userId = jwt == null ? null : jwt.getSubject();
         return ResponseEntity.ok(dataConnectTableDataService.getTableData(tableName, userId, pageToken));
     }

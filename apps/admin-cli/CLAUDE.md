@@ -35,9 +35,14 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 
 ### Code Quality & Validation
 
-* TBD: Run linter
-* TBD: Fix linting/formatting errors
-* TBD: Run type checks
+Ruff and Pyright are pinned in the `dev` dependency group (`uv.lock`), so local runs match CI (`.github/workflows/static-analysis-admin-cli.yml`). Config lives in `pyproject.toml`.
+
+* Check formatting: `uv run ruff format --check`
+* Run linter (includes the Bandit `S` security rules): `uv run ruff check`
+* Run type checks (Pyright, standard mode): `uv run pyright`
+* Audit `uv.lock` (runtime and dev dependencies) for HIGH/CRITICAL CVEs (Trivy, pinned Docker image; needs only Docker): `./scripts/audit-deps.sh`. Fix findings with `uv lock --upgrade-package <name>`; only add an ID to `.trivyignore` when no usable fix exists, with a reason comment.
+* Fix formatting and auto-fixable lint errors: `uv run ruff format && uv run ruff check --fix`
+* CI fails if any of these checks fails (the audit also runs weekly, so a new advisory can fail CI without code changes). Don't silence a rule with `# noqa` or `# pyright: ignore` without a comment explaining why; prefer a real fix (e.g. `hashlib.md5(..., usedforsecurity=False)` for checksums).
 
 ### Testing
 

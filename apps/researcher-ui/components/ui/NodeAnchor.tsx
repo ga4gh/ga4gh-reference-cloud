@@ -1,8 +1,8 @@
-import { UiNode, UiNodeAnchorAttributes } from "@ory/client"
+import { UiNode, UiNodeAnchorAttributes } from "@ory/client";
 
 interface Props {
-  node: UiNode
-  attributes: UiNodeAnchorAttributes
+  node: UiNode;
+  attributes: UiNodeAnchorAttributes;
 }
 
 const buttonStyle = {
@@ -19,20 +19,20 @@ const buttonStyle = {
   cursor: "pointer",
   transition: "background-color 0.2s, border-color 0.2s",
   width: "100%",
-}
+};
 
-export const NodeAnchor = ({ node, attributes }: Props) => {
+export const NodeAnchor = ({ attributes }: Props) => {
   return (
     <button
       style={buttonStyle}
       data-testid={`node/anchor/${attributes.id}`}
       onClick={(e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        window.location.href = attributes.href
+        e.stopPropagation();
+        e.preventDefault();
+        window.location.href = attributes.href;
       }}
     >
       {attributes.title.text}
     </button>
-  )
-}
+  );
+};

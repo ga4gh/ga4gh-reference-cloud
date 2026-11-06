@@ -7,14 +7,13 @@ import tools.jackson.databind.annotation.JsonNaming;
 
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public record ManifestResponseDTO(
-    String id,
-    String name,
-    Long size,
-    LocalDateTime created,
-    LocalDateTime updated,
-    String version,
-    String mimeType,
-    String description,
-    Boolean isManifest,
-    Map<String, Object> manifestContent
-) {}
+        String id,
+        String name,
+        Long size,
+        LocalDateTime created,
+        LocalDateTime updated,
+        String version,
+        String mimeType,
+        String description,
+        Boolean isManifest,
+        Map<String, Object> manifestContent) {}

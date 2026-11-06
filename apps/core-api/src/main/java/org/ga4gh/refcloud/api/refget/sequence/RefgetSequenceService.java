@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
 import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3AccessObject;
 import org.ga4gh.refcloud.api.drs.awss3accessobject.AwsS3ObjectReader;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
@@ -17,7 +18,6 @@ import org.ga4gh.refcloud.api.refget.RefgetConfig.Sequence.ServiceInfo.ServiceIn
 import org.ga4gh.refcloud.api.refget.sequence.RefgetSequenceContent.RequestType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional(readOnly = true)
@@ -69,16 +69,16 @@ public class RefgetSequenceService {
         }
 
         return new RefgetSequenceContent(
-            readSequence(drsObject, 0, sequenceLength),
-            sequenceLength,
-            RequestType.FULL_SEQUENCE,
-            0,
-            sequenceLength,
-            sequenceLength
-        );
+                readSequence(drsObject, 0, sequenceLength),
+                sequenceLength,
+                RequestType.FULL_SEQUENCE,
+                0,
+                sequenceLength,
+                sequenceLength);
     }
 
-    private RefgetSequenceContent getSequenceByRangeHeader(DrsObject drsObject, String rangeHeader, long sequenceLength) {
+    private RefgetSequenceContent getSequenceByRangeHeader(
+            DrsObject drsObject, String rangeHeader, long sequenceLength) {
         Matcher matcher = RANGE_HEADER_PATTERN.matcher(rangeHeader.trim());
         if (!matcher.matches()) {
             throw new BadRequestException("Range header must specify a single byte range: " + rangeHeader);
@@ -96,16 +96,11 @@ public class RefgetSequenceService {
 
         long end = last + 1;
         return new RefgetSequenceContent(
-            readSequence(drsObject, first, end),
-            end - first,
-            RequestType.RANGE_HEADER,
-            first,
-            end,
-            sequenceLength
-        );
+                readSequence(drsObject, first, end), end - first, RequestType.RANGE_HEADER, first, end, sequenceLength);
     }
 
-    private RefgetSequenceContent getSequenceByStartEnd(RefgetSequence refgetSequence, Long start, Long end, long sequenceLength) {
+    private RefgetSequenceContent getSequenceByStartEnd(
+            RefgetSequence refgetSequence, Long start, Long end, long sequenceLength) {
         long resolvedStart = start == null ? 0 : start;
         long resolvedEnd = end == null ? sequenceLength : end;
 
@@ -119,14 +114,16 @@ public class RefgetSequenceService {
             throw new RangeNotSatisfiableException("end cannot be greater than the sequence length");
         }
 
-        ServiceInfoRefgetCustom refgetServiceInfo = refgetConfig.sequence().serviceInfo().refget();
+        ServiceInfoRefgetCustom refgetServiceInfo =
+                refgetConfig.sequence().serviceInfo().refget();
         DrsObject drsObject = refgetSequence.getDrsObject();
         InputStream content;
         long contentLength;
 
         if (resolvedStart > resolvedEnd) {
             if (!refgetServiceInfo.circularSupported()) {
-                throw new NotImplementedException("circular sequences are not supported, start cannot be greater than end");
+                throw new NotImplementedException(
+                        "circular sequences are not supported, start cannot be greater than end");
             }
             if (!refgetSequence.getIsCircular()) {
                 throw new RangeNotSatisfiableException("start cannot be greater than end for a non-circular sequence");
@@ -136,9 +133,7 @@ public class RefgetSequenceService {
             contentLength = (sequenceLength - resolvedStart) + resolvedEnd;
             requireWithinSubsequenceLimit(refgetServiceInfo, contentLength);
             content = new SequenceInputStream(
-                readSequence(drsObject, resolvedStart, sequenceLength),
-                readSequence(drsObject, 0, resolvedEnd)
-            );
+                    readSequence(drsObject, resolvedStart, sequenceLength), readSequence(drsObject, 0, resolvedEnd));
         } else {
             contentLength = resolvedEnd - resolvedStart;
             requireWithinSubsequenceLimit(refgetServiceInfo, contentLength);
@@ -146,19 +141,14 @@ public class RefgetSequenceService {
         }
 
         return new RefgetSequenceContent(
-            content,
-            contentLength,
-            RequestType.START_END_PARAMETERS,
-            resolvedStart,
-            resolvedEnd,
-            sequenceLength
-        );
+                content, contentLength, RequestType.START_END_PARAMETERS, resolvedStart, resolvedEnd, sequenceLength);
     }
 
     private void requireWithinSubsequenceLimit(ServiceInfoRefgetCustom refgetServiceInfo, long contentLength) {
         Long subsequenceLimit = refgetServiceInfo.subsequenceLimit();
         if (subsequenceLimit != null && contentLength > subsequenceLimit) {
-            throw new RangeNotSatisfiableException("requested subsequence exceeds the subsequence limit of " + subsequenceLimit);
+            throw new RangeNotSatisfiableException(
+                    "requested subsequence exceeds the subsequence limit of " + subsequenceLimit);
         }
     }
 
@@ -168,10 +158,10 @@ public class RefgetSequenceService {
             return InputStream.nullInputStream(); // S3 cannot serve an empty byte range
         }
 
-        AwsS3AccessObject awsS3AccessObject = drsObject.getAwsS3AccessObjects()
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("No S3 access object for DRS Object with ID: " + drsObject.getId()));
+        AwsS3AccessObject awsS3AccessObject = drsObject.getAwsS3AccessObjects().stream()
+                .findFirst()
+                .orElseThrow(() ->
+                        new IllegalStateException("No S3 access object for DRS Object with ID: " + drsObject.getId()));
 
         return awsS3ObjectReader.readByteRange(awsS3AccessObject, start, end - 1);
     }
@@ -186,7 +176,8 @@ public class RefgetSequenceService {
 
     private RefgetSequence loadSequence(String id) {
         RefgetSequenceIdentifier identifier = RefgetSequenceIdentifier.parse(id);
-        return refgetSequenceRepository.findSequenceByChecksum(identifier.type(), identifier.digest())
-            .orElseThrow(() -> new ResourceNotFoundException("No refget sequence with ID: " + id));
+        return refgetSequenceRepository
+                .findSequenceByChecksum(identifier.type(), identifier.digest())
+                .orElseThrow(() -> new ResourceNotFoundException("No refget sequence with ID: " + id));
     }
 }

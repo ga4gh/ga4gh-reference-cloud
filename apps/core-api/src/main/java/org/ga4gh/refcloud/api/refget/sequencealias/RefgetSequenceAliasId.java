@@ -1,9 +1,9 @@
 package org.ga4gh.refcloud.api.refget.sequencealias;
 
+import jakarta.persistence.Embeddable;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
-
-import jakarta.persistence.Embeddable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,18 +18,25 @@ import lombok.Setter;
 @Builder
 public class RefgetSequenceAliasId implements Serializable {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     private String refgetSequenceId;
     private String namingAuthority;
     private String alias;
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         RefgetSequenceAliasId that = (RefgetSequenceAliasId) o;
         return Objects.equals(refgetSequenceId, that.refgetSequenceId)
-            && Objects.equals(namingAuthority, that.namingAuthority)
-            && Objects.equals(alias, that.alias);
+                && Objects.equals(namingAuthority, that.namingAuthority)
+                && Objects.equals(alias, that.alias);
     }
 
     @Override

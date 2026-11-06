@@ -4,28 +4,32 @@ import {
   RegistrationFlow,
   SettingsFlow,
   UiNode,
+  UiNodeAttributes,
   UpdateLoginFlowBody,
   UpdateRecoveryFlowBody,
   UpdateRegistrationFlowBody,
   UpdateSettingsFlowBody,
   UpdateVerificationFlowBody,
   VerificationFlow,
-} from "@ory/client"
-import { Component, FormEvent, MouseEvent } from "react"
+} from "@ory/client";
+import { Component, FormEvent, MouseEvent } from "react";
 
-import { Messages } from "./Messages"
-import { Node } from "./Node"
+import { Messages } from "./Messages";
+import { Node } from "./Node";
+import { NodeValue } from "./helpers";
 
 export function getNodeId(node: UiNode): string {
   if (isUiNodeInputAttributesFlow(node.attributes)) {
-    return node.attributes.name
+    return node.attributes.name;
   }
 
-  return (node.attributes as any).id || ""
+  return ("id" in node.attributes && node.attributes.id) || "";
 }
 
-export function isUiNodeInputAttributesFlow(attributes: any): attributes is { name: string; type: string; value?: any } {
-  return attributes && "name" in attributes && "type" in attributes
+export function isUiNodeInputAttributesFlow(
+  attributes: UiNodeAttributes,
+): attributes is Extract<UiNodeAttributes, { node_type: "input" }> {
+  return attributes && "name" in attributes && "type" in attributes;
 }
 
 export type Values = Partial<
@@ -34,154 +38,131 @@ export type Values = Partial<
   | UpdateRecoveryFlowBody
   | UpdateSettingsFlowBody
   | UpdateVerificationFlowBody
->
+>;
 
-export type Methods =
-  | "oidc"
-  | "password"
-  | "profile"
-  | "totp"
-  | "webauthn"
-  | "passkey"
-  | "link"
-  | "lookup_secret"
+export type Methods = "oidc" | "password" | "profile" | "totp" | "webauthn" | "passkey" | "link" | "lookup_secret";
 
 export type Props<T> = {
-  flow?:
-    | LoginFlow
-    | RegistrationFlow
-    | SettingsFlow
-    | VerificationFlow
-    | RecoveryFlow
-  only?: Methods
-  onSubmit: (values: T) => Promise<void>
-  hideGlobalMessages?: boolean
-}
+  flow?: LoginFlow | RegistrationFlow | SettingsFlow | VerificationFlow | RecoveryFlow;
+  only?: Methods;
+  onSubmit: (values: T) => Promise<void>;
+  hideGlobalMessages?: boolean;
+};
 
 function emptyState<T>() {
-  return {} as T
+  return {} as T;
 }
 
 type State<T> = {
-  values: T
-  isLoading: boolean
-}
+  values: T;
+  isLoading: boolean;
+};
 
 export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
   constructor(props: Props<T>) {
-    super(props)
+    super(props);
     this.state = {
       values: emptyState(),
       isLoading: false,
-    }
+    };
   }
 
   componentDidMount() {
-    this.initializeValues(this.filterNodes())
+    this.initializeValues(this.filterNodes());
   }
 
   componentDidUpdate(prevProps: Props<T>) {
     if (prevProps.flow !== this.props.flow) {
-      this.initializeValues(this.filterNodes())
+      this.initializeValues(this.filterNodes());
     }
   }
 
   initializeValues = (nodes: Array<UiNode> = []) => {
-    const values = emptyState<T>()
+    const values = emptyState<T>();
     nodes.forEach((node) => {
       if (isUiNodeInputAttributesFlow(node.attributes)) {
-        if (
-          node.attributes.type === "button" ||
-          node.attributes.type === "submit"
-        ) {
-          return
+        if (node.attributes.type === "button" || node.attributes.type === "submit") {
+          return;
         }
-        values[node.attributes.name as keyof Values] = node.attributes.value
+        values[node.attributes.name as keyof Values] = node.attributes.value;
       }
-    })
+    });
 
-    this.setState((state) => ({ ...state, values }))
-  }
+    this.setState((state) => ({ ...state, values }));
+  };
 
   filterNodes = (): Array<UiNode> => {
-    const { flow, only } = this.props
+    const { flow, only } = this.props;
     if (!flow) {
-      return []
+      return [];
     }
     return flow.ui.nodes.filter(({ group }) => {
       if (!only) {
-        return true
+        return true;
       }
-      return group === "default" || group === only
-    })
-  }
+      return group === "default" || group === only;
+    });
+  };
 
   handleSubmit = (event: FormEvent<HTMLFormElement> | MouseEvent) => {
-    event.stopPropagation()
-    event.preventDefault()
+    event.stopPropagation();
+    event.preventDefault();
 
     if (this.state.isLoading) {
-      return Promise.resolve()
+      return Promise.resolve();
     }
 
-    const form = event.currentTarget
-    let body: T | undefined
+    const form = event.currentTarget;
+    let body: T | undefined;
 
     if (form && form instanceof HTMLFormElement) {
-      const formData = new FormData(form)
-      body = Object.fromEntries(formData) as T
+      const formData = new FormData(form);
+      body = Object.fromEntries(formData) as T;
 
-      const hasSubmitter = (evt: any): evt is { submitter: HTMLInputElement } =>
-        "submitter" in evt
+      const hasSubmitter = (evt: Event): evt is SubmitEvent & { submitter: HTMLInputElement } => "submitter" in evt;
 
       if (hasSubmitter(event.nativeEvent)) {
-        const method = event.nativeEvent.submitter
+        const method = event.nativeEvent.submitter;
         body = {
           ...body,
           ...{ [method.name]: method.value },
-        }
+        };
       }
     }
 
     this.setState((state) => ({
       ...state,
       isLoading: true,
-    }))
+    }));
 
-    return this.props
-      .onSubmit({ ...body, ...this.state.values })
-      .finally(() => {
-        this.setState((state) => ({
-          ...state,
-          isLoading: false,
-        }))
-      })
-  }
+    return this.props.onSubmit({ ...body, ...this.state.values }).finally(() => {
+      this.setState((state) => ({
+        ...state,
+        isLoading: false,
+      }));
+    });
+  };
 
   render() {
-    const { hideGlobalMessages, flow } = this.props
-    const { values, isLoading } = this.state
-    const nodes = this.filterNodes()
+    const { hideGlobalMessages, flow } = this.props;
+    const { values, isLoading } = this.state;
+    const nodes = this.filterNodes();
 
     if (!flow) {
-      return null
+      return null;
     }
 
     return (
-      <form
-        action={flow.ui.action}
-        method={flow.ui.method}
-        onSubmit={this.handleSubmit}
-      >
+      <form action={flow.ui.action} method={flow.ui.method} onSubmit={this.handleSubmit}>
         {!hideGlobalMessages ? <Messages messages={flow.ui.messages} /> : null}
         {nodes.map((node, k) => {
-          const id = getNodeId(node) as keyof Values
+          const id = getNodeId(node) as keyof Values;
           return (
             <Node
               key={`${String(id)}-${k}`} // Cast to string to safely resolve JSX key typings
               disabled={isLoading}
               node={node}
-              value={values[id]}
+              value={values[id] as NodeValue}
               dispatchSubmit={this.handleSubmit}
               setValue={(value) =>
                 new Promise((resolve) => {
@@ -194,13 +175,13 @@ export class Flow<T extends Values> extends Component<Props<T>, State<T>> {
                       },
                     }),
                     resolve,
-                  )
+                  );
                 })
               }
             />
-          )
+          );
         })}
       </form>
-    )
+    );
   }
 }

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { SettingsFlow, UpdateSettingsFlowBody } from "@ory/client";
 import { AxiosError } from "axios";
@@ -31,7 +31,7 @@ function SettingsCard({ flow, only, children }: Props & { children: ReactNode })
 export default function SettingsClient() {
   const [flow, setFlow] = useState<SettingsFlow>();
   const router = useRouter();
-  
+
   const searchParams = useSearchParams();
   const flowId = searchParams?.get("flow") || undefined;
   const returnTo = searchParams?.get("return_to") || "";
@@ -40,13 +40,15 @@ export default function SettingsClient() {
     if (flow) return;
 
     if (flowId) {
-      ory.getSettingsFlow({ id: String(flowId) })
+      ory
+        .getSettingsFlow({ id: String(flowId) })
         .then(({ data }) => setFlow(data))
         .catch(handleFlowError(router, "settings", setFlow));
       return;
     }
 
-    ory.createBrowserSettingsFlow({ returnTo: String(returnTo) })
+    ory
+      .createBrowserSettingsFlow({ returnTo: String(returnTo) })
       .then(({ data }) => setFlow(data))
       .catch(handleFlowError(router, "settings", setFlow));
   }, [flowId, router, returnTo, flow]);
@@ -55,9 +57,9 @@ export default function SettingsClient() {
     router.push(`/settings?flow=${flow?.id}`);
 
     return ory
-      .updateSettingsFlow({ 
-        flow: String(flow?.id), 
-        updateSettingsFlowBody: values 
+      .updateSettingsFlow({
+        flow: String(flow?.id),
+        updateSettingsFlowBody: values,
       })
       .then(({ data }) => {
         setFlow(data);
@@ -115,7 +117,11 @@ export default function SettingsClient() {
       <SettingsCard only="totp" flow={flow}>
         <h3 style={heading3Style}>Authenticator App</h3>
         <p style={paragraphStyle}>
-          Add a <a href="https://lastpass.com" style={linkStyle}>TOTP App</a> for better security.
+          Add a{" "}
+          <a href="https://lastpass.com" style={linkStyle}>
+            TOTP App
+          </a>{" "}
+          for better security.
         </p>
         <Flow hideGlobalMessages onSubmit={onSubmit} only="totp" flow={flow} />
       </SettingsCard>

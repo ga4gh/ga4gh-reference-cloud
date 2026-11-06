@@ -1,11 +1,12 @@
-import { callWebauthnFunction, NodeInputProps } from "./helpers"
+import { UiNode } from "@ory/client";
+import { callWebauthnFunction, NodeInputProps } from "./helpers";
 
-export function getNodeLabel(node: any): string {
+export function getNodeLabel(node: UiNode): string {
   if (node.meta?.label?.text) {
-    return node.meta.label.text
+    return node.meta.label.text;
   }
 
-  return node.attributes?.name || "Submit"
+  return ("name" in node.attributes && node.attributes.name) || "Submit";
 }
 
 const primaryButtonStyle = {
@@ -23,34 +24,28 @@ const primaryButtonStyle = {
   transition: "all 0.15s ease-in-out",
   width: "100%",
   boxSizing: "border-box" as const,
-}
+};
 
-export function NodeInputButton<T>({
-  node,
-  attributes,
-  setValue,
-  disabled,
-  dispatchSubmit,
-}: NodeInputProps) {
+export function NodeInputButton({ node, attributes, setValue, disabled, dispatchSubmit }: NodeInputProps) {
   const onClick = (e: React.MouseEvent | React.FormEvent<HTMLFormElement>) => {
     if (attributes.onclick) {
-      e.stopPropagation()
-      e.preventDefault()
-      callWebauthnFunction(attributes.onclick)
-      return
+      e.stopPropagation();
+      e.preventDefault();
+      callWebauthnFunction(attributes.onclick);
+      return;
     }
 
-    setValue(attributes.value).then(() => dispatchSubmit(e))
-  }
+    setValue(attributes.value).then(() => dispatchSubmit(e));
+  };
 
-  const isButtonDisabled = attributes.disabled || disabled
+  const isButtonDisabled = attributes.disabled || disabled;
 
   return (
     <button
       type="button"
       name={attributes.name}
       onClick={(e) => {
-        onClick(e)
+        onClick(e);
       }}
       value={(attributes.value as string) || ""}
       disabled={isButtonDisabled}
@@ -66,5 +61,5 @@ export function NodeInputButton<T>({
     >
       {getNodeLabel(node)}
     </button>
-  )
+  );
 }

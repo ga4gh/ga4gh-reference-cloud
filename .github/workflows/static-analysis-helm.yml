@@ -1,0 +1,76 @@
+name: Static Analysis - Helm Chart
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# every check runs through ./scripts/refcloud-static-analysis-helm.sh, which pins each tool's image
+# (version + digest), so CI and local runs are identical
+jobs:
+  # always runs (no workflow-level paths filter), so the required check below always reports a status
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
+    outputs:
+      # manual runs always check everything
+      helm: ${{ github.event_name != 'pull_request' || steps.filter.outputs.helm == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            helm:
+              - 'deploy/helm/**'
+              - 'scripts/refcloud-static-analysis-helm.sh'
+              - '.github/workflows/static-analysis-helm.yml'
+
+  # required status check. skipped (which GitHub counts as passing) when nothing it checks changed.
+  # runs and fails if detect-changes didn't succeed, since a skip would otherwise let the PR merge unchecked
+  static-analysis:
+    name: Static Analysis (helm)
+    needs: detect-changes
+    if: ${{ !cancelled() && (needs.detect-changes.result != 'success' || needs.detect-changes.outputs.helm == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: |
+          echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # each check runs even if an earlier one fails, so a single run reports every problem
+      - name: Lint chart (helm lint)
+        run: ./scripts/refcloud-static-analysis-helm.sh lint
+
+      - name: Validate rendered manifests (kubeconform)
+        if: ${{ !cancelled() }}
+        run: ./scripts/refcloud-static-analysis-helm.sh kubeconform
+
+      # trivy's checks bundle (misconfiguration rules), shared across workflows (the scripts use ~/.cache/trivy).
+      # separate from the vulnerability db cache, since each scan type downloads only what it uses. one key per
+      # day; trivy refreshes a stale bundle itself, so an older restored cache is still safe
+      - name: Get date for the Trivy checks bundle cache key
+        id: trivy-cache-date
+        if: ${{ !cancelled() }}
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy checks bundle
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/policy
+          key: trivy-checks-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-checks-${{ runner.os }}-
+
+      - name: Security misconfigurations (trivy config)
+        if: ${{ !cancelled() }}
+        run: ./scripts/refcloud-static-analysis-helm.sh trivy-config

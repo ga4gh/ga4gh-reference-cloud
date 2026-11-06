@@ -16,9 +16,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en" data-theme="ga4gh">
       <body>
         <Providers>
-          <main>
-            {children}
-          </main>
+          <main>{children}</main>
         </Providers>
       </body>
     </html>

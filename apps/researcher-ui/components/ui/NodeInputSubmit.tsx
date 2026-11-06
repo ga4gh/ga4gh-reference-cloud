@@ -1,24 +1,20 @@
-import { NodeInputProps } from "./helpers"
+import { UiNode } from "@ory/client";
+import { NodeInputProps } from "./helpers";
 
-export function getNodeLabel(node: any): string {
+export function getNodeLabel(node: UiNode): string {
   if (node.meta?.label?.text) {
-    return node.meta.label.text
+    return node.meta.label.text;
   }
 
-  return node.attributes?.name || "Submit"
+  return ("name" in node.attributes && node.attributes.name) || "Submit";
 }
 
-export function NodeInputSubmit<T>({
-  node,
-  attributes,
-  disabled,
-}: NodeInputProps) {
-
+export function NodeInputSubmit({ node, attributes, disabled }: NodeInputProps) {
   const divStyle = {
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
-  }
+    alignItems: "center",
+  };
 
   return (
     <>
@@ -33,5 +29,5 @@ export function NodeInputSubmit<T>({
         </button>
       </div>
     </>
-  )
+  );
 }

@@ -1,6 +1,8 @@
 package org.ga4gh.refcloud.api.dataconnect.table;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
 import org.ga4gh.refcloud.api.dataconnect.query.DataConnectQueryExecutor;
 import org.ga4gh.refcloud.api.dataconnect.query.DataConnectQueryService;
@@ -13,10 +15,13 @@ import org.ga4gh.refcloud.api.dataconnect.query.TableDataResponseDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 
 @Service
+@SuppressFBWarnings(
+        value = "REDOS",
+        justification = "TABLE_NAME_FORMAT's repeated segments are separated by a literal '.', which neither character"
+                + " class matches, so the pattern can't backtrack catastrophically")
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class DataConnectTableDataService {
@@ -54,16 +59,15 @@ public class DataConnectTableDataService {
         RewrittenQuery query = dataConnectQueryService.prepareQuery(sql, userId);
         QueryResult result = dataConnectQueryExecutor.execute(query, pageSize);
 
-        PaginationDTO pagination = result.hasMore()
-            ? new PaginationDTO(nextPageUrl(tableName, offset + pageSize))
-            : null;
+        PaginationDTO pagination =
+                result.hasMore() ? new PaginationDTO(nextPageUrl(tableName, offset + pageSize)) : null;
 
         return new TableDataResponseDTO(dataModel, result.rows(), pagination);
     }
 
     private String nextPageUrl(String tableName, long offset) {
         return dataConnectConfig.baseUrlWithoutTrailingSlash()
-            + "/ga4gh/data-connect/v1/table/" + tableName + "/data?page_token="
-            + pageTokenCodec.encode(new PageToken(offset));
+                + "/ga4gh/data-connect/v1/table/" + tableName + "/data?page_token="
+                + pageTokenCodec.encode(new PageToken(offset));
     }
 }

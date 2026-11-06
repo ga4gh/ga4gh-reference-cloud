@@ -1,19 +1,19 @@
-import { UiText } from "@ory/client"
+import { UiText } from "@ory/client";
 
 interface MessageProps {
-  message: UiText
+  message: UiText;
 }
 
 export const Message = ({ message }: MessageProps) => {
   const divStyle = {
     marginBottom: "0.5rem",
-  }
+  };
 
   const messageStyle = {
     fontSize: "0.75rem",
     fontWeight: "500",
     color: "#374151",
-  }
+  };
 
   return (
     <div style={divStyle}>
@@ -21,17 +21,17 @@ export const Message = ({ message }: MessageProps) => {
         {message.text}
       </p>
     </div>
-  )
-}
+  );
+};
 
 interface MessagesProps {
-  messages?: Array<UiText>
+  messages?: Array<UiText>;
 }
 
 export const Messages = ({ messages }: MessagesProps) => {
   if (!messages) {
     // No messages? Do nothing.
-    return null
+    return null;
   }
 
   return (
@@ -40,5 +40,5 @@ export const Messages = ({ messages }: MessagesProps) => {
         <Message key={message.id} message={message} />
       ))}
     </div>
-  )
-}
+  );
+};

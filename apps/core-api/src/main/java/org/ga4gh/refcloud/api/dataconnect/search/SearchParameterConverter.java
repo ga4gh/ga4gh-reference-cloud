@@ -57,10 +57,12 @@ final class SearchParameterConverter {
 
             String typeName = arrayElementTypeName(element);
             if (typeName == null) {
-                throw new InvalidQueryException("parameter " + position + ": array elements must be booleans, numbers or strings");
+                throw new InvalidQueryException(
+                        "parameter " + position + ": array elements must be booleans, numbers or strings");
             }
             if (elementTypeName != null && !elementTypeName.equals(typeName)) {
-                throw new InvalidQueryException("parameter " + position + ": array elements must all have the same type");
+                throw new InvalidQueryException(
+                        "parameter " + position + ": array elements must all have the same type");
             }
             elementTypeName = typeName;
             elements.add(convert(element, position));

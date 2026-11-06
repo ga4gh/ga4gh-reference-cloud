@@ -1,0 +1,8 @@
+# prettier formats code only. node_modules, .next and .gitignore'd paths are ignored by default
+package-lock.json
+next-env.d.ts
+public/
+# markdown follows the repo-wide docs style (* bullets), not prettier's
+*.md
+# next rewrites tsconfig.json itself (e.g. on `next dev`), so prettier would fight it
+tsconfig.json

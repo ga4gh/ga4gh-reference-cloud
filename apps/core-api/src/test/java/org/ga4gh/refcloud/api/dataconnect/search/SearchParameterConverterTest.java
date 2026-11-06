@@ -20,7 +20,9 @@ public class SearchParameterConverterTest {
 
     private List<JsonNode> parameters(String json) {
         JsonNode array = objectMapper.readTree(json);
-        return java.util.stream.IntStream.range(0, array.size()).mapToObj(array::get).toList();
+        return java.util.stream.IntStream.range(0, array.size())
+                .mapToObj(array::get)
+                .toList();
     }
 
     @Test
@@ -37,7 +39,8 @@ public class SearchParameterConverterTest {
 
     @Test
     public void convertsArraysToTypedSqlArrays() {
-        List<Object> values = SearchParameterConverter.convert(parameters("[[\"a\", null, \"b\"], [1, 2], [true], []]"));
+        List<Object> values =
+                SearchParameterConverter.convert(parameters("[[\"a\", null, \"b\"], [1, 2], [true], []]"));
 
         assertEquals(values.get(0), new ArrayParameter("varchar", Arrays.asList("a", null, "b")));
         assertEquals(values.get(1), new ArrayParameter("float8", List.of(1.0, 2.0)));
@@ -48,16 +51,17 @@ public class SearchParameterConverterTest {
     @DataProvider
     public Object[][] unsupportedParameters() {
         return new Object[][] {
-            { "[{\"a\": 1}]", "JSON objects" },
-            { "[[1, \"a\"]]", "same type" },
-            { "[[[1]]]", "booleans, numbers or strings" },
-            { "[[{\"a\": 1}]]", "booleans, numbers or strings" },
+            {"[{\"a\": 1}]", "JSON objects"},
+            {"[[1, \"a\"]]", "same type"},
+            {"[[[1]]]", "booleans, numbers or strings"},
+            {"[[{\"a\": 1}]]", "booleans, numbers or strings"},
         };
     }
 
     @Test(dataProvider = "unsupportedParameters")
     public void rejectsUnsupportedParameters(String json, String expectedMessage) {
-        BadRequestException exception = expectThrows(BadRequestException.class, () -> SearchParameterConverter.convert(parameters(json)));
+        BadRequestException exception =
+                expectThrows(BadRequestException.class, () -> SearchParameterConverter.convert(parameters(json)));
         assertTrue(exception.getMessage().contains(expectedMessage), exception.getMessage());
         assertTrue(exception.getMessage().startsWith("parameter 1:"), exception.getMessage());
     }

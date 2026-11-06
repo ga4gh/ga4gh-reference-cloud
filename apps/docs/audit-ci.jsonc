@@ -1,0 +1,13 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  // fail on high and critical advisories, dev dependencies included (same threshold as the researcher-ui)
+  "high": true,
+  // every entry needs a reason and should be removed as soon as an upstream fix ships.
+  // a new advisory, or this one in a new package, still fails CI
+  "allowlist": [
+    // @faker-js/faker 5.x helpers.fake code execution, via docusaurus-plugin-openapi-docs -> postman-collection.
+    // no fixed version is compatible (postman-collection needs the faker 5 API; forcing faker 10 breaks the build).
+    // only reachable at build time with our own openapi specs as input; the docs ship as static html
+    "GHSA-qxc2-j82w-r537",
+  ],
+}

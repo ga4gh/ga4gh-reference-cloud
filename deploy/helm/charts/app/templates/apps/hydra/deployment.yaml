@@ -12,14 +12,20 @@ spec:
       labels:
         app.kubernetes.io/name: hydra
     spec:
+      {{- include "refcloud.podSecurityContext" 65532 | nindent 6 }}
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: hydra-config-map
           configMap:
             name: hydra-config-map
       containers:
         - image: {{ include "refcloud.hydraImage" . }}
           name: hydra
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
             - name: hydra-config-map
               mountPath: /etc/config
               readOnly: true
@@ -28,6 +34,17 @@ spec:
             - containerPort: 4444
             - containerPort: 4445
             - containerPort: 5555
+          # health endpoints on the admin port (cluster-internal; the ingress never routes to it)
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: 4445
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 4445
+            periodSeconds: 10
           env:
             - name: PSQL_USER
               valueFrom:

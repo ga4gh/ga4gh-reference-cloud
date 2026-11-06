@@ -6,11 +6,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
 import org.ga4gh.refcloud.api.exception.ServiceUnavailableException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -33,22 +33,33 @@ public class DataConnectSearchStorageService {
     // Expired searches are deleted first; if the remaining saved searches plus this one would exceed
     // the storage limit, nothing is saved and a 503 with Retry-After is returned
     @Transactional
-    public UUID save(String userId, JsonNode dataModel, List<String> tableNames, List<Map<String, Object>> rows, long firstRowNumber) {
+    public UUID save(
+            String userId,
+            JsonNode dataModel,
+            List<String> tableNames,
+            List<Map<String, Object>> rows,
+            long firstRowNumber) {
         DataConnectConfig.Query.Search limits = dataConnectConfig.query().search();
 
-        List<String> rowsJson = rows.stream().map(objectMapper::writeValueAsString).toList();
-        long sizeBytes = rowsJson.stream().mapToLong(json -> json.getBytes(StandardCharsets.UTF_8).length).sum();
+        List<String> rowsJson =
+                rows.stream().map(objectMapper::writeValueAsString).toList();
+        long sizeBytes = rowsJson.stream()
+                .mapToLong(json -> json.getBytes(StandardCharsets.UTF_8).length)
+                .sum();
 
         dataConnectSearchRepository.lockForSave();
         dataConnectSearchRepository.deleteExpired();
 
-        if (dataConnectSearchRepository.sumUnexpiredSizeBytes() + sizeBytes > limits.storageMaxBytes().toBytes()) {
-            Duration retryAfter = dataConnectSearchRepository.timeUntilNextExpiry().orElse(DEFAULT_RETRY_AFTER);
+        if (dataConnectSearchRepository.sumUnexpiredSizeBytes() + sizeBytes
+                > limits.storageMaxBytes().toBytes()) {
+            Duration retryAfter =
+                    dataConnectSearchRepository.timeUntilNextExpiry().orElse(DEFAULT_RETRY_AFTER);
             throw new ServiceUnavailableException("search result storage is full; try again later", retryAfter);
         }
 
         UUID id = UUID.randomUUID();
-        dataConnectSearchRepository.insertSearch(id, userId, objectMapper.writeValueAsString(dataModel), tableNames, sizeBytes, limits.ttl());
+        dataConnectSearchRepository.insertSearch(
+                id, userId, objectMapper.writeValueAsString(dataModel), tableNames, sizeBytes, limits.ttl());
         dataConnectSearchRepository.insertRows(id, firstRowNumber, rowsJson);
         return id;
     }

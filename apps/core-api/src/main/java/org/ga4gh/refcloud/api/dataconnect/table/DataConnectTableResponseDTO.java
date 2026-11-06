@@ -8,8 +8,4 @@ import tools.jackson.databind.annotation.JsonNaming;
 // Data Connect "Table" object. description is optional in the spec and omitted when null
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record DataConnectTableResponseDTO(
-    String name,
-    String description,
-    JsonNode dataModel
-) {}
+public record DataConnectTableResponseDTO(String name, String description, JsonNode dataModel) {}

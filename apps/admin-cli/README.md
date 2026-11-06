@@ -37,6 +37,21 @@ The following preconfigured datasets are currently available:
 | `aws_opendata_registry_1000_genomes` | Sourced from AWS Registry of Open Data. The 1000 Genomes Project is an international collaboration which has established the most detailed catalogue of human genetic variation, including SNPs, structural variants, and their haplotype context. The final phase of the project sequenced more than 2500 individuals from 26 different populations around the world and produced an integrated set of phased haplotypes with more than 80 million variants for these individuals. |
 | `ga4gh_refget_sequences_v2_conformance` | Test sequences for GA4GH Refget Sequences v2 Conformance |
 
+## Static Analysis
+
+Formatting, linting (including security rules), type checks, and a dependency vulnerability audit run in CI on every pull request that changes `apps/admin-cli/`, and weekly. The Python tools are pinned in the `dev` dependency group, so `uv sync` installs the same versions CI uses; the audit runs Trivy from a pinned Docker image, so it needs only Docker. Run them locally before opening a PR:
+
+| Check | Command |
+|-|-|
+| Formatting ([Ruff](https://docs.astral.sh/ruff/formatter/)) | `uv run ruff format --check` |
+| Linting and security rules ([Ruff](https://docs.astral.sh/ruff/linter/)) | `uv run ruff check` |
+| Type checking ([Pyright](https://microsoft.github.io/pyright/)) | `uv run pyright` |
+| Dependency vulnerabilities in `uv.lock` ([Trivy](https://trivy.dev/), HIGH and CRITICAL) | `./scripts/audit-deps.sh` |
+
+To fix formatting and auto-fixable lint errors: `uv run ruff format && uv run ruff check --fix`
+
+To fix a vulnerable dependency, upgrade it in the lock: `uv lock --upgrade-package <name>`. A vulnerability with no usable fix can be accepted in `.trivyignore`, with a reason.
+
 ## Configuration
 
 Configure the CLI via the following environment variables:

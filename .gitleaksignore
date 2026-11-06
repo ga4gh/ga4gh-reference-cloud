@@ -1,0 +1,7 @@
+# gitleaks findings pinned by fingerprint (<commit>:<file>:<rule>:<line>), for findings in history that can
+# no longer change. every entry needs a reason. new findings, including in these files, still fail.
+
+# simulated GA4GH Starter Kit passport test data (visaSecret values of fake datasets), in a doc that has since
+# been removed from the repo. not real credentials
+bad3d2f7b967300fb7ec7883d42335258dcdb116:apps/docs/docs/starter-kit-apis/passport/passport_test_dataset.md:generic-api-key:73
+bad3d2f7b967300fb7ec7883d42335258dcdb116:apps/docs/docs/starter-kit-apis/passport/passport_test_dataset.md:generic-api-key:80

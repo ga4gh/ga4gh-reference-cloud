@@ -12,10 +12,29 @@ spec:
       labels:
         app.kubernetes.io/name: refcloud-docs
     spec:
+      {{- include "refcloud.podSecurityContext" 101 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-docs") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-docs
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          # nginx-unprivileged writes its pid file and temp files to /tmp
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 10
       {{- include "refcloud.imagePullSecrets" . | nindent 6 }}
