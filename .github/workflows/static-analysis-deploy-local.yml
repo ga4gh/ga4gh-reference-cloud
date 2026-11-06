@@ -67,6 +67,22 @@ jobs:
         if: ${{ !cancelled() }}
         run: ./scripts/refcloud-static-analysis-deploy-local.sh hadolint
 
+      # trivy's checks bundle (misconfiguration rules), shared across workflows (the scripts use ~/.cache/trivy).
+      # separate from the vulnerability db cache, since each scan type downloads only what it uses. one key per
+      # day; trivy refreshes a stale bundle itself, so an older restored cache is still safe
+      - name: Get date for the Trivy checks bundle cache key
+        id: trivy-cache-date
+        if: ${{ !cancelled() }}
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy checks bundle
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/policy
+          key: trivy-checks-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-checks-${{ runner.os }}-
+
       - name: Dockerfile security misconfigurations (trivy config)
         if: ${{ !cancelled() }}
         run: ./scripts/refcloud-static-analysis-deploy-local.sh trivy-config
@@ -102,6 +118,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # trivy's vulnerability db, shared across workflows (the scripts use ~/.cache/trivy). separate from the
+      # checks bundle cache, since each scan type downloads only what it uses. one key per day; trivy refreshes
+      # a stale db itself, so an older restored cache is still safe
+      # restore only: the matrix jobs run in parallel and would race to save the same key (admin-cli's audit saves it)
+      - name: Get date for the Trivy vulnerability database cache key
+        id: trivy-cache-date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Trivy vulnerability database
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/db
+          key: trivy-db-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-db-${{ runner.os }}-
 
       # report only: HIGH/CRITICAL CVEs with a fix available. the script never fails on findings
       - name: Scan image (trivy image)

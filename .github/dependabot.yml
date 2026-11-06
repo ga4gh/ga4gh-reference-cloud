@@ -14,6 +14,8 @@ updates:
   # every `uses:` in .github/workflows (pinned to commit SHAs; Dependabot updates the SHA and the version comment)
   - package-ecosystem: github-actions
     directory: /
+    # PRs target the integration branch, not the default branch (main)
+    target-branch: develop
     schedule:
       interval: monthly
     # skip versions published in the last week: a compromised release is usually caught and pulled by then
@@ -34,6 +36,7 @@ updates:
       - /apps/core-api/liquibase
       - /apps/docs
       - /apps/researcher-ui
+    target-branch: develop
     schedule:
       interval: monthly
     cooldown:

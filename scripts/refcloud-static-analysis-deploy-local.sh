@@ -31,6 +31,8 @@ COMPOSE_FILE="deploy/local/docker-compose.yml"
 CADDYFILE_DIR="deploy/local"
 # trivy's vulnerability db and checks bundle, reused between runs
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-${HOME}/.cache/trivy}"
+# trivy runs as the calling user (not root) with the cache mounted at /cache, so cached files stay owned by the
+# user and CI can save and restore them between runs (actions/cache)
 
 # ##############################
 # FUNCTIONS
@@ -52,7 +54,7 @@ list_dockerfiles() {
 # trivy, with the repo mounted read-only at /repo and a persistent cache
 trivy() {
   mkdir -p "${TRIVY_CACHE_DIR}"
-  docker run --rm -v "${PWD}:/repo:ro" -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" "${TRIVY_IMAGE}" "$@"
+  docker run --rm -v "${PWD}:/repo:ro" --user "$(id -u):$(id -g)" -e HOME=/tmp -e TRIVY_CACHE_DIR=/cache -v "${TRIVY_CACHE_DIR}:/cache" "${TRIVY_IMAGE}" "$@"
 }
 
 check_compose() {
@@ -111,7 +113,7 @@ check_images() {
       name=$(echo "${image}" | tr '/:@' '___')
       log_info "scanning ${image} -> ${SARIF_DIR}/${name}.sarif"
       # the sarif is written inside the container to a writable mount of SARIF_DIR
-      docker run --rm -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" -v "${sarif_dir}:/out" "${TRIVY_IMAGE}" \
+      docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TRIVY_CACHE_DIR=/cache -v "${TRIVY_CACHE_DIR}:/cache" -v "${sarif_dir}:/out" "${TRIVY_IMAGE}" \
         image --quiet --ignore-unfixed --severity HIGH,CRITICAL --format sarif --output "/out/${name}.sarif" "${image}" \
         || log_error "could not scan ${image}"
     else

@@ -107,7 +107,7 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
 * **SpotBugs + FindSecBugs:** effort `MAX`, fails on medium confidence and above, `main` sources only. Project-wide exclusions in `config/spotbugs/exclude.xml`: `EI_EXPOSE_REP`/`EI_EXPOSE_REP2` (Lombok getters/setters on entities and DTOs) and `SPRING_ENDPOINT` (an informational endpoint inventory). Individual findings were fixed or suppressed with `@SuppressFBWarnings(justification = ...)`:
   * fixed: a possible null dereference in `OrySessionFilter` (`getBody()` called twice); `== true`/`== false` comparisons, including a nullable `Boolean isManifest` now read null-safely.
   * suppressed with justification: CSRF disabled in `SecurityConfig` (core-api never authenticates from cookies: `X-Session-Token`, `Authorization: Bearer` and basic auth only), `SQL_INJECTION_SPRING_JDBC` in `DataConnectQueryExecutor` (the only concatenation is a numeric `SET LOCAL statement_timeout` from config), `REDOS` on the Data Connect table name pattern (segments separated by a literal `.`, no catastrophic backtracking), and `UWF_UNWRITTEN_FIELD` on the `@Immutable` Data Connect entities (populated by Hibernate).
-* **OWASP Dependency-Check: deferred.** It needs an NVD API key stored as a secret, which isn't available to fork or Dependabot PRs, and a cached NVD database. Revisit separately (Dependabot alerts cover Gradle dependencies in the meantime).
+* **OWASP Dependency-Check: deferred.** It needs an NVD API key stored as a secret, which isn't available to fork or Dependabot PRs, and a cached NVD database. Revisited in Task 10 (Dependabot alerts may not cover Gradle at all: GitHub often needs Gradle dependencies submitted from CI).
 * **Gradle:** a `staticAnalysis` task runs everything (tests excluded); a Java 25 toolchain is declared in `build.gradle` to match the Dockerfile and CI (Corretto 25). Pinned: SpotBugs plugin 6.5.13 (SpotBugs 4.10.5), FindSecBugs 1.14.0, Checkstyle 14.4.0, Spotless 8.11.0 (palantir-java-format 2.103.0).
 * **Docker:** the Dockerfile builds with `gradle bootJar` instead of `gradle build -x test`, so image builds don't run static analysis; CI is the gate.
 * **Workflow:** same detect-changes pattern (`Static Analysis (core-api)` is the required job) on `pull_request` and `workflow_dispatch`; no weekly run, since there's no dependency audit yet. `gradle/actions/setup-gradle` caches dependencies (writable on PRs, since the workflow doesn't run on the default branch); reports are uploaded as an artifact when a check fails.
@@ -147,7 +147,7 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
 **Decisions (Task 6):**
 
 * **Pinning:** every action (GitHub-owned ones included) is pinned to a full commit SHA with the version as a trailing comment, at the latest release within its current major, so behavior doesn't change. The Docker push workflows keep their older majors (`actions/checkout` v4, `docker/*` v3, `build-push-action` v6) for a later upgrade; `configure-aws-credentials` moved within v6 (6.1.0 to 6.3.0).
-* **Dependabot (`.github/dependabot.yml`), tuned for minimal PRs:** `github-actions` and `docker` (the app Dockerfiles' base images) only, each a single grouped PR per month, minor/patch only (majors are manual), with a 7-day cooldown on new releases. npm/uv/gradle version updates are not enabled. Not covered: versions pinned inside scripts (tool images and digests in `scripts/refcloud-static-analysis-*.sh`, `uvx semgrep@...`), and the Ory images in `docker-compose.yml`, which must change together with the Helm chart.
+* **Dependabot (`.github/dependabot.yml`), tuned for minimal PRs:** `github-actions` and `docker` (the app Dockerfiles' base images) only, each a single grouped PR per month, minor/patch only (majors are manual), with a 7-day cooldown on new releases. npm/uv/gradle version updates are not enabled. Not covered: versions pinned inside scripts (tool images and digests in `scripts/refcloud-static-analysis-*.sh`, `uvx semgrep@...`), and the Ory images in `docker-compose.yml`, which must change together with the Helm chart. Both entries set `target-branch: develop`, so update PRs go to the integration branch; Dependabot still reads this file only from the default branch (`main`), so it takes effect once the file reaches `main`.
 * **zizmor fixes:** `persist-credentials: false` on every checkout (`artipacked`); the 5 Docker push callers pass `AWS_ACCOUNT_ID`, `AWS_REGION` and `AWS_ROLE_ARN` explicitly, declared under `workflow_call.secrets`, instead of `secrets: inherit`. The `self-repository` audit (GitHub's July 2026 `uses: $/...` syntax) is disabled with a reason in `.github/zizmor.yml`, because actionlint 1.7.12 rejects that syntax.
 * **Tooling:** `scripts/refcloud-static-analysis-workflows.sh` runs actionlint 1.7.12 and zizmor 1.32.0 from images pinned by digest (Docker only). zizmor also audits `dependabot.yml` and fails on any finding; its online audits run in CI with the read-only `github.token`, and offline locally unless `GH_TOKEN` is set.
 * **Workflow:** `static-analysis-workflows.yml`, triggered by `.github/**` and the script, with the required job `Static Analysis (workflows)`. Conventions are documented in `.github/workflows/README.md`.
@@ -203,3 +203,82 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
   * The `.trivyignore` reason for `DS-0026` (no Dockerfile `HEALTHCHECK`) now points to the chart's probes.
 * **Chart metadata:** removed the boilerplate `appVersion: "1.16.0"` (the deployed version is the lockstep image tag). No `icon`: the repo has no logo yet (`helm lint` reports it as INFO only).
 
+### Task 10: Dependency audit for core-api
+
+* core-api's Gradle dependencies have no vulnerability audit: OWASP Dependency-Check was deferred in Task 4 (it needs an NVD API key, which fork and Dependabot PRs can't use), and Dependabot alerts may not see Gradle dependencies without a dependency submission from CI. `software.amazon.awssdk:s3` is pinned at 2.25.15 (2024), so the first run will probably find something.
+* Add a dependency CVE audit to `static-analysis-core-api.yml`, failing at HIGH and above like the other apps, with a weekly run (Mondays 06:00 UTC) and `workflow_dispatch`, checking everything on those runs.
+* Proposed approach: Gradle **dependency locking** (`gradle.lockfile`, committed, refreshed with `gradle dependencies --write-locks`) scanned with **`trivy fs`**, the same image and pattern as admin-cli (`uv.lock`): no build, no NVD key, and a lockfile also makes builds reproducible. Exceptions go in `apps/core-api/.trivyignore` with a reason.
+* Alternatives to weigh:
+  * Trivy against the built `bootJar`: no lockfile to maintain, but needs a build first and Trivy's Java database (several hundred MB, to be cached like the vulnerability db).
+  * GitHub dependency submission (`gradle/actions/dependency-submission`): feeds Dependabot alerts, but doesn't block PRs, so it complements rather than replaces a CI audit.
+* Open questions: lockfile (proposed) or built jar? Which configurations to lock and audit (runtime and compile classpaths only, or test and tooling too, like the other apps' dev dependencies)? Fix existing findings in this task?
+
+### Task 11: Cache Trivy's databases in CI
+
+* Implements the objective's caching for the Trivy checks (deploy-local, admin-cli and helm workflows), which otherwise downloaded Trivy's data on every run.
+
+**Decisions (Task 11):**
+
+* `actions/cache` (v6.1.0, SHA-pinned) caches `~/.cache/trivy` subdirectories, keyed by day with a prefix `restore-keys` fallback; Trivy refreshes stale data itself, so restoring an older entry is safe.
+* Two keys, because each scan type downloads only what it uses: `trivy-checks-*` (the misconfiguration checks bundle, `~/.cache/trivy/policy`) for the `trivy config` steps in deploy-local and helm, and `trivy-db-*` (the vulnerability database, `~/.cache/trivy/db`, about 99 MB compressed) for admin-cli's audit. With one shared key, a config-only job could save the day's entry without the database, and the audit could never cache it.
+* The weekly image CVE matrix only restores the database (`actions/cache/restore`): its jobs run in parallel and would race to save the same key. Image layer caches are never saved.
+* The scripts now run Trivy as the calling user (`--user $(id -u):$(id -g)`, cache mounted at `/cache`), so cached files are owned by the runner user and `actions/cache` can save them (it can't read root-owned files). Verified locally: all Trivy checks pass with a fresh cache, and every cached file is owned by the user.
+* GitHub cache scoping: an entry saved on a PR branch is only reused by that PR (and its reruns); entries saved by the scheduled runs on `main` are reused by every branch. So the main benefit is fewer downloads and less exposure to registry rate limits, not a faster first run on each PR.
+
+## Manual Actions
+
+GitHub settings to apply after this branch's PR is opened (some depend on its checks having run once).
+
+**Settings → Rules → Rulesets → New branch ruleset**
+
+* Target `develop`, and `main` if releases reach it by PR. Enforcement: **Active**.
+* **Restrict deletions** and **Block force pushes**.
+* **Require a pull request before merging:** 1 approval (0 for a solo maintainer, since GitHub doesn't let you approve your own PR), dismiss stale approvals on new commits, require conversation resolution.
+* **Require status checks to pass**, each with source **GitHub Actions** (so they can't be spoofed):
+  * `Static Analysis (admin-cli)`
+  * `Static Analysis (researcher-ui)`
+  * `Static Analysis (docs)`
+  * `Static Analysis (core-api)`
+  * `Static Analysis (deploy-local)`
+  * `Static Analysis (helm)`
+  * `Static Analysis (workflows)`
+  * `Static Analysis (secrets)`
+* A check appears in the picker only after it has run, so add them once the PR's workflows have run. A check skipped because nothing it covers changed counts as passing (intended).
+* Leave "Require branches to be up to date before merging" off: each check covers only its own paths, so it mostly forces rebases.
+* Don't require code scanning results: the weekly image CVE scan is deliberately non-blocking.
+
+**Settings → Actions → General**
+
+* Allowed actions: enable "Require actions to be pinned to a full-length commit SHA" (enforces Task 6's convention).
+* Workflow permissions: default `GITHUB_TOKEN` to "Read repository contents"; leave "Allow GitHub Actions to create and approve pull requests" off.
+* Fork pull request workflows: require approval for outside contributors.
+
+**Settings → Advanced Security**
+
+* Secret scanning and push protection: done (Task 7).
+* Enable the dependency graph, Dependabot alerts and code scanning (it receives the weekly image CVE SARIF uploads).
+* Dependabot security updates: optional (PRs only for vulnerable dependencies, so few).
+
+**Settings → General**
+
+* Optional: "Automatically delete head branches".
+
+**Other one-time steps**
+
+* After the first merge to `develop`, confirm all five `push-docker-image-*` runs succeed (Task 6 changed how the reusable workflow receives its AWS secrets).
+* The scheduled workflows and `dependabot.yml` run from `main` only, so they start once this work reaches `main`.
+* Check **Insights → Dependency graph** for Gradle packages, to see whether Dependabot alerts cover core-api (relevant to Task 10).
+
+## Future Directions
+
+Follow-ups outside this spec's scope:
+
+* **Build checks on PRs:** `next build`, the Docusaurus build and the Docker image builds only run after merge (image pushes to `develop`), so a broken build or Dockerfile is found late. Not static analysis, so a separate spec.
+* **Kratos upgrade** from `v0.9.0-alpha.2` (132 HIGH/CRITICAL CVEs on an EOL Alpine): separate ticket, kept in sync with the Helm chart. Check the probe paths (`/admin/health/*`) still apply.
+* **docs audit exceptions:** remove the `@faker-js/faker` allowlist entry in `apps/docs/audit-ci.jsonc` and the npm `overrides` once upstream ships fixes.
+* **Test commands** are still TBD across the apps (Task 1 onward).
+* **Helm chart rendered for AWS:** static analysis currently renders only the default (local) values (Task 9).
+* **Chart icon:** add `icon` to `Chart.yaml` once the project has a logo.
+* **admin-cli pod shutdown:** the pod takes the full 30-second grace period to stop on every redeploy, because `sleep infinity` (PID 1) ignores SIGTERM. Pre-existing; fix with `terminationGracePeriodSeconds: 5` or a shell that traps SIGTERM.
+* **docs pod IPv6:** with the read-only root filesystem, the nginx-unprivileged entrypoint can't enable its IPv6 listener (logged as info). Harmless in an IPv4 cluster; mount a writable `conf.d` or add the listener to the image's config if IPv6 is needed.
+* **Trivy cache on Linux:** caches created before Task 11 by root-run Trivy containers may be root-owned on a Linux host; delete `~/.cache/trivy` if a local run fails with permission errors (not an issue on macOS Docker Desktop or fresh CI runners).

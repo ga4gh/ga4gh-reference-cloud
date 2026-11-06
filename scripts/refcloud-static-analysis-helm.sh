@@ -34,6 +34,8 @@ IMAGE_TAG="static-analysis"
 KUBERNETES_VERSION="1.35.1"
 # trivy's vulnerability db and checks bundle, reused between runs (outside the repo)
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-${HOME}/.cache/trivy}"
+# trivy runs as the calling user (not root) with the cache mounted at /cache, so cached files stay owned by the
+# user and CI can save and restore them between runs (actions/cache)
 
 # ##############################
 # FUNCTIONS
@@ -55,7 +57,7 @@ helm() {
 # trivy, with deploy/helm mounted read-only and a persistent cache. reads stdin when given `-` paths
 trivy() {
   mkdir -p "${TRIVY_CACHE_DIR}"
-  docker run --rm -i -v "${PWD}/${HELM_DIR}:/helm:ro" -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
+  docker run --rm -i -v "${PWD}/${HELM_DIR}:/helm:ro" --user "$(id -u):$(id -g)" -e HOME=/tmp -e TRIVY_CACHE_DIR=/cache -v "${TRIVY_CACHE_DIR}:/cache" \
     -w /helm/charts/app "${TRIVY_IMAGE}" "$@"
 }
 
@@ -86,7 +88,7 @@ check_trivy_config() {
   # hook resources (the migration Jobs), which the chart scan above skips
   log_info "scanning the rendered helm hook Jobs for security misconfigurations (trivy config, HIGH/CRITICAL)"
   rendered=$(render) || { log_error "helm template failed"; return 1; }
-  printf '%s\n' "${rendered}" | hook_jobs | docker run --rm -i -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
+  printf '%s\n' "${rendered}" | hook_jobs | docker run --rm -i --user "$(id -u):$(id -g)" -e HOME=/tmp -e TRIVY_CACHE_DIR=/cache -v "${TRIVY_CACHE_DIR}:/cache" \
     --entrypoint sh "${TRIVY_IMAGE}" -c \
     'mkdir -p /tmp/hooks && cat > /tmp/hooks/jobs.yaml && trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL /tmp/hooks' \
     || failed=1

@@ -75,6 +75,22 @@ jobs:
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         run: uv run --no-sync pyright
 
+      # trivy's vulnerability db, shared across workflows (the scripts use ~/.cache/trivy). separate from the
+      # checks bundle cache, since each scan type downloads only what it uses. one key per day; trivy refreshes
+      # a stale db itself, so an older restored cache is still safe
+      - name: Get date for the Trivy vulnerability database cache key
+        id: trivy-cache-date
+        if: ${{ !cancelled() }}
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy vulnerability database
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trivy/db
+          key: trivy-db-${{ runner.os }}-${{ steps.trivy-cache-date.outputs.date }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
       # needs only the checkout and docker (trivy runs from a pinned image), so it runs even if uv sync failed
       - name: Audit dependencies (trivy fs, high and above)
         if: ${{ !cancelled() }}
