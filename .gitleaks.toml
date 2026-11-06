@@ -1,0 +1,25 @@
+# gitleaks config (run via ./scripts/refcloud-static-analysis-secrets.sh). extends gitleaks' default rules.
+# every allowlist entry needs a reason, and should be as narrow as possible: prefer an exact value or a
+# rule + path pair over a whole path, so a real secret in the same file is still caught.
+# findings in commits that can no longer change (deleted files) are pinned by fingerprint in .gitleaksignore.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "docusaurus-plugin-openapi-docs embeds a base64-encoded copy of the API spec in each generated page's `api:` frontmatter"
+targetRules = ["generic-api-key"]
+paths = ['''^apps/docs/docs/.*\.api\.mdx$''']
+
+[[allowlists]]
+description = "example bearer tokens from the GA4GH DRS OpenAPI spec, and the request schemas generated from it"
+targetRules = ["jwt"]
+paths = [
+  '''^apps/docs/openapi/.*\.ya?ml$''',
+  '''^apps/docs/docs/api-reference/.*\.RequestSchema\.json$''',
+]
+
+[[allowlists]]
+description = "local/minikube-only Hydra system secret (deploy/local/ory/hydra/hydra.yml, scripts/lib/common.sh). never used in any other deployment"
+regexTarget = "secret"
+regexes = ['''^b957c641285730151983fcde377fe4cd28935d493173b15c3de06c8b46685397$''']
