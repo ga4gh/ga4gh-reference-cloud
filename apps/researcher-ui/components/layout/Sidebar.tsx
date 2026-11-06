@@ -34,7 +34,6 @@ export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     "data-access": true,
-    "ga4gh-apis": true,
     "docs-guides": true,
     "settings": true,
   })
@@ -49,17 +48,8 @@ export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
       title: "Data Access",
       items: [
         { label: "Browse Datasets", href: "/datasets" },
+        { label: "Explore Data", href: "/data-connect" },
         { label: "View Passport Token", href: "/passport" },
-      ],
-    },
-    {
-      key: "ga4gh-apis",
-      title: "GA4GH APIs",
-      items: [
-        { label: "DRS", href: "/drs" },
-        { label: "Beacon", disabled: true },
-        { label: "htsget", disabled: true },
-        { label: "refget", disabled: true },
       ],
     },
     {

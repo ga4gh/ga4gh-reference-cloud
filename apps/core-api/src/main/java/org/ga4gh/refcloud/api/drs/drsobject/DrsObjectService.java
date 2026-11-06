@@ -166,10 +166,15 @@ public class DrsObjectService {
 
     // transactional so the internal visa lookup can load the object's lazy dataset relationship
     @Transactional(readOnly = true)
+    // userId is null for anonymous requests, which may only access objects in open datasets
     public boolean validateUserIsAuthorizedForDrsObject(String userId, String objectId) {
         Optional<String> visaId = getVisaIdByDrsObjectId(objectId);
         if (visaId.isEmpty()) {
             return true; // open dataset, no visa required
+        }
+
+        if (userId == null) {
+            return false;
         }
 
         Optional<PassportUserVisaAssertion> optionalAssertion = passportUserVisaAssertionService.getAssertionByUserIdAndVisaId(userId, visaId.get());

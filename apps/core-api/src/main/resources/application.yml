@@ -50,8 +50,8 @@ ga4gh:
           username: kratos_webhook_user
           password: secret
     drs:
-      scheme: http
-      host-domain: 127.0.0.1:8080
+      scheme: https
+      host-domain: refcloud.ga4gh.localhost # public host (behind Caddy), used in drs:// URIs and access URLs
       service-info:
         id: org.ga4gh.refcloud.drs.local
         name: GA4GH Reference Cloud DRS Service (Local Dev Environment)
@@ -98,7 +98,7 @@ ga4gh:
               - ga4gh
             identifier-types: []
     data-connect:
-      base-url: http://127.0.0.1:8080 # public base URL of this server, no trailing slash
+      base-url: https://refcloud.ga4gh.localhost # public base URL of this server (behind Caddy), no trailing slash
       query:
         max-length: 10000 # maximum length (characters) of a researcher-submitted SQL query
         statement-timeout: 30s # per-query time limit, also set on the database role

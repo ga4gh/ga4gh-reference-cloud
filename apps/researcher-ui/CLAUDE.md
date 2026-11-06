@@ -38,6 +38,30 @@ This repo serves as the researcher UI for the refcloud.
 * Hydra redirect URIs must match the client registration in refcloud-setup.sh exactly.
 * The /api/.ory proxy forwards to ORY_SDK_URL.
 
+### GA4GH API proxy routes
+
+The browser never calls core-api's GA4GH APIs directly: the passport lives in the `access_token` cookie, so requests go through Next.js API routes that forward to `REFCLOUD_API_BASE_URL`. Every proxy below sends `Authorization: Bearer <passport>` when the cookie is set and forwards **anonymously** otherwise (core-api then serves only platform-wide data and open datasets). Statuses and error bodies are passed through unchanged; the proxy returns 502 only when core-api is unreachable. An invalid or expired passport gets a 401 from core-api, even for open data.
+
+| UI route | core-api endpoint |
+|---|---|
+| `/api/data-connect/table/[name]/data?page_token=` | Data Connect `GET /ga4gh/data-connect/v1/table/{name}/data` |
+| `/api/ga4gh/drs/v1/objects/[id]` | DRS `GET /ga4gh/drs/v1/objects/{id}` |
+| `/api/ga4gh/drs/v1/objects/[id]/manifest-content` | DRS manifest content (adds `Content-Disposition`, so it downloads as a file) |
+| `/api/ga4gh/refget/v2/sequence/[id]?start=&end=` | refget sequence, streamed as plain text |
+| `/api/ga4gh/refget/v2/sequence/[id]/metadata` | refget sequence metadata |
+| `/api/datasets/[id]/manifests?page=&size=` | refcloud `GET /datasets/{id}/manifests` |
+
+* The UI never follows Data Connect's `next_page_url`: it takes the `page_token` from it and calls its own proxy. `pagination` is omitted on the last page.
+* Manifest downloads go through the manifest-content proxy (`components/drs/DrsObjectDownloadButton.tsx` rewrites refcloud manifest access URLs to it), because a plain browser link can't send the passport.
+
+### Explore Data page (`/data-connect`)
+
+* `components/pages/data-connect/DataConnectClient.tsx` holds the dataset and table dropdowns. Datasets and their readable tables come from `/api/datasets` (`tables`, `hasManifests`); the platform-wide `refcloud.platform.datasets` table is a fixed "Platform" entry. The selection is kept in the URL (`?dataset=<id>&table=<table type | drs-manifests>`).
+* Data Connect tables render dynamically in `DataConnectTable.tsx`: columns come from `data_model.properties` in order, with Next/Previous paging only (Data Connect gives no total count).
+* **Renderer registry** (`components/pages/data-connect/tableRenderers.tsx`): maps `table type → column → renderer`, deciding which cells become links (`drs_object`/`refget_sequence` `id` and `drs_uri` open the DRS or refget modal). A renderer returning `undefined`, or any unlisted type or column, falls back to the default rendering. Add a table type here to give it links.
+* **"DRS IDs by Manifest"** (`DrsManifestTable.tsx`) is not backed by Data Connect: it uses core-api `GET /datasets/{id}/manifests` (via `/api/datasets/[id]/manifests`), because the Data Connect `drs_object` table has no manifest content. It is offered only when the dataset's `hasManifests` is `true` and keeps its own page/size pagination.
+* Shared modals: `components/drs/DrsObjectModal.tsx` (with `DrsObjectDownloadButton.tsx`) and `components/refget/RefgetSequenceModal.tsx` (metadata plus start/end slicing).
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

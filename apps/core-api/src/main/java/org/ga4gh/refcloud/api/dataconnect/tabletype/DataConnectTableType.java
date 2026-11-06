@@ -25,8 +25,9 @@ public class DataConnectTableType {
 
     private String description;
 
+    // json (not jsonb) so properties keep their authored order
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "data_model_template", columnDefinition = "jsonb")
+    @Column(name = "data_model_template", columnDefinition = "json")
     private JsonNode dataModelTemplate;
 
     private String internalQuery;

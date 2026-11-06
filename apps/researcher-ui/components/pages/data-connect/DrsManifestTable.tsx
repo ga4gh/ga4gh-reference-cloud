@@ -1,14 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
-import DrsObjectDownloadButton from './DrsObjectDownloadButton';
+import React, { useState, useEffect } from 'react';
+import DrsObjectModal from '@/components/drs/DrsObjectModal';
 
-type DrsAccessUrl = {
-  url: string
-}
-
-type DrsAccessMethod = {
-  access_url: DrsAccessUrl
-}
-
+// a manifest DRS object, as returned by core-api GET /datasets/{id}/manifests
 type DrsObject = {
   id: string,
   name: string,
@@ -18,7 +11,6 @@ type DrsObject = {
   version: string,
   mime_type: string,
   description: string,
-  access_methods: DrsAccessMethod[],
   manifest_content: Record<string, string>
 }
 
@@ -32,10 +24,8 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
   const [size, setSize] = useState(10)
   const [manifestSubFileTableKeysAndHeaders, setManifestSubFileTableKeysAndHeaders] = useState<[string, string][]>([])
   const [tableData, setTableData] = useState<DrsObject[]>([])
-  const [modalDrsId, setModalDrsId] = useState("");
-  const [modalDrsObject, setModalDrsObject] = useState<DrsObject>();
-
-  const modalRef = useRef<HTMLDialogElement>(null)
+  // the sub-file shown in the DRS object modal, if any
+  const [modalDrsId, setModalDrsId] = useState<string | null>(null);
 
   const sizeValues = [10, 25, 50, 100]
 
@@ -53,17 +43,8 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
     setPage(0)
   }
 
-  const openModal = () => {
-    modalRef.current?.showModal();
-  }
-
-  const closeModal = () => {
-    modalRef.current?.close()
-  }
-
   const drsIdClickHandler = (drsId: string) => {
     setModalDrsId(drsId)
-    openModal()
   }
 
   useEffect(() => {
@@ -104,28 +85,6 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
 
     loadTableData();
   }, [selectedDatasetId, page, size])
-
-  useEffect(() => {
-    if (!modalDrsId) return;
-
-    console.log("fetching data for DRS ID: " + modalDrsId);
-    const loadDrsObject = async() => {
-      try {
-        const response = await fetch(`/api/ga4gh/drs/v1/objects/${modalDrsId}`)
-
-        if (!response.ok) {
-          throw new Error('DRS Object response was not ok');
-        }
-
-        const newDrsObject = await response.json()
-        setModalDrsObject(newDrsObject);
-      } catch (error) {
-        console.error("Failed to fetch DRS Object:", error)
-      }
-    }
-
-    loadDrsObject();
-  }, [modalDrsId])
 
   return (
     <>
@@ -174,7 +133,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
         </div>
 
         <div className="w-full overflow-x-auto border border-base-300 rounded-none">
-          <table className="ga4gh-drs-table table table-zebra table-xs w-full rounded-none">
+          <table className="ga4gh-data-table table table-zebra table-xs w-full rounded-none">
             <thead>
               <tr>
                 <th className="sticky top-0 left-0 z-30 bg-base-200 text-base-content shadow-[2px_0_0_0_rgba(0,0,0,0.05)]"></th>
@@ -186,7 +145,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
             <tbody>
               {tableData.map((drsobject, i) => (
                 <tr key={drsobject.id || i}>
-                  <th data-label="Row" className={`sticky left-0 z-10 whitespace-nowrap ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{i}</th>
+                  <th data-label="Row" className={`sticky left-0 z-10 whitespace-nowrap ${i % 2 === 0 ? 'bg-base-100' : 'bg-base-200' } shadow-[2px_0_0_0_rgba(0,0,0,0.05)]`}>{page * size + i + 1}</th>
                   <td data-label="Manifest DRS ID">{drsobject.id}</td>
                   <td data-label="Manifest Description">{drsobject.description}</td>
                   {manifestSubFileTableKeysAndHeaders.map((tuple, idx) => (
@@ -202,24 +161,7 @@ const DrsManifestTable = ({selectedDatasetId}: DrsManifestTableProps) => {
           </table>
         </div>
 
-        <dialog ref={modalRef} id="drs_object_modal" className="modal">
-          <div className="modal-box w-11/12 max-w-7xl bg-neutral text-neutral-content">
-            <h3 className="text-lg font-bold mb-4">Inspecting DRS Object with ID: {modalDrsId}</h3>
-            <div className="card bg-base-100 box-shadow-card">
-              <div className="card-body">
-                <div className="pl-0 w-full text-left bg-base-300 text-base-content max-h-[70vh] rounded-none overflow-auto">
-                  <pre className="p-2"><code>{JSON.stringify(modalDrsObject, null, 2)}</code></pre>
-                </div>
-              </div>
-            </div>
-            <div className="modal-action">
-              <DrsObjectDownloadButton fileUrlString={modalDrsObject?.access_methods?.[0]?.access_url?.url} />
-              <button className="ga4gh-btn-dark aspect-auto mx-2" onClick={closeModal}>
-                <span className="btn-text">Close</span>
-              </button>
-            </div>
-          </div>
-        </dialog>
+        <DrsObjectModal drsId={modalDrsId} onClose={() => setModalDrsId(null)} />
       </div>
     </>
   )

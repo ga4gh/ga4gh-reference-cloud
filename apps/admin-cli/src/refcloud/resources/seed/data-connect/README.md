@@ -9,7 +9,7 @@ data-connect/
 ├── table-types/                 # one row per directory in data_connect_table_type
 │   └── <type id>/
 │       ├── table-type.json      # id, description
-│       ├── data-model.json      # → data_model_template (jsonb)
+│       ├── data-model.json      # → data_model_template (json)
 │       └── internal-query.sql   # → internal_query (text)
 └── tables/
     └── platform/                # one row per file in data_connect_table, loaded by `refcloud seed`
@@ -26,7 +26,7 @@ Use an insert-or-update so `refcloud seed` can safely run again after a file cha
 
 ```sql
 INSERT INTO data_connect_table_type (id, description, data_model_template, internal_query)
-VALUES ($1, $2, $3::jsonb, $4)
+VALUES ($1, $2, $3::json, $4)
 ON CONFLICT (id) DO UPDATE SET
     description = EXCLUDED.description,
     data_model_template = EXCLUDED.data_model_template,
@@ -41,6 +41,8 @@ ON CONFLICT (table_name) DO UPDATE SET
 ```
 
 Load `data-model.json` and `internal-query.sql` verbatim. Do **not** substitute placeholders or parameters; `refcloud-api` does that at runtime.
+
+`data_model_template` is `json`, not `jsonb`, so the data model's `properties` keep the order they are written in `data-model.json`. `refcloud-api` serves columns in that order, so the order of `properties` is the column order researchers see. (`jsonb` would reorder the keys.) Databases seeded before this column was converted from `jsonb` still hold the reordered content: re-run `./scripts/refcloud-setup.sh --reset` from the repo root to restore the authored order.
 
 ## Contract with `refcloud-api`
 

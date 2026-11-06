@@ -13,11 +13,20 @@ export enum PassportVisaAssertionStatus {
   Expired = "Expired"
 }
 
+// a Data Connect table belonging to a dataset. type is the table type id (e.g. drs_object)
+export type DatasetTable = {
+  name: string
+  type: string
+}
+
 export type Dataset = {
   id: string
   name: string
   description: string
   tags: string[]
+  // returned by GET /datasets and GET /datasets/{id} only. tables lists the Data Connect tables the user can read
+  tables?: DatasetTable[]
+  hasManifests?: boolean
   // null for open datasets, which require no visa
   visa: {
     id: string

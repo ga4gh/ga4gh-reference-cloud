@@ -13,18 +13,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get('access_token')?.value;
 
-  if (!apiBaseUrl || !accessToken) {
+  if (!apiBaseUrl) {
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 
   try {
-    const targetUrl = `${apiBaseUrl}/ga4gh/drs/v1/objects/${id}`;
-    
+    const targetUrl = `${apiBaseUrl}/ga4gh/drs/v1/objects/${encodeURIComponent(id)}`;
+
+    // without a passport token the request is forwarded anonymously (objects in open datasets only)
+    const headers: HeadersInit = accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
+
     const result = await fetch(targetUrl, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
+      headers
     });
 
     const data = await result.json().catch(() => null);

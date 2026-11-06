@@ -51,6 +51,7 @@ This repo serves as the refcloud's core backend layer.
 ## ⚠️ Behavioral Guardrails & Rules
 
 * **Database Migration Guard:** Never let Hibernate auto-generate or modify production schemas (`ddl-auto: update`). Always request or generate explicit Liquibase or Flyway migration scripts when entity structures change.
+* **Data Connect data models are `json`, not `jsonb`:** `data_connect_table_type.data_model_template` and `data_connect_search.data_model` use `json` so the data model's `properties` (the table's columns) keep their authored order; `jsonb` reorders object keys. Keep any new data model column `json`. Databases seeded while `data_model_template` was `jsonb` need `./scripts/refcloud-setup.sh --reset` to restore the authored order.
 * **Validate Bean Validation Constraints:** When writing or modifying API inputs, always ensure validation annotations (e.g., `@Valid`, `@NotBlank`, `@Size`) are placed on Controller endpoints and target DTO records.
 * **Idempotency & Transaction Control:** Always explicitly declare `@Transactional(readOnly = true)` at the class level for read services, and override with a mutable `@Transactional` only on write methods.
 * **Test Isolation:** When generating tests, use `@WebMvcTest` for slice-testing controllers and `@DataJpaTest` for repositories. Avoid defaulting to a heavy, slow `@SpringBootTest` unless a full integration test is explicitly requested.
