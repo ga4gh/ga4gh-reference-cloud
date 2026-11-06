@@ -17,5 +17,5 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-docs
           ports:
-            - containerPort: 80
+            - containerPort: 8080
       {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

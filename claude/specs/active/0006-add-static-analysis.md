@@ -124,3 +124,38 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
     * apps/researcher-ui/Dockerfile
     * apps/docs/Dockerfile
 
+**Decisions (Task 5):**
+
+* Yes, scan the `apps/` Dockerfiles: Trivy's misconfiguration scanner (`trivy config`) supports Dockerfiles but not docker-compose files, so compose files get `docker compose config` validation and a CVE scan of the images they reference.
+* One workflow, `.github/workflows/static-analysis-deploy-local.yml` (required job `Static Analysis (deploy-local)`), triggered by `deploy/local/**` and `apps/**/Dockerfile`.
+* `trivy config` blocks on HIGH/CRITICAL; ignored findings (e.g. LOW `HEALTHCHECK`, which Kubernetes replaces with probes) go in `.trivyignore` with reasons. Fix the root-user findings: non-root user in the admin-cli image, explicit `USER liquibase`, and `nginxinc/nginx-unprivileged` for docs (listens on 8080, so the Helm service port changes too).
+* `trivy image` CVE scanning (compose images and the Dockerfiles' base images) is non-blocking: weekly + manual runs with `--ignore-unfixed`, results uploaded as SARIF to GitHub code scanning. Every image currently has HIGH CVEs, including the latest Hydra release, so a blocking gate would be permanently red.
+* Also validate the Caddyfile (`caddy validate`, `caddy fmt --diff`) and remove the obsolete `version:` key from `docker-compose.yml`.
+* Pin Trivy to an exact version, run from a pinned image digest or a SHA-pinned action, never a tag (Trivy's actions were compromised in March 2026). Pin the `ghcr.io/astral-sh/uv` image in the admin-cli Dockerfile (Trivy doesn't check `COPY --from` images).
+* Out of scope: upgrading Kratos from `v0.9.0-alpha.2` (132 HIGH/CRITICAL CVEs on an EOL Alpine) is tracked as a separate ticket, kept in sync with the Helm chart.
+* **hadolint** added for the Dockerfiles (best practices plus ShellCheck of `RUN` lines; complements Trivy's security checks). Fails on warnings; `DL3018` (pin `apk` versions) is ignored with a reason in `.hadolint.yaml`, since Alpine drops superseded package versions. dclint was not added: `docker compose config` already validates the single compose file.
+* **One script, no local installs:** `scripts/refcloud-static-analysis-deploy-local.sh` (bash, so it runs on CI's Ubuntu runners and macOS) runs every check from a tool image pinned by version and digest (Trivy 0.76.2, hadolint 2.15.1, Caddy 2.11.9); CI calls the same script, one step per check. Checks: `compose`, `caddy`, `hadolint`, `trivy-config` (blocking) and `images` (report only). `.hadolint.yaml` and `.trivyignore` live at the repo root because they cover every Dockerfile.
+* **Fixes:** admin-cli runs as a non-root user (uid 10001) and pins `ghcr.io/astral-sh/uv:0.11.24` by digest; Liquibase states its base image's `WORKDIR /liquibase` and `USER liquibase`; docs uses `nginxinc/nginx-unprivileged` (uid 101, port 8080) and the Helm docs deployment/service now target 8080 (the service still listens on 80). `docker-compose.yml` drops the obsolete `version` key. All three images were built and smoke-tested.
+* **CVE workflow:** on schedule and manual runs only, a `list-images` job feeds a matrix (one job per image, since code scanning needs a distinct `category` per SARIF upload); each uploads Trivy SARIF (`--ignore-unfixed`, HIGH/CRITICAL) with `github/codeql-action/upload-sarif`, pinned to a commit SHA because that job holds a `security-events: write` token. Code scanning is free for public repositories.
+
+### Task 6 (draft): GitHub Actions workflow security
+
+* Pin every third-party action in `.github/workflows/` to a full commit SHA (with the version as a trailing comment) instead of a tag.
+* Add a Dependabot `github-actions` entry so the pinned SHAs are kept up to date.
+* Lint the workflows themselves with actionlint (syntax, expressions, shellcheck of `run:` steps) and zizmor (security: unpinned actions, template injection, excessive permissions), in a `.github/workflows/static-analysis-workflows.yml` triggered by `.github/**`.
+
+### Task 7 (draft): Secret scanning
+
+* Implements the objective's "prevent upload of sensitive credentials".
+* Enable GitHub secret scanning and push protection (repo settings).
+* Add gitleaks in CI (and optionally as a pre-commit hook) so secrets are also caught in commits pushed from anywhere; allowlist the dev-only default passwords in `deploy/local` and `deploy/helm`, each with a reason.
+
+### Task 8 (draft): Dependency audit for admin-cli
+
+* Ruff's `S` rules only check admin-cli's own code. Add a dependency CVE audit of `uv.lock` (e.g. `pip-audit` via a pinned `uvx`, or `trivy fs`) to `static-analysis-admin-cli.yml`, failing at high and above like the other apps, with a weekly run.
+
+### Task 9 (draft): Static analysis for the Helm chart
+
+* Scan `deploy/helm` with `trivy config` (already flags `KSV-0109`: Kratos and Hydra secrets in ConfigMaps), plus `helm lint` and template rendering checks, in its own workflow following the same conventions.
+* Note: `values.yaml` defines `livenessProbe`/`readinessProbe`, but no template uses them, so no deployment has probes. Wire them up (or remove the unused values).
+

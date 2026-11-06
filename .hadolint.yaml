@@ -1,0 +1,9 @@
+# hadolint config for every Dockerfile in the repo (run via ./scripts/refcloud-static-analysis-deploy-local.sh hadolint).
+# warnings and errors fail; info-level suggestions are reported only.
+failure-threshold: warning
+
+# every ignored rule needs a reason
+ignored:
+  # pin versions in `apk add`: alpine removes superseded package versions from its repositories, so pinned
+  # versions break builds within weeks. the base images are pinned instead
+  - DL3018

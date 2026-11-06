@@ -13,8 +13,11 @@ High-level bash/zsh scripts are located in the `scripts/` directory. Scripts inc
 * set up baseline resources (safe to re-run): `./scripts/refcloud-setup.sh` (`--reset` to start fresh)
 * run all refcloud services from source: `./scripts/refcloud-run-native.sh`
 * run all refcloud services in minikube via helm: `./scripts/refcloud-run-helm.sh` (`--down` to uninstall)
+* static analysis of `deploy/local` and the app Dockerfiles: `./scripts/refcloud-static-analysis-deploy-local.sh` (bash, needs only Docker; see `deploy/local/README.md`)
 
 Scripts are run from the repo root and share constants/functions in `scripts/lib/common.sh`.
+
+Each app's static analysis commands (lint, format, type check, security) are in its `README.md` and `CLAUDE.md`. Every check also runs in CI (`.github/workflows/static-analysis-*.yml`) with pinned tool versions, so local runs match CI.
 
 ## Repository Layout
 
