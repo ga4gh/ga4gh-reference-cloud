@@ -1,0 +1,45 @@
+# Dependabot version updates, tuned for as few PRs as possible: at most one grouped PR per ecosystem per month,
+# minor and patch updates only (major upgrades are deliberate, manual work).
+#
+# Security updates for vulnerable dependencies are separate: they are a repository setting
+# (Settings -> Advanced Security -> Dependabot security updates), not part of this file.
+#
+# Not covered (update by hand): versions pinned inside scripts and package.json scripts, e.g. the tool images
+# and digests in scripts/refcloud-static-analysis-*.sh and `uvx semgrep@...` in apps/*/package.json.
+# The Ory images in deploy/local/docker-compose.yml are left out on purpose: they must change together with
+# deploy/helm/charts/app/templates/_helpers.tpl, which Dependabot can't update.
+version: 2
+updates:
+  # every `uses:` in .github/workflows (pinned to commit SHAs; Dependabot updates the SHA and the version comment)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # skip versions published in the last week: a compromised release is usually caught and pulled by then
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # base images in the app Dockerfiles
+  - package-ecosystem: docker
+    directories:
+      - /apps/admin-cli
+      - /apps/core-api
+      - /apps/core-api/liquibase
+      - /apps/docs
+      - /apps/researcher-ui
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      docker-base-images:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

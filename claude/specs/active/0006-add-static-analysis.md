@@ -138,11 +138,19 @@ Note: Overall this is very similar to Task 2, just applied to the docs app.
 * **Fixes:** admin-cli runs as a non-root user (uid 10001) and pins `ghcr.io/astral-sh/uv:0.11.24` by digest; Liquibase states its base image's `WORKDIR /liquibase` and `USER liquibase`; docs uses `nginxinc/nginx-unprivileged` (uid 101, port 8080) and the Helm docs deployment/service now target 8080 (the service still listens on 80). `docker-compose.yml` drops the obsolete `version` key. All three images were built and smoke-tested.
 * **CVE workflow:** on schedule and manual runs only, a `list-images` job feeds a matrix (one job per image, since code scanning needs a distinct `category` per SARIF upload); each uploads Trivy SARIF (`--ignore-unfixed`, HIGH/CRITICAL) with `github/codeql-action/upload-sarif`, pinned to a commit SHA because that job holds a `security-events: write` token. Code scanning is free for public repositories.
 
-### Task 6 (draft): GitHub Actions workflow security
+### Task 6: GitHub Actions workflow security
 
 * Pin every third-party action in `.github/workflows/` to a full commit SHA (with the version as a trailing comment) instead of a tag.
 * Add a Dependabot `github-actions` entry so the pinned SHAs are kept up to date.
 * Lint the workflows themselves with actionlint (syntax, expressions, shellcheck of `run:` steps) and zizmor (security: unpinned actions, template injection, excessive permissions), in a `.github/workflows/static-analysis-workflows.yml` triggered by `.github/**`.
+
+**Decisions (Task 6):**
+
+* **Pinning:** every action (GitHub-owned ones included) is pinned to a full commit SHA with the version as a trailing comment, at the latest release within its current major, so behavior doesn't change. The Docker push workflows keep their older majors (`actions/checkout` v4, `docker/*` v3, `build-push-action` v6) for a later upgrade; `configure-aws-credentials` moved within v6 (6.1.0 to 6.3.0).
+* **Dependabot (`.github/dependabot.yml`), tuned for minimal PRs:** `github-actions` and `docker` (the app Dockerfiles' base images) only, each a single grouped PR per month, minor/patch only (majors are manual), with a 7-day cooldown on new releases. npm/uv/gradle version updates are not enabled. Not covered: versions pinned inside scripts (tool images and digests in `scripts/refcloud-static-analysis-*.sh`, `uvx semgrep@...`), and the Ory images in `docker-compose.yml`, which must change together with the Helm chart.
+* **zizmor fixes:** `persist-credentials: false` on every checkout (`artipacked`); the 5 Docker push callers pass `AWS_ACCOUNT_ID`, `AWS_REGION` and `AWS_ROLE_ARN` explicitly, declared under `workflow_call.secrets`, instead of `secrets: inherit`. The `self-repository` audit (GitHub's July 2026 `uses: $/...` syntax) is disabled with a reason in `.github/zizmor.yml`, because actionlint 1.7.12 rejects that syntax.
+* **Tooling:** `scripts/refcloud-static-analysis-workflows.sh` runs actionlint 1.7.12 and zizmor 1.32.0 from images pinned by digest (Docker only). zizmor also audits `dependabot.yml` and fails on any finding; its online audits run in CI with the read-only `github.token`, and offline locally unless `GH_TOKEN` is set.
+* **Workflow:** `static-analysis-workflows.yml`, triggered by `.github/**` and the script, with the required job `Static Analysis (workflows)`. Conventions are documented in `.github/workflows/README.md`.
 
 ### Task 7 (draft): Secret scanning
 

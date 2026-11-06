@@ -20,7 +20,7 @@ jobs:
       # scheduled and manual runs always check everything
       docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
     steps:
-      - uses: dorny/paths-filter@v4.0.3
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         if: github.event_name == 'pull_request'
         with:
@@ -47,16 +47,18 @@ jobs:
           echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
           exit 1
 
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24.15.0" # matches the Dockerfile
           cache: npm
           cache-dependency-path: apps/docs/package-lock.json
 
       # semgrep is a python tool, run via a pinned uvx (version in package.json's semgrep script)
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.11.24"
           enable-cache: true

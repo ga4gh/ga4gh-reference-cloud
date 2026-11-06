@@ -23,7 +23,7 @@ jobs:
       # scheduled and manual runs always check everything
       deploy-local: ${{ github.event_name != 'pull_request' || steps.filter.outputs.deploy-local == 'true' }}
     steps:
-      - uses: dorny/paths-filter@v4.0.3
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         if: github.event_name == 'pull_request'
         with:
@@ -50,7 +50,9 @@ jobs:
           echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
           exit 1
 
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # each check runs even if an earlier one fails, so a single run reports every problem
       - name: Validate docker compose file
@@ -77,7 +79,9 @@ jobs:
     outputs:
       images: ${{ steps.list.outputs.images }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - id: list
         run: echo "images=$(./scripts/refcloud-static-analysis-deploy-local.sh --list-images | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
 
@@ -95,7 +99,9 @@ jobs:
       matrix:
         image: ${{ fromJSON(needs.list-images.outputs.images) }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # report only: HIGH/CRITICAL CVEs with a fix available. the script never fails on findings
       - name: Scan image (trivy image)
