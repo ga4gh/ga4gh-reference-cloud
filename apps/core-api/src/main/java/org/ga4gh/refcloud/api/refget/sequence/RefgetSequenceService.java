@@ -14,7 +14,7 @@ import org.ga4gh.refcloud.api.exception.NotImplementedException;
 import org.ga4gh.refcloud.api.exception.RangeNotSatisfiableException;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.refget.RefgetConfig;
-import org.ga4gh.refcloud.api.refget.RefgetConfig.Sequence.ServiceInfo.ServiceInfoRefgetCustom;
+import org.ga4gh.refcloud.api.refget.RefgetConfig.Sequence.RefgetSequenceServiceInfo.ServiceInfoRefgetCustom;
 import org.ga4gh.refcloud.api.refget.sequence.RefgetSequenceContent.RequestType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

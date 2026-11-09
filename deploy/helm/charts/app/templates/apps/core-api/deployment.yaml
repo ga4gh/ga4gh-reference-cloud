@@ -137,4 +137,28 @@ spec:
               value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.environment }}
             - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_VERSION
               value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.version }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_BASEURL
+              value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ID
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.id | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_NAME
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.name | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_DESCRIPTION
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.description | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ORGANIZATION_NAME
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.organization.name | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ORGANIZATION_URL
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.organization.url | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_CONTACTURL
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.contactUrl | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_DOCUMENTATIONURL
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.documentationUrl | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_CREATEDAT
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.createdAt | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_UPDATEDAT
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.updatedAt | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ENVIRONMENT
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.environment | quote }}
+            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_VERSION
+              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.version | quote }}
       {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

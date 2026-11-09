@@ -1,7 +1,7 @@
 package org.ga4gh.refcloud.api.dataconnect.serviceinfo;
 
 import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig;
-import org.ga4gh.refcloud.api.dataconnect.DataConnectConfig.ServiceInfo;
+import org.ga4gh.refcloud.api.serviceinfo.StandardServiceInfo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +18,7 @@ public class DataConnectServiceInfoController {
     }
 
     @GetMapping
-    public ResponseEntity<ServiceInfo> getServiceInfo() {
+    public ResponseEntity<StandardServiceInfo> getServiceInfo() {
         return ResponseEntity.ok(dataConnectConfig.serviceInfo());
     }
 }
