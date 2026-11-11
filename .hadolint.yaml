@@ -7,3 +7,6 @@ ignored:
   # pin versions in `apk add`: alpine removes superseded package versions from its repositories, so pinned
   # versions break builds within weeks. the base images are pinned instead
   - DL3018
+  # pin versions in `apt-get install`: debian replaces package versions with security updates, so pinned versions
+  # stop resolving. the base images are pinned instead (same reasoning as DL3018)
+  - DL3008

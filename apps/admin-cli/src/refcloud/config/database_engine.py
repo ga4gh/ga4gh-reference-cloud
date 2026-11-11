@@ -29,6 +29,7 @@ class DatabaseEngine:
         self._passport_visa_table = self._metadata.tables["passport_visa"]
         self._passport_user_visa_assertion_table = self._metadata.tables["passport_user_visa_assertion"]
         self._compute_platform_table = self._metadata.tables["compute_platform"]
+        self._compute_platform_workflow_table = self._metadata.tables["compute_platform_workflow"]
         self._drs_object_table = self._metadata.tables["drs_object"]
         self._drs_object_alias_table = self._metadata.tables["drs_object_alias"]
         self._drs_object_checksum_table = self._metadata.tables["drs_object_checksum"]
@@ -157,6 +158,101 @@ class DatabaseEngine:
                 )
             )
             .values(current_status=to_status, current_status_at=func.now())
+        )
+        with self._engine.begin() as conn:
+            return conn.execute(stmt).rowcount == 1
+
+    def get_compute_platform(self, id):
+        stmt = select(self._compute_platform_table).where(self._compute_platform_table.c.id == id)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def get_compute_platform_by_name(self, name):
+        stmt = select(self._compute_platform_table).where(self._compute_platform_table.c.name == name)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def list_compute_platforms(self):
+        # every compute platform with its visa id and allowlist size
+        platform = self._compute_platform_table
+        visa = self._passport_visa_table
+        workflow = self._compute_platform_workflow_table
+        workflow_counts = (
+            select(workflow.c.compute_platform_id, func.count().label("workflow_count"))
+            .group_by(workflow.c.compute_platform_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                platform,
+                visa.c.id.label("visa_id"),
+                func.coalesce(workflow_counts.c.workflow_count, 0).label("workflow_count"),
+            )
+            .select_from(
+                platform.outerjoin(visa, visa.c.compute_platform_id == platform.c.id).outerjoin(
+                    workflow_counts, workflow_counts.c.compute_platform_id == platform.c.id
+                )
+            )
+            .order_by(platform.c.id)
+        )
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).all()
+
+    def insert_compute_platform_with_visa(self, platform, visa):
+        # one transaction: a compute platform always has its visa (no open-access compute)
+        with self._engine.begin() as conn:
+            conn.execute(insert(self._compute_platform_table).values(**platform))
+            conn.execute(insert(self._passport_visa_table).values(**visa))
+
+    def update_compute_platform(self, id, platform_values, visa_values=None):
+        # one transaction, so a renamed platform's visa is renamed with it
+        with self._engine.begin() as conn:
+            if platform_values:
+                conn.execute(
+                    update(self._compute_platform_table)
+                    .where(self._compute_platform_table.c.id == id)
+                    .values(**platform_values)
+                )
+            if visa_values:
+                conn.execute(
+                    update(self._passport_visa_table)
+                    .where(self._passport_visa_table.c.compute_platform_id == id)
+                    .values(**visa_values)
+                )
+
+    def delete_compute_platform(self, id):
+        # its visa (and so its access requests) and its allowlist are removed by ON DELETE CASCADE
+        stmt = delete(self._compute_platform_table).where(self._compute_platform_table.c.id == id)
+        with self._engine.begin() as conn:
+            conn.execute(stmt)
+
+    def list_compute_platform_workflows(self, compute_platform_id):
+        workflow = self._compute_platform_workflow_table
+        stmt = select(workflow).where(workflow.c.compute_platform_id == compute_platform_id).order_by(workflow.c.id)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).all()
+
+    def get_compute_platform_workflow_by_url(self, compute_platform_id, workflow_url):
+        workflow = self._compute_platform_workflow_table
+        stmt = select(workflow).where(
+            and_(workflow.c.compute_platform_id == compute_platform_id, workflow.c.workflow_url == workflow_url)
+        )
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def insert_compute_platform_workflow(self, **kwargs):
+        with self._engine.begin() as conn:
+            return conn.execute(
+                insert(self._compute_platform_workflow_table)
+                .values(**kwargs)
+                .returning(self._compute_platform_workflow_table.c.id)
+            ).scalar_one()
+
+    def delete_compute_platform_workflow(self, compute_platform_id, workflow_id):
+        # returns True if an entry was removed
+        workflow = self._compute_platform_workflow_table
+        stmt = delete(workflow).where(
+            and_(workflow.c.compute_platform_id == compute_platform_id, workflow.c.id == workflow_id)
         )
         with self._engine.begin() as conn:
             return conn.execute(stmt).rowcount == 1

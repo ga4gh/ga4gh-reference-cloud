@@ -11,6 +11,7 @@
 #     CLI would not see them
 #   * never put secrets here: name the environment variable that holds a credential (e.g. credential-env)
 #   * relative paths resolve from this file's directory
+#   * write keys in kebab-case (as below): core-api would also accept other spellings, but the admin CLI reads only these
 #   * sizes are in GB, durations in seconds, budgets in core-hours (CPU cores x wall-clock hours); omit an optional
 #     limit for "no limit"
 ga4gh:

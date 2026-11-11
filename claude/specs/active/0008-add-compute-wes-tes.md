@@ -316,18 +316,51 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
   * Like the timestamp migration, it rewrites the two tables, which briefly locks them during the upgrade.
   * To re-check the mapping at any time, run core-api once against a fully migrated database with `SPRING_JPA_HIBERNATE_DDL_AUTO=validate` (see `apps/core-api/CLAUDE.md`).
 
-### Task 4: Admin CLI: register and manage Compute Platforms (D5, D9, D20)
+### Task 4: Admin CLI: register and manage Compute Platforms (D5, D9, D11, D20, D21)
 
 * Add a `refcloud compute-platform` command group, modeled on `refcloud dataset`:
-  * `init`: create a platform with name, description, connection key, per-user limits, and a new visa.
-  * `delete` and `list`.
-  * `enable` / `disable`.
-  * `allowlist add` / `allowlist remove`, for git, TRS and bundled entries.
-* Validate limit values and allowlist entries: git entries must be pinned to a tag or commit, not a branch; TRS entries must name a version.
+  * `init`: create a platform (ID, name, description, connection key, optional per-user limits) **and its visa** (`ga4gh_visa:compute_platform:{id}`) in one transaction. New platforms start **disabled**.
+  * `list`: platforms with their connection (flagged if no longer in the connections file), enabled state, allowlist size, limits and visa.
+  * `update`: name (renames the visa too), description, connection, per-user limits (`none` clears one).
+  * `enable` / `disable`. Enabling needs the connection in the connections file and at least one allowlisted workflow, so a half-configured platform is never offered.
+  * `delete`, with confirmation. It cascades to the visa, access requests and allowlist.
+  * `allowlist add` / `allowlist list` / `allowlist remove`.
+* **Validate against the connections file** (Task 3): reject an unknown connection key, and any per-user limit above the connection's ceiling, on `init` and `update`.
+* **Allowlist sources (D20):** exactly one per entry.
+  * **git:** `--git-repository` + `--ref`. The ref is a tag or a full commit SHA. Tags are resolved to the commit with `git ls-remote` when the entry is added; branches and short SHAs are refused. `workflow_url` = GitHub's URL for the main script at that commit, `https://github.com/{owner}/{repo}/blob/{sha}/{main_script}`.
+  * **TRS:** `--trs-descriptor-url`. Parse the server, tool ID, version and type (it must match the platform's engine, `NFL`). Fetch the descriptor, take its `raw.githubusercontent.com` URL to find the GitHub repository, and resolve the version to a commit the same way. `workflow_url` = the canonical (consistently percent-encoded) descriptor URL.
+  * **bundled:** `--bundled {name}`. `bundled_path` = `compute/workflows/nextflow/{name}`, and `workflow_url` = `refcloud:bundled/{name}`.
+  * **Only GitHub-hosted repositories** are supported for git and TRS. Anything else gets a clear error saying other repository systems aren't supported yet.
+* **Engine settings (D21):** `--profile` (repeatable) and `--engine-env KEY=VALUE` (repeatable). The workflow type and version come from the connection's platform type.
 * Access requests are approved with the generic `refcloud visa` commands from Task 2.
 * Document the commands in `apps/admin-cli/README.md` and `apps/admin-cli/CLAUDE.md`.
+* There's no automated test setup in the admin CLI yet ("Testing: TBD"), so test by hand against a throwaway database.
 
 **Decisions (Task 4):**
+
+* **Code:**
+  * `config/compute_connections.py` reads the connections file (type and limits only, kebab-case keys; no file = no connections, like core-api). It adds **PyYAML** (`pyyaml>=6.0.3`) to the admin CLI's dependencies.
+  * `handlers/compute_platform/`: `__init__.py` (shared helpers; `fail()` is typed `NoReturn`), `manage.py` (init, list, update, enable, disable, delete), `allowlist.py`, and `sources.py` (git/TRS resolution).
+  * New `DatabaseEngine` methods for platforms and allowlist entries. The platform + visa insert, and a rename + visa rename, are single transactions.
+  * Names are pre-checked for uniqueness so the error is readable.
+* **git in the image:** `git ls-remote` (option (a)) needs git. The admin CLI runner image installs it with `apt-get install --no-install-recommends git`, and `.hadolint.yaml` ignores DL3008 (unpinned apt versions) for the same reason it ignores DL3018 for apk. `git` runs with a fixed argument list, no shell, and `GIT_TERMINAL_PROMPT=0`. The repository URL is validated as `https://github.com/...` first, so it can never be read as an option or a non-https transport.
+* **TRS fetches** use the standard library (`urllib`), https only.
+* **git is a host dependency** in native mode (the admin CLI runs `git ls-remote`), so the root `README.md` requirements table now has a git row. Nextflow is added to that table in Task 10.
+* **Tested by hand** against a throwaway Postgres 18 with every changeset, using the real `deploy/local/compute/connections.yml`:
+  * **init:** succeeds and creates the visa. Refused: bad ID, unknown connection, limit above ceiling (64 > 4 GB), zero, non-integer cores, `none` on init, duplicate ID, duplicate name.
+  * **allowlist add, all four kinds:**
+    * git by tag (`nf-core/demo` `1.0.2` → `db7f526…`, the same commit as the spike);
+    * TRS via Dockstore (→ the same commit);
+    * git by full SHA (with a `.git` suffix, normalized);
+    * bundled (warns that `drs-checksum` doesn't exist yet; Task 9 adds it).
+  * **allowlist add, refused:** branch (`master`), short SHA, unknown tag, GitLab repository, missing `--ref`, duplicate `workflow_url`, Dockstore-hosted (non-GitHub) TRS tool `#workflow/dockstore.org/grbot/flagstat`, WDL descriptor on a Nextflow platform, non-TRS URL, TRS version that's a branch (`dev`), bad bundled name, zero or two sources, bad `--engine-env`, `--ref` without git, unknown platform; `allowlist remove` of an unknown entry.
+  * **enable / update:** `enable` refused with an empty allowlist and with a missing connection. `update` clears and changes limits and is refused above the ceiling. A rename renames the visa. A name collision, no options, and an unknown connection are all refused.
+  * **Connections file:** `list` flags `MISSING` connections. Unknown type and missing limit in the file are clear errors.
+  * **delete:** the confirmation prompt aborts on "n". With `-y` it removes the platform, visa, pending request and allowlist and leaves other platforms alone. Deleting again is refused.
+  * **Docker image:** builds, `git ls-remote` works inside it as uid 10001, and hadolint and trivy-config pass.
+
+  ruff and pyright are clean.
+* **Helm:** no chart change is needed now. The admin-cli pod gets the connections file with the stage 2 chart wiring (Future Directions).
 
 ### Task 5: WES and TES service-info, health, and a dynamic service registry (D6, D10)
 
@@ -478,4 +511,5 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
 * A researcher UI page listing the user's runs, their states and output downloads. Stage 1 exposes these through WES only.
 * Dataset visa IDs: consider a typed format such as `ga4gh:dataset:{dataset_id}` (today `ga4gh_visa:{dataset_id}`), alongside `ga4gh_visa:compute_platform:{platform_id}`. Tabled for a future ticket; it needs a data migration for existing visas and their assertions.
 * Run Hibernate schema validation in CI: a job with a Postgres service that applies the changelog and boots core-api with `ddl-auto: validate`, so entity/column drift fails the build. The whole schema validates as of Task 3.
+* Allowlist sources hosted outside GitHub (GitLab, Bitbucket, Dockstore-hosted tools): each needs its own repository URL parsing and `workflow_url` format. Today they get a clear "not supported yet" error (Task 4).
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.

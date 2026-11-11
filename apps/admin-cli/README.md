@@ -28,6 +28,34 @@ The dataset commands can be used to manage the lifecycle of preconfigured datase
 | `reset` | `uv run refcloud dataset reset -d {dataset_id}` | Removes data from an existing dataset, preserving the dataset itself as well as the researchers authorized to access it. |
 | `delete` | `uv run refcloud dataset delete -d {dataset_id}` | Deletes a dataset, including all associated data objects and researcher authorizations. |
 
+### Compute Platform Commands
+
+A compute platform is a visa-gated WES/TES service that researchers can request access to, backed by a **connection** (an engine + executor setup and its pooled limits) defined in the connections file (see Configuration). The commands check every platform against that file: an unknown connection, or a per-user limit above the connection's ceiling, is refused.
+
+| Command | Example | Explanation |
+|-|-|-|
+| `init` | `uv run refcloud compute-platform init -p nextflow-demo --name "Nextflow Demo" --description "..." --connection nextflow-funnel-docker-local --max-concurrent-runs 2` | Creates a platform and its visa (`ga4gh_visa:compute_platform:{id}`). It starts **disabled**. Per-user limits are optional (unset = only the connection's ceiling applies): `--max-concurrent-runs`, `--max-task-cpu-cores`, `--max-task-memory-gb`, `--max-task-disk-gb`, `--max-run-duration-seconds`, `--monthly-core-hours`. |
+| `list` | `uv run refcloud compute-platform list` | Lists platforms with their connection (flagged `MISSING` if it's no longer in the connections file), enabled state, allowlist size, per-user limits and visa. |
+| `update` | `uv run refcloud compute-platform update -p nextflow-demo --max-task-memory-gb 2 --max-concurrent-runs none` | Changes the name (its visa is renamed too), description, connection or per-user limits. `none` clears a limit. |
+| `enable` / `disable` | `uv run refcloud compute-platform enable -p nextflow-demo` | Offers or stops offering a platform to researchers. Enabling needs the platform's connection in the connections file and at least one allowlisted workflow. |
+| `delete` | `uv run refcloud compute-platform delete -p nextflow-demo` | Deletes a platform with its visa, every researcher's access request for it, and its allowlist (asks for confirmation; `-y` skips it). |
+| `allowlist add` | see below | Allowlists a workflow, pinned to a commit. |
+| `allowlist list` | `uv run refcloud compute-platform allowlist list -p nextflow-demo` | Lists allowlisted workflows, what each is pinned to, its engine settings, and the exact `workflow_url` researchers submit. |
+| `allowlist remove` | `uv run refcloud compute-platform allowlist remove -p nextflow-demo -w 3` | Removes an entry by its ID (from `allowlist list`). |
+
+Researchers can only run allowlisted workflows, and a WES submission's `workflow_url` must match an entry exactly. Each entry comes from exactly one source:
+
+| Source | Example | `workflow_url` researchers submit |
+|-|-|-|
+| git (GitHub) | `--git-repository https://github.com/nf-core/demo --ref 1.0.2` | `https://github.com/nf-core/demo/blob/{commit}/main.nf` |
+| TRS (e.g. Dockstore; GitHub-hosted workflows only) | `--trs-descriptor-url 'https://dockstore.org/api/ga4gh/trs/v2/tools/%23workflow%2Fgithub.com%2Fnf-core%2Fdemo/versions/1.0.2/NFL/descriptor'` | the descriptor URL |
+| bundled (shipped in `compute/workflows/nextflow/`) | `--bundled drs-checksum` | `refcloud:bundled/drs-checksum` |
+
+* `--ref` is a tag or a full 40-character commit sha. Tags (and TRS versions) are resolved to their commit when the entry is added, using `git ls-remote`, so **git must be installed**. Branches are refused because they move.
+* `--main-script` (default `main.nf`) sets the main script for git and TRS sources.
+* Engine settings are fixed by the admin, not the researcher: repeat `--profile test` for engine profiles, and `--engine-env NXF_SYNTAX_PARSER=v1` for engine environment variables.
+* Only GitHub-hosted repositories are currently supported; other repository systems (e.g. GitLab, Bitbucket) are refused with an error.
+
 ### Visa Commands
 
 Researchers request access to a controlled resource (e.g. a dataset) through the researcher UI. Each request is tied to the resource's passport visa and starts as `Requested`. The visa commands let an admin see every visa in the refcloud and process those requests:
@@ -77,3 +105,4 @@ Configure the CLI via the following environment variables:
 | `POSTGRES_DB` | PostgreSQL database name | `refcloudapi` |
 | `POSTGRES_USER` | PostgreSQL user name | `refcloudapi` |
 | `POSTGRES_PASSWORD` | PostgreSQL user password | `secret` |
+| `REFCLOUD_COMPUTE_CONNECTIONS_FILE` | Compute connections file, shared with core-api | `../../deploy/local/compute/connections.yml` |

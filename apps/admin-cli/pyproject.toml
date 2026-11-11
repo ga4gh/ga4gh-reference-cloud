@@ -11,6 +11,7 @@ dependencies = [
     "boto3>=1.43.36",
     "click>=8.4.2",
     "psycopg[binary]>=3.3.4",
+    "pyyaml>=6.0.3",
     "sqlalchemy>=2.0.51",
 ]
 
