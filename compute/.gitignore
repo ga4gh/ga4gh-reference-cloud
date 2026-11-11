@@ -1,0 +1,5 @@
+# compute storage is runtime data (per platform type, e.g. nextflow-funnel-docker/): never track it.
+# only bundled workflows and this file are tracked. see claude/specs/active/0008-add-compute-wes-tes.md (Task 10)
+/*
+!/.gitignore
+!/workflows/
