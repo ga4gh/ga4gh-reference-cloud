@@ -28,6 +28,7 @@ class DatabaseEngine:
         self._dataset_tag_table = self._metadata.tables["dataset_tag"]
         self._passport_visa_table = self._metadata.tables["passport_visa"]
         self._passport_user_visa_assertion_table = self._metadata.tables["passport_user_visa_assertion"]
+        self._compute_platform_table = self._metadata.tables["compute_platform"]
         self._drs_object_table = self._metadata.tables["drs_object"]
         self._drs_object_alias_table = self._metadata.tables["drs_object_alias"]
         self._drs_object_checksum_table = self._metadata.tables["drs_object_checksum"]
@@ -73,9 +74,11 @@ class DatabaseEngine:
         return self._insert(self._passport_visa_table, **kwargs)
 
     def list_visas(self):
-        # every visa with the dataset it gates, plus a count of its access requests by status
+        # every visa with the one resource it gates (a dataset or a compute platform), plus a count of its access
+        # requests by status
         visa = self._passport_visa_table
         dataset = self._dataset_table
+        compute_platform = self._compute_platform_table
         assertion = self._passport_user_visa_assertion_table
         counts = (
             select(assertion.c.visa_id, assertion.c.current_status, func.count().label("count"))
@@ -89,8 +92,14 @@ class DatabaseEngine:
                 visa.c.description,
                 visa.c.dataset_id,
                 dataset.c.name.label("dataset_name"),
+                visa.c.compute_platform_id,
+                compute_platform.c.name.label("compute_platform_name"),
             )
-            .select_from(visa.outerjoin(dataset, visa.c.dataset_id == dataset.c.id))
+            .select_from(
+                visa.outerjoin(dataset, visa.c.dataset_id == dataset.c.id).outerjoin(
+                    compute_platform, visa.c.compute_platform_id == compute_platform.c.id
+                )
+            )
             .order_by(visa.c.id)
         )
         counts_stmt = select(counts.c.visa_id, counts.c.current_status, counts.c.count)

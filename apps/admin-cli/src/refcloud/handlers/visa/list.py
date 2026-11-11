@@ -36,6 +36,7 @@ def visa_list():
 
 def gated_resource(visa):
     """Describe the one resource a visa gates"""
+    # the database guarantees exactly one of these is set
     if visa.dataset_id is not None:
         return f"dataset: {visa.dataset_id} ({visa.dataset_name})"
-    return "none"
+    return f"compute platform: {visa.compute_platform_id} ({visa.compute_platform_name})"

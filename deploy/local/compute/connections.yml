@@ -1,0 +1,46 @@
+# Compute connections for local native mode.
+#
+# A connection describes how to reach one engine + executor setup on some compute infrastructure, plus the
+# deployer's pooled limits for it (D9, D11 in claude/discussions/0000-about-adding-compute.md). Admins register
+# Compute Platforms (the visa-gated catalog records researchers see) against a connection by its key, with
+# `refcloud compute-platform init`.
+#
+# This one file is read by both core-api (spring.config.import) and the admin CLI, via REFCLOUD_COMPUTE_CONNECTIONS_FILE
+# (default: this file). Rules:
+#   * define connections only here; per-property environment variable overrides are not supported, since the admin
+#     CLI would not see them
+#   * never put secrets here: name the environment variable that holds a credential (e.g. credential-env)
+#   * relative paths resolve from this file's directory
+#   * sizes are in GB, durations in seconds, budgets in core-hours (CPU cores x wall-clock hours); omit an optional
+#     limit for "no limit"
+ga4gh:
+  refcloud:
+    compute:
+      connections:
+        nextflow-funnel-docker-local:
+          # platform type (D14): nextflow engine, funnel executor, docker on this machine
+          type: nextflow-funnel-docker
+          engine:
+            # nextflow runs natively on the host; it must be on the PATH (see the README requirements)
+            nextflow-executable: nextflow
+            nextflow-version: 26.10.5
+            nf-ga4gh-version: 1.5.0
+          executor:
+            # funnel's TES API (docker compose service, deploy/local/docker-compose.yml). local funnel has no auth,
+            # so no credential-env
+            tes-url: http://localhost:8000
+          storage:
+            type: shared-filesystem
+            # git-ignored (compute/.gitignore). funnel mounts it at the same absolute path
+            root: ../../../compute/nextflow-funnel-docker
+          # pooled limits for everyone on this connection (D11). sized for a laptop
+          limits:
+            max-concurrent-runs: 4
+            max-tasks-in-flight: 8
+            max-cpu-cores-in-flight: 8
+            max-memory-gb-in-flight: 8
+            max-task-cpu-cores: 4
+            max-task-memory-gb: 4
+            max-task-disk-gb: 20
+            max-run-duration-seconds: 3600
+            # monthly-core-hours-budget: 100

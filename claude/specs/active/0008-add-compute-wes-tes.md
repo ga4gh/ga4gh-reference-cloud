@@ -230,30 +230,91 @@ D7 (revised 2026-11-11): a visa points at the one resource it gates. It belongs 
   `ruff format`, `ruff check` and `pyright` are clean.
 * **Docs:** `apps/admin-cli/README.md` ("Visa Commands") and `apps/admin-cli/CLAUDE.md`.
 
-### Task 3: Connections config and the Compute Platform data model (D9, D11, D14, D15, D20)
+### Task 3: Connections config and the Compute Platform data model (D7, D9, D11, D14, D15, D20, D21)
 
-* **Connections** live in core-api config (`ga4gh.refcloud.compute.connections.<key>`), loaded into a `@ConfigurationProperties` record and overridable through environment variables like other config. Each connection has:
-  * `type`: the platform type, `nextflow-funnel-docker` only in stage 1. An unknown type fails startup, since that's a deployer error.
-  * Engine launch settings: path to the `nextflow` executable, Nextflow and nf-ga4gh versions.
-  * Executor settings: Funnel TES URL and its service credential, if any.
-  * `storage`: `type: shared-filesystem` (the only value in stage 1, but the setting exists from the start, D15) and `root` (default for local: `<repo>/compute/nextflow-funnel-docker`).
-  * Connection (pooled) limits from the D11 table: total concurrent runs, total tasks / CPU / memory in flight, the largest per-task CPU, RAM and disk, the longest run duration, and an optional monthly compute-hours budget.
-* **Database tables** (Liquibase), with names to be confirmed during the task:
-  * `compute_platform`: id, name, description, `connection_key`, enabled, and the per-user limits from the D11 table (concurrent runs, per-task CPU/RAM/disk, max run duration, monthly compute-hours quota).
+Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflow allowlist, and the visa changeset. `compute_run` and `compute_task` are created in the tasks that first use them (6–8), so their shape comes from working code. Production can't be reset, so every later shape change would need another changeset.
+
+* **Connections file (D9).** Connections are defined in one YAML file, `connections.yml`, read by **both** core-api and the admin CLI, so the CLI can validate platforms against them.
+  * **Location:** the env var `REFCLOUD_COMPUTE_CONNECTIONS_FILE`. The local default is `deploy/local/compute/connections.yml`; in helm, a mounted ConfigMap (stage 2).
+  * **core-api** loads it with `spring.config.import: optional:file:${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}`. Keys nest under `ga4gh.refcloud.compute.connections.<key>` and bind to a `@ConfigurationProperties` record. `optional:` means a missing file gives no connections (compute off), which helm mode relies on in stage 1. A malformed connection or an unknown `type` fails startup.
+  * **The admin CLI** reads the same file through the same env var, with the equivalent default path from `apps/admin-cli`.
+  * **Defined only in the file:** no per-property env var overrides, which the CLI wouldn't see. Secrets are the exception: the file names the **environment variable** holding each credential, and only the app that needs it reads it.
+  * **Relative paths** in the file (e.g. the storage root) resolve from the file's own directory, so both apps get the same absolute path.
+  * **Each connection has:**
+    * `type`: the platform type; `nextflow-funnel-docker` only in stage 1.
+    * Engine settings: path to the `nextflow` executable, Nextflow and nf-ga4gh versions.
+    * Executor settings: Funnel TES URL and, optionally, the env var name of its credential.
+    * `storage`: `type: shared-filesystem` (the only value in stage 1, but the setting exists from the start, D15) and `root`.
+    * Connection (pooled) limits from the D11 table: total concurrent runs, total tasks / CPU / memory in flight, the largest per-task CPU, RAM and disk, the longest run duration, and an optional monthly core-hours budget.
+  * **Ship** `deploy/local/compute/connections.yml` with the local `nextflow-funnel-docker` connection.
+* **Database tables** (Liquibase; all new timestamp columns `timestamptz`):
+  * `compute_platform`:
+    * `id`: lowercase letters, digits and hyphens, `^[a-z0-9][a-z0-9-]{0,62}$`, e.g. `nextflow-demo`. It's used in URL paths (`/ga4gh/wes/{platformId}/v1`) and service-info IDs.
+    * name, description, `connection_key`, enabled.
+    * Per-user limits from the D11 table, each nullable (null = no per-user cap, so only the connection ceiling applies): concurrent runs, per-task CPU (cores), RAM and disk (GB), max run duration (seconds), and a monthly **core-hours** quota (CPU cores × wall-clock hours, summed over a user's tasks).
+  * **Every Compute Platform has a visa** (no open-access compute). Its visa ID is `ga4gh_visa:compute_platform:{platform_id}`.
   * `passport_visa` changes (D7), in **one new changeset** so the database never allows a visa that gates nothing:
     * drop `NOT NULL` from `passport_visa.dataset_id` (moved here from Task 2);
     * add `passport_visa.compute_platform_id` (FK to `compute_platform.id`, `ON DELETE CASCADE` like `dataset_id`, unique, nullable);
     * add a check constraint that exactly one of `dataset_id` and `compute_platform_id` is set.
 
     Verify it applies to an existing database with data. The admin CLI creates the platform's visa together with the platform. Extend `refcloud visa list` to show `compute platform: <id> (<name>)` in its GATES column.
-  * `compute_platform_workflow`: the allowlist (D20). Each entry has a source kind (`git`, `trs`, `bundled`), the exact `workflow_url` a submission must match, a name and description, the workflow type and version, and the resolution data needed to run it (repo plus pinned revision plus main script path; TRS server, tool ID and version; or bundled path).
-    * Each entry also holds its **engine settings** (D21), set by the admin: e.g. Nextflow profiles (`-profile test`) and engine environment variables such as `NXF_SYNTAX_PARSER=v1`. Researchers can't change them.
-  * `compute_run`: run ID, platform, user (`sub`), state, the WES request, start and end times, a hash of the run-scoped TES credential (D12), and the run directory.
-  * `compute_task`: a TES task in the refcloud linked to the run (nullable for direct TES clients), the user, the Funnel task ID, state, requested resources, start and end times, and computed compute-hours.
-* **Ceiling rule (D11):** a platform's per-user limits can't exceed its connection's ceilings. The admin CLI writes to the database directly and can't see core-api's config, so core-api always applies the lower of the two at runtime. Pick how the CLI validates and record it here. Options: the CLI reads the same connection config, or core-api reports out-of-range limits through health/logs and clamps them.
-* A `compute_platform` whose `connection_key` isn't in config is reported unhealthy (D10). It doesn't fail startup.
+  * `compute_platform_workflow`: the allowlist (D20, D21). One table with typed columns per source kind (not a JSON blob), plus check constraints that each kind has its required fields:
+    * git: repository URL, pinned commit, main script path;
+    * TRS: server URL, tool ID, version ID;
+    * bundled: path.
+
+    Every entry also has: the exact `workflow_url` a submission must match (unique per platform), a name and description, the workflow type and version, and its **engine settings** (D21), set by the admin: Nextflow profiles (a list) and engine environment variables (a map, e.g. `NXF_SYNTAX_PARSER=v1`). Researchers can't change them.
+* **Ceiling rule (D11):** the admin CLI reads the connections file. When a platform is registered or changed, it rejects an unknown `connection_key` and any per-user limit above the connection's ceiling (Task 4). core-api still applies the lower of the two at runtime, in case the file changed after registration.
+* A `compute_platform` whose `connection_key` isn't in the connections file is reported unhealthy (D10). It doesn't fail startup.
 
 **Decisions (Task 3):**
+
+* **Connections config (core-api, `compute/` package):**
+  * `ComputeConfig` (`ga4gh.refcloud.compute`) is `@Validated`. It has `connectionsFile` and `connections`, a map keyed by connection key (same format as platform IDs). Each `Connection` has `type` (`ComputePlatformType`), `engine`, `executor` (`tesUrl`, optional `credentialEnv`), `storage` (`type`, `root`) and `limits` (`monthlyCoreHoursBudget` optional, the rest required and positive).
+  * An unknown `type` or storage `type` fails binding, so startup fails. Spring's lenient enum binding maps `nextflow-funnel-docker` to `NEXTFLOW_FUNNEL_DOCKER`.
+  * `ComputeConnections` looks connections up and resolves `storage.root` from the connections file's directory. It logs at startup which connections were loaded, or that compute is off.
+  * `application.yml`: `spring.config.import: optional:file:${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}`, plus `ga4gh.refcloud.compute.connections-file` with the same expression, so core-api knows the file's location for path resolution. The two must stay in sync; a comment says so.
+* **`deploy/local/compute/connections.yml`** defines one connection, `nextflow-funnel-docker-local`: Nextflow 26.10.5 + nf-ga4gh 1.5.0, Funnel at `http://localhost:8000`, storage root `../../../compute/nextflow-funnel-docker` (that is, `<repo>/compute/nextflow-funnel-docker`), and laptop-sized pooled limits. The file's header documents its rules.
+* **Liquibase:** four new changesets, all in raw SQL with rollbacks:
+  * `create-table-compute-platform`:
+    * a check on the ID format (`^[a-z0-9][a-z0-9-]{0,62}$`) and that set limits are positive;
+    * a unique name;
+    * the shared `set_updated_at` trigger.
+  * `modify-tb-passport-visa-gates-exactly-one-dataset-or-compute-platform`:
+    * `dataset_id` becomes nullable;
+    * adds `compute_platform_id` (FK with cascade, unique) and `CHECK (num_nonnulls(dataset_id, compute_platform_id) = 1)`;
+    * its rollback deletes compute-platform visas first, since they can't exist without the column.
+  * `create-enum-compute-workflow-source-kind` (`git`, `trs`, `bundled`).
+  * `create-table-compute-platform-workflow`:
+    * per-kind source-field checks;
+    * `workflow_url` unique per platform;
+    * `engine_profiles TEXT[]` and `engine_env JSONB`, which must be an object.
+
+    TRS entries carry both the TRS reference and the resolved git repository and commit (Task 1). A commit must be a full 40-character SHA.
+* **NULL-passing check fixed during testing:** a Postgres `CHECK` that evaluates to `NULL` passes, so a git or TRS entry with a NULL `git_commit` slipped through the regex test. The source-fields check now uses explicit `num_nulls(...) = 0` and wraps the `CASE` in `COALESCE(..., FALSE)`. Any future check using a regex or comparison on a nullable column needs the same care.
+* **Entities** (core-api reads them; the admin CLI writes them):
+  * `ComputePlatform` and `ComputePlatformRepository`;
+  * `ComputePlatformWorkflow` (`NAMED_ENUM` source kind, `ARRAY` profiles, `JSON` env) and `ComputePlatformWorkflowRepository`;
+  * `ComputeWorkflowSourceKind`;
+  * `PassportVisa.computePlatform` (`@OneToOne`).
+
+  No existing code assumed every visa has a dataset (all lookups go dataset → visa), so nothing else changed.
+* **Admin CLI:** `visa list` shows `compute platform: <id> (<name>)` in GATES. Reading `connections.yml` and validating platforms against it come with the platform commands in Task 4.
+* **Tested:**
+  * **Migration on existing data** (throwaway Postgres 18): applied the 49 earlier changesets, inserted a dataset visa with an approved request, then applied the 4 new ones. The existing visa and approval were untouched.
+  * **Constraints:** every one was exercised: bad platform ID, non-positive limit, a visa gating neither or both, a second visa for one platform, git with a branch name, git or TRS with a NULL commit, TRS missing its version, bundled with git fields, duplicate `workflow_url`, non-object `engine_env`. The `updated_at` trigger fires.
+  * **Rollback** of the 4 changesets removes the platform visa and its request, keeps the dataset visa, restores `NOT NULL` and drops the tables. Re-applying works.
+  * **JPA mappings:** a temporary TestNG check (deleted after use) booted core-api against that database. It confirmed the connections import from the real file, the storage root resolution, every platform field, the visa ↔ platform link in both directions, the enum, `text[]`, `jsonb` and `Instant` mappings.
+  * **Unit tests:** `ComputeConfigTest` (10 tests) binds the real local file and inline configs, and covers: validation of the real file; storage root resolution (relative and absolute); no connections; unknown platform or storage type failing to bind; a missing or non-positive limit; an invalid connection key.
+  * **Admin CLI:** `visa list` and `visa approve` work on a platform visa.
+
+  `./gradlew staticAnalysis` passes, 105 core-api tests pass, and ruff and pyright are clean.
+* **Schema drift fixed** (found while testing Task 3; fixed at the user's request). Hibernate schema validation (`ddl-auto: validate`) found exactly two mismatches across the whole schema: `aws_s3_access_object.id` and `drs_object_checksum.id` were `INTEGER` identity columns, but both entities use `Long`.
+  * New changeset `modify-type-identity-ids-bigint` widens both to `BIGINT`. Postgres widens their identity sequences with them. It has a rollback.
+  * Tested on a database with existing rows: IDs are kept, new rows continue the sequence, and the **entire schema now passes `ddl-auto: validate`**. Rollback restores `INTEGER` with IDs intact, and re-applying works.
+  * Like the timestamp migration, it rewrites the two tables, which briefly locks them during the upgrade.
+  * To re-check the mapping at any time, run core-api once against a fully migrated database with `SPRING_JPA_HIBERNATE_DDL_AUTO=validate` (see `apps/core-api/CLAUDE.md`).
 
 ### Task 4: Admin CLI: register and manage Compute Platforms (D5, D9, D20)
 
@@ -282,6 +343,7 @@ D7 (revised 2026-11-11): a visa points at the one resource it gates. It belongs 
   Platforms on the same connection share its result. Connection health stays out of `/actuator/health/liveness` and `/readiness`.
 * **503 rule:** every WES/TES request to an unhealthy or disabled platform returns `503` with a GA4GH error body, except `service-info`. Unknown platform IDs return `404`.
 * **Service registry:** `ServiceRegistryService` becomes dynamic. It lists the existing static services plus a WES and a TES service for each registered platform, whatever their health. `/services/{serviceId}` and `/services/types` include them.
+* **Ingress:** add `/ga4gh/wes/*` and `/ga4gh/tes/*` handle blocks to `deploy/local/Caddyfile`, and the same paths to the Helm ingress (`deploy/helm/charts/app/templates/common/ingress.yaml`). Without them, browser and client traffic falls through to Next.js and gets a 404 (see `deploy/local/CLAUDE.md`).
 * **Security:** add the new paths to `SecurityConfig`. `service-info` is public, like the other services. Everything else needs a Hydra JWT (or the run-scoped credential for TES, Task 6), with a `@PreAuthorize` check that the caller holds the platform's visa.
 
 **Decisions (Task 5):**
@@ -405,6 +467,15 @@ D7 (revised 2026-11-11): a visa points at the one resource it gates. It belongs 
 ## Future Directions
 
 * Stage 2: Nextflow + Funnel (Kubernetes) in helm mode with a `hostPath` volume, including discussion doc spike items 3 and 7 (D16).
+  * **Helm chart wiring for connections:**
+    * a `compute.connections` value (default empty);
+    * a ConfigMap template that renders `connections.yml` from it (only when non-empty);
+    * mounting it into the core-api and admin-cli Deployments, with `REFCLOUD_COMPUTE_CONNECTIONS_FILE` pointing at it;
+    * environment variables from Kubernetes Secrets for connection credentials (created like the existing secrets in `deploy/helm/README.md`).
+
+    Production connections go in the deployer's own values file, passed with `-f`. For the GA4GH refcloud, that's the existing private values repo. This repo carries only the chart wiring and a commented example.
 * Stage 3: MinIO/S3 storage as a connection setting for both platform types (D15, D16).
 * A researcher UI page listing the user's runs, their states and output downloads. Stage 1 exposes these through WES only.
+* Dataset visa IDs: consider a typed format such as `ga4gh:dataset:{dataset_id}` (today `ga4gh_visa:{dataset_id}`), alongside `ga4gh_visa:compute_platform:{platform_id}`. Tabled for a future ticket; it needs a data migration for existing visas and their assertions.
+* Run Hibernate schema validation in CI: a job with a Postgres service that applies the changelog and boots core-api with `ddl-auto: validate`, so entity/column drift fails the build. The whole schema validates as of Task 3.
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.

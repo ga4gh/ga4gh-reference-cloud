@@ -12,6 +12,7 @@ This repo serves to provide configuration for the local deployment context
 * `docker-compose.yml` - compose file for spinning up dependency services
 * `ory/hydra` - config files for deployment of Ory Hydra 
 * `ory/kratos` - config files for deployment of Ory Kratos
+* `compute/connections.yml` - compute connections for native mode, read by both core-api and the admin CLI (`REFCLOUD_COMPUTE_CONNECTIONS_FILE`). Only connections go here: no secrets (name the environment variable instead), no per-property env overrides, and relative paths resolve from this file's directory
 
 ---
 

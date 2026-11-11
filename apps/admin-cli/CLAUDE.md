@@ -34,7 +34,7 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 * Onboard reference data to a dataset: `uv run refcloud dataset onboard -d {DATASET_ID}`
 * Delete an existing dataset: `uv run refcloud dataset delete -d {DATASET_ID}`
 * Reset a dataset (delete all data, preserve dataset and passport visas): `uv run refcloud dataset reset -d {DATASET_ID}`
-* List all visas, what each gates, and request counts by status: `uv run refcloud visa list`
+* List all visas, what each gates (a dataset or a compute platform; the database guarantees exactly one), and request counts by status: `uv run refcloud visa list`
 * List access requests (default `Requested`; `-s {status|all}`, `-v {VISA_ID}`): `uv run refcloud visa list-requests`
 * Approve / deny / revoke an access request: `uv run refcloud visa {approve|deny|revoke} -u {USER_ID} -v {VISA_ID}`. Allowed transitions live in `TRANSITIONS` (`handlers/visa/status.py`): approve from Requested, Denied or Revoked; deny from Requested; revoke from Approved. The update re-checks the status in the same statement, so concurrent admins can't double-apply a transition.
 

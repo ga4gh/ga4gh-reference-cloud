@@ -7,6 +7,7 @@ Configuration for running the reference cloud's dependency services and ingress 
 * `docker-compose.yml` - dependency services (Ory Kratos, Ory Hydra)
 * `Caddyfile` - Caddy ingress for `https://refcloud.ga4gh.localhost` and `https://docs.refcloud.ga4gh.localhost`
 * `ory/` - Kratos and Hydra configuration
+* `compute/connections.yml` - compute connections (engine + executor + storage + pooled limits) for native mode, read by core-api and the admin CLI
 
 ## Static Analysis
 

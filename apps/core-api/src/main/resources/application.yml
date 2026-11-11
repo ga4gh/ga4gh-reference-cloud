@@ -1,4 +1,9 @@
 spring:
+  config:
+    # compute connections (deploy/local/compute/connections.yml locally; a mounted ConfigMap in helm). optional:
+    # a missing file means no connections, so compute is off. keep the path in sync with
+    # ga4gh.refcloud.compute.connections-file below
+    import: optional:file:${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}
   servlet:
     multipart:
       max-file-size: 256MB
@@ -160,3 +165,7 @@ ga4gh:
         updated-at: 2026-11-09T12:00:00Z
         environment: dev
         version: v0.1.0
+    compute:
+      # the file imported by spring.config.import above, also read by the admin CLI. its connections bind to
+      # ga4gh.refcloud.compute.connections; relative paths in it (e.g. a storage root) resolve from its directory
+      connections-file: ${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}

@@ -429,4 +429,156 @@
             </sql>
         </rollback>
     </changeSet>
+    <!--
+        compute platforms (claude/specs/active/0008-add-compute-wes-tes.md, Task 3): an admin-registered,
+        visa-gated catalog record that points at a connection (engine + executor + infrastructure) defined in
+        connections.yml. the per-user limits are nullable: null means no per-user cap, so only the connection's
+        pooled ceiling applies
+    -->
+    <changeSet author="jadams" id="create-table-compute-platform">
+        <sql dbms="postgresql">
+            CREATE TABLE compute_platform (
+                id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                connection_key TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                user_max_concurrent_runs INTEGER,
+                user_max_task_cpu_cores INTEGER,
+                user_max_task_memory_gb NUMERIC,
+                user_max_task_disk_gb NUMERIC,
+                user_max_run_duration_seconds INTEGER,
+                user_monthly_core_hours NUMERIC,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT compute_platform_pkey PRIMARY KEY (id),
+                CONSTRAINT compute_platform_name_key UNIQUE (name),
+                -- used in url paths (/ga4gh/wes/{platformId}/v1) and service-info ids
+                CONSTRAINT compute_platform_id_format_check CHECK (id ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
+                CONSTRAINT compute_platform_user_limits_positive_check CHECK (
+                    (user_max_concurrent_runs IS NULL OR user_max_concurrent_runs > 0)
+                    AND (user_max_task_cpu_cores IS NULL OR user_max_task_cpu_cores > 0)
+                    AND (user_max_task_memory_gb IS NULL OR user_max_task_memory_gb > 0)
+                    AND (user_max_task_disk_gb IS NULL OR user_max_task_disk_gb > 0)
+                    AND (user_max_run_duration_seconds IS NULL OR user_max_run_duration_seconds > 0)
+                    AND (user_monthly_core_hours IS NULL OR user_monthly_core_hours > 0)
+                )
+            );
+            CREATE TRIGGER compute_platform_set_updated_at
+                BEFORE UPDATE ON compute_platform
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        </sql>
+        <rollback>
+            <sql>DROP TABLE compute_platform;</sql>
+        </rollback>
+    </changeSet>
+    <!--
+        a visa gates exactly one resource: a dataset or a compute platform, never neither and never both (D7).
+        one changeset, so the database never allows a visa that gates nothing
+    -->
+    <changeSet author="jadams" id="modify-tb-passport-visa-gates-exactly-one-dataset-or-compute-platform">
+        <sql dbms="postgresql">
+            ALTER TABLE passport_visa ALTER COLUMN dataset_id DROP NOT NULL;
+            ALTER TABLE passport_visa ADD COLUMN compute_platform_id TEXT;
+            ALTER TABLE passport_visa ADD CONSTRAINT passport_visa_compute_platform_id_fkey
+                FOREIGN KEY (compute_platform_id) REFERENCES compute_platform (id) ON DELETE CASCADE;
+            ALTER TABLE passport_visa ADD CONSTRAINT passport_visa_compute_platform_id_key UNIQUE (compute_platform_id);
+            ALTER TABLE passport_visa ADD CONSTRAINT passport_visa_gates_exactly_one_resource_check
+                CHECK (num_nonnulls(dataset_id, compute_platform_id) = 1);
+        </sql>
+        <rollback>
+            <!-- compute platform visas (and, by cascade, their access requests) can't survive without the column -->
+            <sql>
+                ALTER TABLE passport_visa DROP CONSTRAINT passport_visa_gates_exactly_one_resource_check;
+                DELETE FROM passport_visa WHERE compute_platform_id IS NOT NULL;
+                ALTER TABLE passport_visa DROP COLUMN compute_platform_id;
+                ALTER TABLE passport_visa ALTER COLUMN dataset_id SET NOT NULL;
+            </sql>
+        </rollback>
+    </changeSet>
+    <changeSet author="jadams" id="create-enum-compute-workflow-source-kind">
+        <sql dbms="postgresql">
+            CREATE TYPE compute_workflow_source_kind AS ENUM ('git', 'trs', 'bundled');
+        </sql>
+        <rollback>
+            <sql>DROP TYPE compute_workflow_source_kind;</sql>
+        </rollback>
+    </changeSet>
+    <!--
+        a compute platform's workflow allowlist (D20, D21). a submission's workflow_url must match an entry exactly.
+        git entries are pinned to a full commit sha. trs entries are resolved to their source git repository and
+        commit when they are added (dockstore's trs file lists are incomplete for nextflow workflows, spike Task 1),
+        so they carry both the trs reference and the git fields. bundled entries are workflows shipped in this repo.
+        engine settings are set by the admin; researchers can't change them (workflow_engine_parameters is rejected)
+    -->
+    <changeSet author="jadams" id="create-table-compute-platform-workflow">
+        <sql dbms="postgresql">
+            CREATE TABLE compute_platform_workflow (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY,
+                compute_platform_id TEXT NOT NULL,
+                workflow_url TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                workflow_type TEXT NOT NULL,
+                workflow_type_version TEXT NOT NULL,
+                source_kind compute_workflow_source_kind NOT NULL,
+                git_repository_url TEXT,
+                git_commit TEXT,
+                git_main_script TEXT,
+                trs_server_url TEXT,
+                trs_tool_id TEXT,
+                trs_version_id TEXT,
+                bundled_path TEXT,
+                engine_profiles TEXT[] NOT NULL DEFAULT '{}',
+                engine_env JSONB NOT NULL DEFAULT '{}',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                CONSTRAINT compute_platform_workflow_pkey PRIMARY KEY (id),
+                CONSTRAINT compute_platform_workflow_compute_platform_id_fkey
+                    FOREIGN KEY (compute_platform_id) REFERENCES compute_platform (id) ON DELETE CASCADE,
+                CONSTRAINT compute_platform_workflow_platform_url_key UNIQUE (compute_platform_id, workflow_url),
+                CONSTRAINT compute_platform_workflow_engine_env_object_check CHECK (jsonb_typeof(engine_env) = 'object'),
+                -- coalesce: a check that evaluates to NULL passes, so a NULL from the regex match must count as a failure
+                CONSTRAINT compute_platform_workflow_source_fields_check CHECK (COALESCE(
+                    CASE source_kind
+                        WHEN 'git' THEN
+                            num_nulls(git_repository_url, git_commit, git_main_script) = 0
+                            AND git_commit ~ '^[0-9a-f]{40}$'
+                            AND num_nonnulls(trs_server_url, trs_tool_id, trs_version_id, bundled_path) = 0
+                        WHEN 'trs' THEN
+                            num_nulls(git_repository_url, git_commit, git_main_script,
+                                      trs_server_url, trs_tool_id, trs_version_id) = 0
+                            AND git_commit ~ '^[0-9a-f]{40}$'
+                            AND bundled_path IS NULL
+                        WHEN 'bundled' THEN
+                            bundled_path IS NOT NULL
+                            AND num_nonnulls(git_repository_url, git_commit, git_main_script,
+                                             trs_server_url, trs_tool_id, trs_version_id) = 0
+                    END, FALSE)
+                )
+            );
+            CREATE TRIGGER compute_platform_workflow_set_updated_at
+                BEFORE UPDATE ON compute_platform_workflow
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        </sql>
+        <rollback>
+            <sql>DROP TABLE compute_platform_workflow;</sql>
+        </rollback>
+    </changeSet>
+    <!--
+        align two identity ids with their entities (Long): they were created as INTEGER, which hibernate schema
+        validation (ddl-auto: validate) rejects. postgres widens each column's identity sequence to bigint with it
+    -->
+    <changeSet author="jadams" id="modify-type-identity-ids-bigint">
+        <sql dbms="postgresql">
+            ALTER TABLE aws_s3_access_object ALTER COLUMN id TYPE BIGINT;
+            ALTER TABLE drs_object_checksum ALTER COLUMN id TYPE BIGINT;
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE aws_s3_access_object ALTER COLUMN id TYPE INTEGER;
+                ALTER TABLE drs_object_checksum ALTER COLUMN id TYPE INTEGER;
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>
