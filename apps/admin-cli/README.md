@@ -26,7 +26,21 @@ The dataset commands can be used to manage the lifecycle of preconfigured datase
 | `init` | `uv run refcloud dataset init -d {dataset_id}` | Initializes a dataset within the database. Must be run first. |
 | `onboard` | `uv run refcloud dataset onboard -d {dataset_id}` | Batch loads data objects (e.g. DRS Objects, Data Connect Tables) into the specified dataset. Data is pre-defined per dataset. |
 | `reset` | `uv run refcloud dataset reset -d {dataset_id}` | Removes data from an existing dataset, preserving the dataset itself as well as the researchers authorized to access it. |
-| `delete` | `uv run refcloud dataset reset -d {dataset_id}` | Deletes a dataset, including all associated data objects and researcher authorizations. |
+| `delete` | `uv run refcloud dataset delete -d {dataset_id}` | Deletes a dataset, including all associated data objects and researcher authorizations. |
+
+### Visa Commands
+
+Researchers request access to a controlled resource (e.g. a dataset) through the researcher UI. Each request is tied to the resource's passport visa and starts as `Requested`. The visa commands let an admin see every visa in the refcloud and process those requests:
+
+| Command | Example | Explanation |
+|-|-|-|
+| `list` | `uv run refcloud visa list` | Lists every visa: its ID, name, description, the resource it gates, and how many access requests it has in each status. |
+| `list-requests` | `uv run refcloud visa list-requests` | Lists access requests (user ID, visa, status, and when the status last changed). Shows `Requested` (pending) requests by default; filter with `-s {status\|all}` and `-v {visa_id}`. |
+| `approve` | `uv run refcloud visa approve -u {user_id} -v {visa_id}` | Approves a pending request. Also restores access after a request was denied or revoked (researchers can't re-request on their own). |
+| `deny` | `uv run refcloud visa deny -u {user_id} -v {visa_id}` | Denies a pending request. |
+| `revoke` | `uv run refcloud visa revoke -u {user_id} -v {visa_id}` | Revokes an approved request. |
+
+Users are identified by their user ID (the `sub` of their token). A transition that doesn't apply to a request's current status (e.g. revoking a request that was never approved) is refused with an explanation, and nothing changes.
 
 #### Available Datasets
 

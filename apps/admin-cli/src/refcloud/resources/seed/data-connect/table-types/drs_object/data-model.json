@@ -62,13 +62,13 @@
     },
     "created_time": {
       "type": "string",
-      "format": "timestamp",
-      "description": "Object creation time (ISO 8601)"
+      "format": "timestamp with time zone",
+      "description": "Object creation time (ISO 8601, UTC)"
     },
     "updated_time": {
       "type": "string",
-      "format": "timestamp",
-      "description": "Object last update time (ISO 8601)"
+      "format": "timestamp with time zone",
+      "description": "Object last update time (ISO 8601, UTC)"
     },
     "version": {
       "type": "string",

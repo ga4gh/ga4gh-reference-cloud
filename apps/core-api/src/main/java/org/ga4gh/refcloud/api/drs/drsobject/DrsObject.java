@@ -10,7 +10,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -43,9 +43,9 @@ public class DrsObject {
 
     private Long size;
 
-    private LocalDateTime createdTime;
+    private Instant createdTime;
 
-    private LocalDateTime updatedTime;
+    private Instant updatedTime;
 
     private String version;
 

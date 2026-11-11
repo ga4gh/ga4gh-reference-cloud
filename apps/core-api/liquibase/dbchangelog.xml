@@ -388,4 +388,45 @@
             <sql>ALTER TABLE data_connect_table_type ALTER COLUMN data_model_template TYPE jsonb USING data_model_template::jsonb;</sql>
         </rollback>
     </changeSet>
+    <!--
+        every timestamp column stores an absolute instant (timestamptz). existing values have no zone, so they are
+        read as UTC (the zone of the deployed apps and database); values written in another local zone shift by that
+        zone's offset. one changeset, so postgres applies all columns or none
+    -->
+    <changeSet author="jadams" id="modify-type-all-timestamp-columns-timestamptz-utc">
+        <sql dbms="postgresql">
+            ALTER TABLE drs_object
+                ALTER COLUMN created_time TYPE TIMESTAMP WITH TIME ZONE USING created_time AT TIME ZONE 'UTC',
+                ALTER COLUMN updated_time TYPE TIMESTAMP WITH TIME ZONE USING updated_time AT TIME ZONE 'UTC';
+            ALTER TABLE passport_user_visa_assertion
+                ALTER COLUMN current_status_at TYPE TIMESTAMP WITH TIME ZONE USING current_status_at AT TIME ZONE 'UTC';
+            ALTER TABLE data_connect_table_type
+                ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at AT TIME ZONE 'UTC',
+                ALTER COLUMN updated_at TYPE TIMESTAMP WITH TIME ZONE USING updated_at AT TIME ZONE 'UTC';
+            ALTER TABLE data_connect_table
+                ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at AT TIME ZONE 'UTC',
+                ALTER COLUMN updated_at TYPE TIMESTAMP WITH TIME ZONE USING updated_at AT TIME ZONE 'UTC';
+            ALTER TABLE data_connect_search
+                ALTER COLUMN created_at TYPE TIMESTAMP WITH TIME ZONE USING created_at AT TIME ZONE 'UTC',
+                ALTER COLUMN expires_at TYPE TIMESTAMP WITH TIME ZONE USING expires_at AT TIME ZONE 'UTC';
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE drs_object
+                    ALTER COLUMN created_time TYPE TIMESTAMP WITHOUT TIME ZONE USING created_time AT TIME ZONE 'UTC',
+                    ALTER COLUMN updated_time TYPE TIMESTAMP WITHOUT TIME ZONE USING updated_time AT TIME ZONE 'UTC';
+                ALTER TABLE passport_user_visa_assertion
+                    ALTER COLUMN current_status_at TYPE TIMESTAMP WITHOUT TIME ZONE USING current_status_at AT TIME ZONE 'UTC';
+                ALTER TABLE data_connect_table_type
+                    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE USING created_at AT TIME ZONE 'UTC',
+                    ALTER COLUMN updated_at TYPE TIMESTAMP WITHOUT TIME ZONE USING updated_at AT TIME ZONE 'UTC';
+                ALTER TABLE data_connect_table
+                    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE USING created_at AT TIME ZONE 'UTC',
+                    ALTER COLUMN updated_at TYPE TIMESTAMP WITHOUT TIME ZONE USING updated_at AT TIME ZONE 'UTC';
+                ALTER TABLE data_connect_search
+                    ALTER COLUMN created_at TYPE TIMESTAMP WITHOUT TIME ZONE USING created_at AT TIME ZONE 'UTC',
+                    ALTER COLUMN expires_at TYPE TIMESTAMP WITHOUT TIME ZONE USING expires_at AT TIME ZONE 'UTC';
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

@@ -173,18 +173,62 @@ Spike run on 2026-11-11 on an arm64 Mac (macOS 26.7, Docker Desktop 29.4, Java 2
 * **Emulation.** The amd64-only biocontainer images (FastQC, seqtk, MultiQC) ran under Docker Desktop emulation on arm64 without problems.
 * **Not verified (left to Task 7):** a natively running Nextflow calling the refcloud TES through Caddy (`https://refcloud.ga4gh.localhost`) needs the JVM to trust Caddy's local CA. The likely simpler choice is for Nextflow to call core-api's internal HTTP port directly in native mode.
 
-### Task 2: Make visas a standalone resource (D7)
+### Task 2: Let visas gate Compute Platforms, and add visa admin commands (D7)
 
-* Add a Liquibase migration that:
-  1. adds `dataset.visa_id` (FK to `passport_visa.id`, unique);
-  2. copies existing `passport_visa.dataset_id` values across;
-  3. drops `passport_visa.dataset_id` and its unique constraint.
-* Update the `PassportVisa` and `Dataset` entities, plus every query and service that joins visa to dataset: `DatasetService`, `DrsObjectService`, the `DataConnectTableRepository` visibility queries, and the request-access flow. Behavior for datasets must not change.
-* Update the admin CLI (`dataset init`, `onboard`, `delete`, `reset`, and the Data Connect seed SQL where relevant) to create and link visas the new way.
-* Approving access: the admin CLI has no command today for approving or denying a visa request; approval statuses are only read by core-api. Add a generic `refcloud visa` command group (e.g. `list-requests`, `approve`, `deny`, `revoke`). It works on any visa, so it covers datasets and Compute Platforms alike. If an existing approval path is found, use it instead and record that here.
-* Verify: `./scripts/refcloud-setup.sh --reset` rebuilds cleanly, and the datasets page, DRS, refget and Data Connect access checks behave as before.
+D7 (revised 2026-11-11): a visa points at the one resource it gates. It belongs to **exactly one** dataset or Compute Platform, never neither and never both. The database enforces this with a check constraint. Existing production data must be preserved, so every schema change is a **new** Liquibase changeset that builds on the existing ones (no edits to applied changesets, no reliance on `--reset`).
+
+* ~~Add a new Liquibase changeset that drops `NOT NULL` from `passport_visa.dataset_id`.~~ Moved to Task 3 (see Decisions below).
+* ~~Update the `PassportVisa` entity for the nullable column.~~ No change needed (see Decisions below). Dataset access checks (`DatasetService`, `DrsObjectService`, `RefgetSequenceService`, the `DataConnectTableRepository` visibility queries, the request-access flow) keep joining on `passport_visa.dataset_id`, and their behavior must not change.
+* Keep today's lifecycle: the admin CLI creates a visa together with its resource and deletes it with the resource.
+* **`refcloud visa` command group** in the admin CLI. Today requests are approved by hand with a raw SQL `UPDATE`; these commands replace that. They work on any visa, so they cover datasets now and Compute Platforms after Task 3.
+  * `list`: every visa in the refcloud, independent of access requests. Shows ID, name, description, what it gates (the dataset, later the Compute Platform), and a count of requests by status.
+  * `list-requests`: access requests (`passport_user_visa_assertion` rows) with user ID, visa ID and name, status and status time. Filterable by status (default `Requested`) and by visa.
+  * `approve`, `deny`, `revoke`: set a user's assertion status for a visa and update `current_status_at`. Reject transitions that make no sense (e.g. revoking a request that was never approved) with a clear message.
+  * Users are shown by their user ID (the token `sub`), not by personal details.
+  * No expiry for now; the `Expired` status stays unused.
+  * Document the commands in `apps/admin-cli/README.md` and `apps/admin-cli/CLAUDE.md`.
+* Verify: the migration applies cleanly on a database built **before** this change (not only after `--reset`), and the datasets page, DRS, refget and Data Connect access checks behave as before.
 
 **Decisions (Task 2):**
+
+* **The migration moved to Task 3.** Dropping `NOT NULL` from `passport_visa.dataset_id` now happens in Task 3's changeset, together with adding `compute_platform_id` and the "exactly one of `dataset_id` / `compute_platform_id`" check constraint. Doing it here would have left the database, for a commit, in a state where a visa could gate nothing. Task 2 has no schema change.
+* **No core-api change.** `PassportVisa.dataset` is a `@OneToOne` with a default (optional) `@JoinColumn`, so it already maps a nullable `dataset_id`. Dataset access checks keep joining on `passport_visa.dataset_id` and are untouched.
+* **`refcloud visa` commands** (`apps/admin-cli/src/refcloud/handlers/visa/`):
+  * `list`: every visa with ID, name, description, what it gates (`dataset: <id> (<name>)`; Task 3 adds Compute Platforms), and request counts for Requested / Approved / Denied / Revoked.
+  * `list-requests`: user ID, visa ID and name, status, and status time, oldest first. `-s` filters by status (default `Requested`; `all` for every status) and `-v` by visa. An unknown visa is an error.
+  * `approve` / `deny` / `revoke` (`-u USER_ID -v VISA_ID`). Allowed transitions:
+    * approve: from Requested, Denied or Revoked → Approved. Researchers can't re-request after a denial or revocation (core-api ignores a repeat request), so approve is how access is restored.
+    * deny: from Requested → Denied.
+    * revoke: from Approved → Revoked.
+
+    Anything else is refused with a message naming the current status, and nothing changes. A missing request or unknown visa is an error.
+  * The status update is a single conditional `UPDATE ... WHERE current_status IN (...)`, so two admins acting at once can't both apply a transition.
+  * `NotRequested` and `Expired` are never set. There's no expiry (as agreed).
+  * Users are shown by user ID only.
+* **Timestamps are UTC with a time zone everywhere** (done in this task at the user's request, replacing the earlier local-time approach):
+  * **Migration:** one new changeset (`modify-type-all-timestamp-columns-timestamptz-utc`) converts all nine timestamp columns to `TIMESTAMP WITH TIME ZONE`: `drs_object.created_time`/`updated_time`, `passport_user_visa_assertion.current_status_at`, `data_connect_table_type.created_at`/`updated_at`, `data_connect_table.created_at`/`updated_at`, `data_connect_search.created_at`/`expires_at`. Existing values are read as UTC (`USING col AT TIME ZONE 'UTC'`), the zone of the deployed apps and database. Data written in another local zone (e.g. a laptop in EST) shifts by that zone's offset; locally, `--reset` rebuilds it. It's a single changeset, so Postgres applies all columns or none, and it has a matching rollback.
+  * **core-api:** these entity fields, their DTOs and `ErrorDetails.timestamp` are `Instant` instead of `LocalDateTime`. JSON output is now RFC 3339 UTC (e.g. DRS `"created_time": "2026-01-15T12:00:00Z"`). Before, it had no offset, which the DRS spec's `date-time` fields don't allow. The Data Connect value converter and search data model already handled `timestamptz`.
+  * **admin CLI:** database sessions run in UTC (`-c timezone=UTC`). Onboarding stores S3 `LastModified` as the timezone-aware datetime boto3 returns, instead of a zone-less string. `seed`, `onboard` and the refget manifest use `datetime.now(datetime.UTC)`. Visa status changes use `now()`, and `list-requests` prints times as `YYYY-MM-DD HH:MM:SS UTC`.
+  * **Data Connect seed:** the `drs_object` data model declares `created_time`/`updated_time` as `"format": "timestamp with time zone"`, matching what `/search` reports. **After deploying, run `refcloud seed`** so existing table types pick up the new data model.
+  * **Verified** on a throwaway Postgres whose server zone was America/Toronto (to catch zone mistakes):
+    * the first 48 changesets applied; pre-change rows inserted; the new changeset applied (values kept, read as UTC); rollback and re-apply both round-trip;
+    * the admin CLI `seed` and `visa` commands write and print UTC;
+    * core-api (run against it on port 18080) returned UTC `Z` timestamps for DRS objects, error bodies, Data Connect table data and `/search`, with an `updated_time` entered as `17:30-05` correctly returned as `22:30Z`.
+
+    `./gradlew staticAnalysis` passes (the SpotBugs `CorsConfig` detector crash is pre-existing), and all 95 core-api tests pass.
+* **README typo fixed:** the admin CLI README's `dataset delete` example showed `dataset reset`.
+* **Prod rollout notes (parked, not yet acted on):**
+  * Prod currently has only DRS and Passport data, so the migration affects existing rows only in `drs_object` and `passport_user_visa_assertion`.
+  * `drs_object` times come from S3 `LastModified` (UTC), so they're kept exactly.
+  * `current_status_at` is exact only if it was written in UTC. Before upgrading, check `SHOW timezone;` and look at the visa rows: approvals were made with raw SQL, possibly with hand-typed local times. Fix any outliers with a one-off `UPDATE`; the shift is cosmetic either way.
+  * Applying it: DB snapshot → `helm upgrade` (the `refcloud-api-db-migration` pre-upgrade hook runs the changeset before the new pods start) → `kubectl exec deploy/refcloud-admin-cli -- refcloud seed`.
+  * Not yet checked: whether old core-api pods (`LocalDateTime`) can read `timestamptz` columns during the rollout window. Until it's checked, treat the upgrade as a short maintenance window.
+* **Tested** against a throwaway Postgres 18 container (port 55432) with every changeset applied and fake users and visas. Not run against the local refcloud database, so real local data was untouched. Checked:
+  * `list` and `list-requests`, including the filters and an unknown visa;
+  * every allowed transition and every refused one (already approved, deny an approved request, revoke a denied request, no request, unknown visa, missing option).
+
+  `ruff format`, `ruff check` and `pyright` are clean.
+* **Docs:** `apps/admin-cli/README.md` ("Visa Commands") and `apps/admin-cli/CLAUDE.md`.
 
 ### Task 3: Connections config and the Compute Platform data model (D9, D11, D14, D15, D20)
 
@@ -195,7 +239,13 @@ Spike run on 2026-11-11 on an arm64 Mac (macOS 26.7, Docker Desktop 29.4, Java 2
   * `storage`: `type: shared-filesystem` (the only value in stage 1, but the setting exists from the start, D15) and `root` (default for local: `<repo>/compute/nextflow-funnel-docker`).
   * Connection (pooled) limits from the D11 table: total concurrent runs, total tasks / CPU / memory in flight, the largest per-task CPU, RAM and disk, the longest run duration, and an optional monthly compute-hours budget.
 * **Database tables** (Liquibase), with names to be confirmed during the task:
-  * `compute_platform`: id, name, description, `connection_key`, `visa_id` (FK, unique), enabled, and the per-user limits from the D11 table (concurrent runs, per-task CPU/RAM/disk, max run duration, monthly compute-hours quota).
+  * `compute_platform`: id, name, description, `connection_key`, enabled, and the per-user limits from the D11 table (concurrent runs, per-task CPU/RAM/disk, max run duration, monthly compute-hours quota).
+  * `passport_visa` changes (D7), in **one new changeset** so the database never allows a visa that gates nothing:
+    * drop `NOT NULL` from `passport_visa.dataset_id` (moved here from Task 2);
+    * add `passport_visa.compute_platform_id` (FK to `compute_platform.id`, `ON DELETE CASCADE` like `dataset_id`, unique, nullable);
+    * add a check constraint that exactly one of `dataset_id` and `compute_platform_id` is set.
+
+    Verify it applies to an existing database with data. The admin CLI creates the platform's visa together with the platform. Extend `refcloud visa list` to show `compute platform: <id> (<name>)` in its GATES column.
   * `compute_platform_workflow`: the allowlist (D20). Each entry has a source kind (`git`, `trs`, `bundled`), the exact `workflow_url` a submission must match, a name and description, the workflow type and version, and the resolution data needed to run it (repo plus pinned revision plus main script path; TRS server, tool ID and version; or bundled path).
     * Each entry also holds its **engine settings** (D21), set by the admin: e.g. Nextflow profiles (`-profile test`) and engine environment variables such as `NXF_SYNTAX_PARSER=v1`. Researchers can't change them.
   * `compute_run`: run ID, platform, user (`sub`), state, the WES request, start and end times, a hash of the run-scoped TES credential (D12), and the run directory.

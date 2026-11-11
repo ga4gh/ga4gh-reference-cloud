@@ -12,6 +12,8 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 * Database connection is configured via `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (see `config/env_config.py` for local defaults).
 * Supported datasets are defined in `SUPPORTED_DATASETS` (`config/constants.py`). Adding a dataset means adding an entry there plus a custom onboarding function in `custom_onboarding/` that yields `drs_object_set` dicts (see existing onboarders for the shape). Dataset ids must be lowercase snake case (`^[a-z_][a-z0-9_]*$`) and visa ids must be `ga4gh_visa:{dataset_id}`; `validate_supported_datasets()` enforces this. Each dataset's Data Connect tables are listed in its `data_connect_tables` entry; table names are derived as `refcloud.{dataset_id}.{table_type}`.
 * Onboarding reads from public S3 buckets using unsigned requests.
+* Timestamps are UTC: database sessions run with `timezone=UTC` (`DatabaseEngine`), and values written must be timezone-aware (`datetime.now(datetime.UTC)`, or S3's `LastModified` as returned). Never write zone-less strings via `strftime`.
+* Access requests are `passport_user_visa_assertion` rows (status enum `passport_visa_assertion_status`). core-api creates them as `Requested`; the `visa` commands are the only supported way to change their status (no raw SQL). `NotRequested` and `Expired` exist in the enum but are never set by the CLI. Users are shown by user ID only, never by personal details.
 * `resources/seed/data-connect/` holds Data Connect seed content (table types, data models, internal queries). Its README defines the contract with `refcloud-api`; keep the two in sync.
 
 ### Directory Layout
@@ -32,6 +34,9 @@ This repo serves as a commandline interface (CLI) utility to help with initial p
 * Onboard reference data to a dataset: `uv run refcloud dataset onboard -d {DATASET_ID}`
 * Delete an existing dataset: `uv run refcloud dataset delete -d {DATASET_ID}`
 * Reset a dataset (delete all data, preserve dataset and passport visas): `uv run refcloud dataset reset -d {DATASET_ID}`
+* List all visas, what each gates, and request counts by status: `uv run refcloud visa list`
+* List access requests (default `Requested`; `-s {status|all}`, `-v {VISA_ID}`): `uv run refcloud visa list-requests`
+* Approve / deny / revoke an access request: `uv run refcloud visa {approve|deny|revoke} -u {USER_ID} -v {VISA_ID}`. Allowed transitions live in `TRANSITIONS` (`handlers/visa/status.py`): approve from Requested, Denied or Revoked; deny from Requested; revoke from Approved. The update re-checks the status in the same statement, so concurrent admins can't double-apply a transition.
 
 ### Code Quality & Validation
 

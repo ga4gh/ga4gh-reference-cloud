@@ -7,7 +7,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -45,5 +45,5 @@ public class PassportUserVisaAssertion {
     @Column(name = "current_status")
     private PassportVisaAssertionStatus currentStatus;
 
-    private LocalDateTime currentStatusAt;
+    private Instant currentStatusAt;
 }

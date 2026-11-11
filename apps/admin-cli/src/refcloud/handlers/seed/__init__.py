@@ -50,7 +50,7 @@ def require_database_seeded(database_engine):
 
 def load_data_connect_table_types():
     """Load one data_connect_table_type row per subdirectory of table-types/"""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(datetime.UTC)
     table_types = []
 
     for table_type_dir in list_table_type_dirs():
@@ -80,7 +80,7 @@ def load_data_connect_table_types():
 
 def load_platform_data_connect_tables():
     """Load one data_connect_table row per json file in tables/platform/"""
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(datetime.UTC)
     tables = []
 
     for table_file in list_platform_table_files():

@@ -1,6 +1,6 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -173,7 +173,7 @@ public class DatasetService {
         assertion.setPassportVisa(dataset.getPassportVisa());
         assertion.setPassportUser(user.get());
         assertion.setCurrentStatus(PassportVisaAssertionStatus.Requested);
-        assertion.setCurrentStatusAt(LocalDateTime.now());
+        assertion.setCurrentStatusAt(Instant.now());
         passportUserVisaAssertionRepository.save(assertion);
 
         // tables and hasManifests are only returned by the read endpoints
