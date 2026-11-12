@@ -696,4 +696,34 @@
             </sql>
         </rollback>
     </changeSet>
+    <!--
+        WES (claude/specs/active/0008-add-compute-wes-tes.md, Task 8). POST /runs records a run and returns at once; the
+        workflow and DRS inputs are prepared in the background, and only prepared runs are launched. workflow_source is
+        a snapshot of the allowlist entry the run was accepted with (so later allowlist changes don't affect it);
+        drs_inputs the inputs to stage; main_script the entry's main script when it isn't main.nf
+    -->
+    <changeSet author="jadams" id="modify-tb-compute-run-add-preparation">
+        <sql dbms="postgresql">
+            ALTER TABLE compute_run
+                ADD COLUMN prepared_at TIMESTAMP WITH TIME ZONE,
+                ADD COLUMN main_script TEXT,
+                ADD COLUMN compute_platform_workflow_id BIGINT,
+                ADD COLUMN workflow_source JSONB,
+                ADD COLUMN drs_inputs JSONB NOT NULL DEFAULT '[]';
+            ALTER TABLE compute_run ADD CONSTRAINT compute_run_compute_platform_workflow_id_fkey
+                FOREIGN KEY (compute_platform_workflow_id) REFERENCES compute_platform_workflow (id) ON DELETE SET NULL;
+            ALTER TABLE compute_run ADD CONSTRAINT compute_run_drs_inputs_array_check
+                CHECK (jsonb_typeof(drs_inputs) = 'array');
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE compute_run
+                    DROP COLUMN prepared_at,
+                    DROP COLUMN main_script,
+                    DROP COLUMN compute_platform_workflow_id,
+                    DROP COLUMN workflow_source,
+                    DROP COLUMN drs_inputs;
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

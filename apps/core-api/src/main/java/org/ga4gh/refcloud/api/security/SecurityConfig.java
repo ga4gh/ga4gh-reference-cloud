@@ -182,7 +182,20 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(6) // Fallback: Ensure everything else requires a valid Ory Hydra token
+    @Order(6) // Compute WES (Task 8): researchers only (a Hydra token); run tokens are never accepted here
+    public SecurityFilterChain computeWesFilterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
+        // service-info is public (matched by the public chain first); everything else under a platform's WES. a
+        // stateless bearer-token API, so no CSRF (the fallback chain's CSRF check would refuse every POST /runs)
+        http.securityMatcher(PathPatternRequestMatcher.withDefaults().matcher("/ga4gh/wes/{platformId}/v1/**"))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder)))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        return http.build();
+    }
+
+    @Bean
+    @Order(7) // Fallback: Ensure everything else requires a valid Ory Hydra token
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(

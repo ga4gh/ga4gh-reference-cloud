@@ -63,7 +63,10 @@ public record ComputeConfig(
             @Positive BigDecimal monthlyCoreHoursBudget,
             // what a task that requests no resources is treated as requesting (limits, accounting), and is sent with
             @Positive int defaultTaskCpuCores,
-            @NotNull @Positive BigDecimal defaultTaskMemoryGb) {
+            @NotNull @Positive BigDecimal defaultTaskMemoryGb,
+            // the most a run's staged DRS inputs may add up to (GB = 10^9 bytes), checked before anything is
+            // downloaded (Task 8)
+            @NotNull @Positive BigDecimal maxRunInputsGb) {
 
         // a default request has to fit within the per-task ceilings
         @AssertTrue(message = "default task resources must not exceed max-task-cpu-cores / max-task-memory-gb")

@@ -26,7 +26,18 @@ public class TesTaskRulesTest {
 
     // connection: per-task ceilings 4 cores / 4 GB / 20 GB disk; defaults 1 core / 1 GB
     private static final ComputeConfig.Limits LIMITS = new ComputeConfig.Limits(
-            4, 8, 8, new BigDecimal("8"), 4, new BigDecimal("4"), new BigDecimal("20"), 3600, null, 1, BigDecimal.ONE);
+            4,
+            8,
+            8,
+            new BigDecimal("8"),
+            4,
+            new BigDecimal("4"),
+            new BigDecimal("20"),
+            3600,
+            null,
+            1,
+            BigDecimal.ONE,
+            BigDecimal.TEN);
 
     private JsonNode task(String json) {
         return objectMapper.readTree(json);

@@ -791,30 +791,118 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 ### Task 8: Refcloud WES API (D11, D17, D19, D20)
 
 * Implement the WES 1.1.0 endpoints under `/ga4gh/wes/{platformId}/v1`. Each user sees only their own runs.
-* **`POST /runs`** runs these checks in order and rejects with a clear message at the first failure:
-  1. **Auth and visa:** a valid token, and the caller holds the platform's visa.
-  2. **Allowlist (D20, D21):** `workflow_url` exactly matches an allowlist entry. `workflow_attachment` and `workflow_engine_parameters` are rejected; the engine runs only with the entry's own engine settings.
-  3. **Concurrent runs:** reject at the per-user limit (D11).
-  4. **Monthly quota:** reject when the per-user quota or the connection's pooled budget is used up. The message says which quota was hit and when it resets (the start of the next calendar month, UTC).
-  5. **Inputs (D17):** stage the `drs://` inputs.
-  6. **Hand over:** submit the prepared run (workflow in the run directory, inputs staged) to Task 7's run service. It queues the run (`QUEUED`) until the connection's pooled concurrent-run capacity allows, then launches it.
+* **`POST /runs` returns quickly; preparation happens in the background** (decided 2026-11-12).
+  * **Quick checks** (all database work, no network), in this order. The first failure rejects with a clear message:
+    1. **Auth and visa:** a valid token, and the caller holds the platform's visa.
+    2. **Allowlist (D20, D21):** `workflow_url` exactly matches an allowlist entry. `workflow_type` / `workflow_type_version`, and `workflow_engine` / `workflow_engine_version` if given, must match the entry and connection. `workflow_attachment` and `workflow_engine_parameters` are rejected; the engine runs only with the entry's own engine settings.
+    3. **Concurrent runs:** the user's queued **and** running runs on the platform, against the per-user limit (D11).
+    4. **Monthly quota:** the user's core-hours on this platform from tasks that **finished this calendar month (UTC)**, against the per-user quota; and the same across every platform on the connection, against the pooled budget. The message says which quota was hit and when it resets (the start of the next month, UTC).
+    5. **DRS inputs (D17):** every `drs://` URI in `workflow_params` must be this refcloud's (host = `ga4gh.refcloud.drs.host-domain`), S3-backed (not a manifest), and accessible to the caller (`DrsObjectService.validateUserIsAuthorizedForDrsObject`). Their total size (from DRS) must fit the connection's new **`max-run-inputs-gb`** limit (e.g. 10 GB locally; a cloud deployment sets its own in its connections).
+  * Then the run is recorded and its `run_id` returned. The run shows **`QUEUED`** until it's prepared and pooled capacity allows.
+  * **Background preparation:**
+    * put the workflow into the run directory (below);
+    * download each DRS input into `inputs/<object id>/<name>` and rewrite its parameter to that path (strings anywhere in `workflow_params`, however nested).
+
+    Only prepared runs are launched (a small change to Task 7's run service). A preparation failure ends the run `SYSTEM_ERROR` with the reason.
 * **Workflow resolution (D20):**
-  * git entries: run the pinned revision.
-  * TRS entries: resolve with the approach chosen in Task 1.
-  * Bundled entries: run from the bundled path.
-* **DRS input staging (D17):**
-  1. Find `drs://` URIs in `workflow_params`.
-  2. Accept only the refcloud's own DRS objects with an `aws_s3_access_object`; reject anything else (other DRS servers, manifests) with a clear message.
-  3. Check the caller's access with the same check the DRS endpoints use (`DrsObjectService`).
-  4. Download each object into `inputs/` and rewrite the parameter to the local path.
-* **Outputs (D18, D19):**
-  * `RunLog.outputs` lists each file under `outputs/` with its relative path, size and download URL.
-  * `GET /runs/{run_id}/outputs/{path}` streams the file, for the run's owner only.
-  * Resolve `{path}` strictly inside the run's `outputs/` directory: reject `..`, absolute paths, and symlinks that point outside it.
-* **`GET /runs/{run_id}/tasks`** lists the run's TES tasks from `compute_task`.
-* **Errors** use the WES `ErrorResponse` format, through an exception handler scoped to the WES package, like `ServiceRegistryExceptionHandler`.
+  * **git and TRS entries:** fetch exactly the pinned commit into `workflow/` (`git init` + `git fetch --depth 1 <repo> <sha>` + checkout; GitHub allows fetching a commit by SHA). core-api needs `git` on the host natively; the core-api image needs it in stage 2.
+  * **Bundled entries:** copied from the entry's `bundled_path` (as the admin CLI stores it, e.g. `compute/workflows/nextflow/drs-checksum`), resolved against the new setting `ga4gh.refcloud.compute.wes.bundled-workflows-base-dir`. It defaults to `../..`, the repo root when core-api runs from `apps/core-api`.
+  * **A main script other than `main.nf`** is passed to Nextflow as `-main-script` (a small addition to Task 7's engine).
+  * The workflow is always inside the run directory, because of TES's file rule (Task 6).
+* **Outputs and logs (D18, D19):**
+  * `RunLog.outputs` is `{"files": [{"path", "size", "url"}]}` for every file under `outputs/`.
+  * `GET /runs/{run_id}/outputs/{path}` streams a file, owner only. `{path}` resolves strictly inside `outputs/`: `..`, absolute paths and symlinks pointing outside are rejected.
+  * `run_log.stdout` / `stderr` are URLs to a small non-standard endpoint, `GET /runs/{run_id}/logs/{stdout|stderr}` (owner only; the engine's console output), like D19.
+* **`GET /runs/{run_id}/tasks`** lists the run's TES tasks from `compute_task`, each with its refcloud TES URL (`tes_uri`).
+* **service-info:** `system_state_counts` now has real per-state run counts for the platform.
+* **Disabled platforms (decided 2026-11-12, option b):** a run's **owner** keeps read access to their own runs on a disabled platform: `GET /runs/{id}`, `/status`, `/tasks`, `/outputs/...`, `/logs/...`, and `POST /runs/{id}/cancel`. They can't submit runs, list the platform's runs, or see its service-info, and the platform stays out of the service registry and UI. The availability filter runs before authentication, so it can't check ownership. It lets per-run paths (`/runs/{run_id}` and below) on a disabled platform through to normal authentication and the visa check, and the WES service serves a run only to its owner (anyone else gets `404`). The platform's other paths stay `404`.
+* **Errors** use the WES `ErrorResponse` format, through an exception handler scoped to the WES package.
 
 **Decisions (Task 8):**
+
+* **Code (core-api):**
+  * `ComputeWesConfig` (`ga4gh.refcloud.compute.wes`): `bundled-workflows-base-dir` `../..`, `preparation-sweep-interval` 30s, `git-timeout` 5m, `download-timeout` 30m, `default-page-size` 256, `max-page-size` 2048.
+  * `ComputeAsyncConfig`: preparation runs on its own pool (`computePreparationExecutor`, 2–4 threads), so slow downloads never hold up the scheduled jobs. `spring.task.scheduling.pool.size` is now 4.
+  * `wes/`:
+    * `WesRunController`;
+    * `WesRunService`: the quick checks, list, `RunLog`, status, tasks, cancel, outputs and logs;
+    * `RunPreparationService`: background preparation plus the sweep;
+    * `DrsInputs`: find, check and rewrite `drs://` inputs;
+    * `WesViews`: the WES 1.1.0 response records.
+  * `ComputePageToken` (was `tes/TesPageToken`) is shared by TES `GET /tasks` and WES `GET /runs` and `GET /runs/{run_id}/tasks`.
+  * `DrsObjectService.getStagingInfo` returns a `DrsStagingInfo`: the DRS object's name, size, manifest flag and S3 https URLs.
+  * **New connection limit `max-run-inputs-gb`:** `10` in `deploy/local/compute/connections.yml`.
+  * **Changeset `modify-tb-compute-run-add-preparation`:** adds `prepared_at`, `main_script`, `compute_platform_workflow_id` (FK, `ON DELETE SET NULL`), `workflow_source` (a snapshot of the allowlist entry's source) and `drs_inputs` (a JSON array).
+  * **Changes to Task 7's code:**
+    * `RunSubmission` gains the WES fields and `prepared`.
+    * Only prepared runs launch. A prepared run doesn't wait behind one still being prepared, so runs can start in a different order than they were submitted.
+    * `ComputeRunService` gains `markPrepared` and `failPreparation`.
+    * `NextflowEngine` passes `-main-script` when it isn't `main.nf`. It now also removes `workflow/` when a run ends: the run records where the workflow came from.
+* **Security bug found and fixed in the end-to-end check:** WES paths fell to the fallback filter chain, whose CSRF check refused every `POST /runs` with `403`, even with a valid token.
+  * **Fix:** WES has its own chain (order 6; the fallback is now order 7). It accepts Hydra JWTs only, is stateless, and has no CSRF.
+  * Run tokens get `401` on WES.
+* **Request checks as built:**
+  * **Missing required field:** `400`, with Spring's "Required parameter '…' is not present."
+  * **Rejected outright (`400`):** `workflow_attachment` (a file part or a plain field), and non-empty `workflow_engine_parameters`. `{}` counts as none.
+  * **Engine fields:** `workflow_engine` is compared to the connection's engine case-insensitively; `workflow_engine_version` must match exactly.
+  * **Limits (`403`):** the concurrent-run limit and the quotas. The message says what to wait for, and the quota message gives the reset time.
+  * **DRS:** an object the caller can't access is `403`. An unknown object, another host, a manifest, an object with no S3 copy, or inputs over the size limit are `400`.
+  * **Body format:** `multipart/form-data` (or url-encoded). A JSON body is `415`.
+  * **Known race:** the concurrent-run check isn't atomic with recording the run, so two simultaneous submissions can both pass. Accepted for a reference implementation.
+* **Workflow resolution:**
+  * **git and TRS entries:**
+    * the repository must be `https://github.com/{owner}/{repo}` and the commit a full 40-character SHA; both are checked again at preparation;
+    * `git init`, `git fetch --depth 1 <repo> <sha>`, `git checkout --detach FETCH_HEAD`, then `git rev-parse HEAD` must equal the pinned SHA;
+    * git runs with a fixed argument list (no shell) and `GIT_TERMINAL_PROMPT=0`, and is killed at the timeout or when core-api shuts down.
+  * **Bundled entries:** the path must stay inside the base directory. Only regular files are copied; symlinks are skipped.
+* **Preparation:**
+  * **Downloads:**
+    * `https://` URLs only;
+    * each goes to a `.part` file, is checked against the size DRS reports, then moved into place;
+    * the target is `inputs/<object id>/<name>`, each made safe as one path segment.
+  * **Params:** rewritten to the absolute local paths. `RunLog.request` keeps the original `drs://` URIs.
+  * **Shutdown** interrupts preparation. The run stays unprepared, and the sweep prepares it after the restart.
+  * **A run cancelled while it's being prepared** stays `CANCELED`. The preparation notices and stops quietly.
+* **Responses:**
+  * **`run_log`:**
+    * `name`: the allowlist entry's name;
+    * `start_time` and `end_time`;
+    * `stdout` and `stderr`: URLs;
+    * `exit_code`;
+    * `system_logs`: the state reason.
+
+    `cmd` is left out: the engine command line is full of host paths.
+  * **`TaskLog`:**
+    * `id`, `name` and `tes_uri`;
+    * `cmd`: the first executor's command;
+    * `start_time` and `end_time`;
+    * `exit_code`: the last attempt's last executor.
+
+    No `system_logs`: the executor's are Funnel's internal log lines, which the TES views drop too (Task 6). The first version copied them; caught in review, and a unit test now pins it.
+  * **Other details:**
+    * `next_page_token` is `""` on the last page, as WES specifies.
+    * `system_state_counts` lists every WES state, zeros included.
+    * Logs requested before the engine starts are an empty `200`.
+    * Outputs download as `application/octet-stream` attachments.
+  * **Default error bodies:** errors raised before a WES controller is chosen use Spring's default error body, not WES `ErrorResponse`. Examples: the firewall's `400` for `..` in a path, and `415`. See Future Directions.
+* **Option (b) as built:**
+  * The availability filter looks up a disabled platform only for WES per-run paths (`/runs/{run_id}` and below). The request then goes on to authentication; the health rule still applies.
+  * In the controller, per-run endpoints look up the platform whatever its enabled state; submitting and listing need it enabled.
+* **Verified end to end**, with a throwaway Postgres, Funnel, Nextflow 26.10.5 with the patched nf-ga4gh (D22, D23), and JWTs from a local key server standing in for Hydra:
+  * **Every rejection above** returned its status and message, plus no token → `401` and no visa → `403`.
+  * **A bundled checksum workflow** with the 1000 Genomes `HG00096…bam.bai` as a `drs://` input:
+    * the input was downloaded (8,747,040 bytes) and the params rewritten;
+    * the run reached `COMPLETE`, and its report (name, size, MD5, SHA-256) downloaded through `outputs`;
+    * `stdout`/`stderr`, `/tasks` and `tes_uri` all work;
+    * another researcher gets `404` on the run, its outputs and its cancel;
+    * `..` and `%2e%2e` in an output path are refused.
+  * **Limits:** a third concurrent run → `403`; cancelling a running run → `CANCELING`, then `CANCELED`; over quota → `403`, "resets at 2026-12-01T00:00:00Z".
+  * **Paging:** `page_size=1` gives a token; the next page differs; the last page's token is `""`; a bad token → `400`.
+  * **Disabled platform (option b):** the owner keeps `GET /runs/{id}`, `/status`, `/tasks`, outputs, logs and cancel. Another researcher gets `404`, no token gets `401`, and list, submit and service-info are `404`.
+  * **nf-core/demo 1.0.2, git-pinned to `db7f526`** (`-profile test`, `NXF_SYNTAX_PARSER=v1`): fetched, `COMPLETE`, 7 tasks, 74 output files including `multiqc/multiqc_report.html`. core-api restarted mid-run and reattached.
+  * **Cancelled while preparing:** stays `CANCELED`; only `outputs/` is left.
+  * **Restart:** a run left queued and unprepared by a stopped core-api is picked up by the sweep, completes, and its `workflow/` is removed.
+* **Unit tests (TestNG; 26 new, core-api total 220):** `DrsInputsTest`, `WesRunServiceTest`, `RunPreparationServiceTest`. core-api has no Mockito, so the submit checks are static methods tested directly. `@WebMvcTest` slices come with Task 12.
 
 ### Task 9: Bundled demo workflow (D20)
 
@@ -900,4 +988,10 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
   * an output story, e.g. per-user storage and a download endpoint.
 * **Runtime CPU/memory enforcement on Docker:** Funnel 0.11.14 doesn't pass task resources (or tags) to its `docker run` template. Patch or upstream it so `--cpus`/`--memory` apply (Task 6).
 * Upstream: the nf-ga4gh transient-status-error retry (D23, patch in Decisions (Task 7)). Open an issue and PR alongside the `.command.env` one (D22); once released, bump the pinned nf-ga4gh version.
+* **DRS inputs from other DRS servers** (asked 2026-11-12; stage 1 accepts only the refcloud's own DRS objects, D17):
+  * **open-access objects:** resolve through that server's DRS API (object, then access URL or `access_id`). This needs an **admin-managed allowlist of trusted DRS hosts**, so core-api never fetches arbitrary URLs (SSRF).
+  * **controlled access:** the refcloud's Hydra tokens only carry the refcloud's own visas, so the researcher would supply credentials for that server (a GA4GH Passport from a broker it trusts, or a bearer token it issued) through a clearly marked extension field on `POST /runs`, never in `workflow_params`. They'd be held in memory only for background preparation, then discarded; a core-api restart mid-preparation would fail the run with "resubmit".
+* **Compute errors raised before a controller is chosen** use Spring's default error body, not the WES `ErrorResponse` (Task 8). Examples: the request firewall's `400` for `..` in a path, and `415` for an unsupported content type. Render them as `ErrorResponse` for `/ga4gh/wes/**` and `/ga4gh/tes/**`, e.g. through an error controller.
+* **The run's engine command in `RunLog.run_log.cmd`**, with host paths shortened to run-directory-relative ones (Task 8 leaves it out).
+* **Stage 2 core-api image:** it needs `git` (WES fetches pinned commits), and the bundled workflows copied in, with `ga4gh.refcloud.compute.wes.bundled-workflows-base-dir` pointing at them (Task 8).
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.

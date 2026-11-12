@@ -20,6 +20,20 @@ public final class ComputeRunStates {
 
     public static final Set<String> TERMINAL = Set.of(COMPLETE, EXECUTOR_ERROR, SYSTEM_ERROR, CANCELED, "PREEMPTED");
 
+    // every WES 1.1.0 state (service-info system_state_counts)
+    public static final Set<String> ALL = Set.of(
+            "UNKNOWN",
+            QUEUED,
+            INITIALIZING,
+            RUNNING,
+            "PAUSED",
+            COMPLETE,
+            EXECUTOR_ERROR,
+            SYSTEM_ERROR,
+            CANCELED,
+            CANCELING,
+            "PREEMPTED");
+
     private ComputeRunStates() {}
 
     public static boolean isTerminal(String state) {

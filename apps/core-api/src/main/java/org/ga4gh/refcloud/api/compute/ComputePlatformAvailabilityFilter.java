@@ -22,6 +22,8 @@ import tools.jackson.databind.ObjectMapper;
 // the platform availability rule for every WES and TES request (D10, Task 5), so each compute endpoint inherits it:
 //   unknown or disabled platform -> 404 (disabled platforms are not visible outside the admin CLI)
 //   unhealthy platform -> 503 with Retry-After, except service-info, which reports the health
+//   a disabled platform's WES per-run paths (/runs/{run_id} and below) go on to authentication, so a run's owner keeps
+//   access to it (Task 8, option b); the health rule still applies to them
 // runs before spring security (see ComputeFilterConfig): availability is not secret (health is public through
 // service-info, and unknown and disabled platforms look the same), so any client learns that a platform is missing or
 // down before being asked to authenticate. requests to a healthy platform then go through normal authentication
@@ -29,6 +31,9 @@ public class ComputePlatformAvailabilityFilter extends OncePerRequestFilter {
 
     // /ga4gh/{wes|tes}/{platformId}/v1[/...]
     private static final Pattern COMPUTE_PATH = Pattern.compile("^/ga4gh/(wes|tes)/([^/]+)/v1(/.*)?$");
+
+    // a WES run and everything under it: /runs/{run_id}[/...]
+    private static final Pattern WES_RUN_PATH = Pattern.compile("^/runs/[^/]+(/.*)?$");
 
     private final ComputeServiceInfoService computeServiceInfoService;
 
@@ -75,6 +80,14 @@ public class ComputePlatformAvailabilityFilter extends OncePerRequestFilter {
         }
 
         Optional<ComputePlatform> platform = computeServiceInfoService.findEnabledPlatform(platformId);
+        if (platform.isEmpty()
+                && "wes".equals(api)
+                && rest != null
+                && WES_RUN_PATH.matcher(rest).matches()) {
+            // a disabled platform's runs stay readable and cancelable by their owners (Task 8, option b). ownership
+            // needs authentication, so these paths go on to it, and the WES service serves a run only to its owner
+            platform = computeServiceInfoService.findPlatform(platformId);
+        }
         if (platform.isEmpty()) {
             write(response, HttpStatus.NOT_FOUND, "no compute platform with ID '" + platformId + "'");
             return;

@@ -75,6 +75,7 @@ public class ComputeConfigTest {
         properties.put(PREFIX + "limits.max-run-duration-seconds", "600");
         properties.put(PREFIX + "limits.default-task-cpu-cores", "1");
         properties.put(PREFIX + "limits.default-task-memory-gb", "1");
+        properties.put(PREFIX + "limits.max-run-inputs-gb", "10");
         return properties;
     }
 

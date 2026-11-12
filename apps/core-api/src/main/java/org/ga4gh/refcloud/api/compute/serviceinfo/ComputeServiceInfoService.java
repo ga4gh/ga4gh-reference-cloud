@@ -15,6 +15,8 @@ import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatformRepository;
 import org.ga4gh.refcloud.api.compute.platformworkflow.ComputePlatformWorkflowRepository;
 import org.ga4gh.refcloud.api.compute.platformworkflow.WorkflowTypeAndVersion;
+import org.ga4gh.refcloud.api.compute.run.ComputeRunRepository;
+import org.ga4gh.refcloud.api.compute.run.ComputeRunStates;
 import org.ga4gh.refcloud.api.serviceinfo.ServiceInfoType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,17 +45,21 @@ public class ComputeServiceInfoService {
 
     private final ComputeServiceInfoConfig serviceInfoConfig;
 
+    private final ComputeRunRepository computeRunRepository;
+
     public ComputeServiceInfoService(
             ComputePlatformRepository computePlatformRepository,
             ComputePlatformWorkflowRepository computePlatformWorkflowRepository,
             ComputeConnections computeConnections,
             ComputeHealthService computeHealthService,
-            ComputeServiceInfoConfig serviceInfoConfig) {
+            ComputeServiceInfoConfig serviceInfoConfig,
+            ComputeRunRepository computeRunRepository) {
         this.computePlatformRepository = computePlatformRepository;
         this.computePlatformWorkflowRepository = computePlatformWorkflowRepository;
         this.computeConnections = computeConnections;
         this.computeHealthService = computeHealthService;
         this.serviceInfoConfig = serviceInfoConfig;
+        this.computeRunRepository = computeRunRepository;
     }
 
     // any platform, enabled or not: an active run keeps working on a platform disabled after it started (Task 7)
@@ -126,11 +132,22 @@ public class ComputeServiceInfoService {
                 workflowEngineVersions,
                 // workflow_engine_parameters are rejected (D21), so there are no defaults to report
                 List.of(),
-                // run counts arrive with runs (Task 8)
-                Map.of(),
+                systemStateCounts(platform.getId()),
                 serviceInfoConfig.authInstructionsUrl(),
                 tags,
                 health(platform));
+    }
+
+    // every WES state with the platform's run count in it (zero included), in a stable order
+    private Map<String, Long> systemStateCounts(String platformId) {
+        Map<String, Long> counts = new TreeMap<>();
+        for (String state : ComputeRunStates.ALL) {
+            counts.put(state, 0L);
+        }
+        for (Object[] row : computeRunRepository.countByState(platformId)) {
+            counts.put((String) row[0], (Long) row[1]);
+        }
+        return counts;
     }
 
     public TesServiceInfo tesServiceInfo(ComputePlatform platform) {

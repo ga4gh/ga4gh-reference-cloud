@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.ga4gh.refcloud.api.compute.ComputeCaller;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeConnections;
+import org.ga4gh.refcloud.api.compute.ComputePageToken;
 import org.ga4gh.refcloud.api.compute.ComputeTaskConfig;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatformRepository;
@@ -119,7 +120,7 @@ public class TesTaskService {
         if (filter.tagValue() != null && filter.tagKey() == null) {
             throw new BadRequestException("tag_value needs a tag_key");
         }
-        TesPageToken after = filter.pageToken() == null ? null : TesPageToken.decode(filter.pageToken());
+        ComputePageToken after = filter.pageToken() == null ? null : ComputePageToken.decode(filter.pageToken());
 
         // one extra row says whether there's another page
         List<ComputeTask> rows = computeTaskRepository.findPage(
@@ -140,8 +141,7 @@ public class TesTaskService {
         for (ComputeTask task : page) {
             tasks.add(TesTaskViews.render(task, view));
         }
-        String nextPageToken =
-                more ? TesPageToken.after(page.get(page.size() - 1)).encode() : null;
+        String nextPageToken = more ? pageTokenAfter(page.get(page.size() - 1)) : null;
         return new TaskPage(tasks, nextPageToken);
     }
 
@@ -343,6 +343,10 @@ public class TesTaskService {
                         ? caller.runId().equals(task.getRunId())
                         : caller.userId().equals(task.getUserId()))
                 .orElseThrow(() -> new ResourceNotFoundException("no task with ID '" + taskId + "'"));
+    }
+
+    static String pageTokenAfter(ComputeTask task) {
+        return new ComputePageToken(task.getCreatedAt(), task.getId()).encode();
     }
 
     private ComputeConfig.Connection connection(ComputePlatform platform) {

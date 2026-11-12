@@ -43,8 +43,9 @@ public class NextflowEngine implements WorkflowEngine {
     // how much of the end of nextflow.log is read when looking for why a run failed
     static final long LOG_TAIL_BYTES = 256 * 1024;
 
-    // directories removed when a run ends: staged inputs, task work directories, nextflow's cache
-    static final List<String> INTERMEDIATE_DIRECTORIES = List.of("inputs", "work", ".nextflow");
+    // directories removed when a run ends: the workflow's copy (the run records where it came from: repository and
+    // commit, or bundled path), staged inputs, task work directories, nextflow's cache
+    static final List<String> INTERMEDIATE_DIRECTORIES = List.of("workflow", "inputs", "work", ".nextflow");
 
     private final HostProcessRunner hostProcessRunner;
 
@@ -171,6 +172,10 @@ public class NextflowEngine implements WorkflowEngine {
                 runDirectory.resolve("work").toString(),
                 "-params-file",
                 runDirectory.resolve(PARAMS_FILE).toString()));
+        if (run.getMainScript() != null && !run.getMainScript().equals("main.nf")) {
+            command.add("-main-script");
+            command.add(run.getMainScript());
+        }
         if (run.getEngineProfiles() != null && !run.getEngineProfiles().isEmpty()) {
             command.add("-profile");
             command.add(String.join(",", run.getEngineProfiles()));

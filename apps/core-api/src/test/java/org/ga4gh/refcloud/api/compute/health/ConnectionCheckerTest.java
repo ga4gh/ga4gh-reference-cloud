@@ -169,7 +169,18 @@ public class ConnectionCheckerTest {
                 new ComputeConfig.Executor(URI.create("http://127.0.0.1:1"), null),
                 new ComputeConfig.Storage(ComputeConfig.StorageType.SHARED_FILESYSTEM, "x"),
                 new ComputeConfig.Limits(
-                        1, 1, 1, BigDecimal.ONE, 1, BigDecimal.ONE, BigDecimal.ONE, 60, null, 1, BigDecimal.ONE));
+                        1,
+                        1,
+                        1,
+                        BigDecimal.ONE,
+                        1,
+                        BigDecimal.ONE,
+                        BigDecimal.ONE,
+                        60,
+                        null,
+                        1,
+                        BigDecimal.ONE,
+                        BigDecimal.TEN));
 
         List<String> failures = checker.check(connection, workDir.resolve("no-such-storage"));
 

@@ -34,7 +34,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | Requirement | Install (macOS) |
 |---|---|
 | Docker Desktop | visit [docs.docker.com](https://docs.docker.com/desktop/setup/install/mac-install/) and follow instructions |
-| git 2+ | `brew install git` (or install via the Xcode Command Line Tools); |
+| git 2+ | `brew install git` (or install via the Xcode Command Line Tools) |
 | PostgreSQL 18+ | `brew install postgresql@18` |
 | Liquibase 4+ | `brew install liquibase` |
 | SDKMAN | visit [sdkman.io](https://sdkman.io) and follow instructions

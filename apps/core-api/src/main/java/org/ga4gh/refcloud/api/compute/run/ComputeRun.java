@@ -89,4 +89,23 @@ public class ComputeRun {
     private Instant cancelRequestedAt;
 
     private Instant endedAt;
+
+    // when the workflow and inputs were put in place (Task 8); only prepared runs are launched. null while preparing
+    private Instant preparedAt;
+
+    // the main script, when it isn't main.nf (nextflow -main-script)
+    private String mainScript;
+
+    // the allowlist entry the run was accepted with (null if the entry was deleted since)
+    private Long computePlatformWorkflowId;
+
+    // a snapshot of how to get the workflow (source kind, repository and commit, or bundled path)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private JsonNode workflowSource;
+
+    // the DRS inputs to stage: [{uri, object_id, name, size, url}]
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private JsonNode drsInputs;
 }

@@ -90,8 +90,9 @@ public class ComputeRunService {
         ComputeConfig.Connection connection = connection(platform);
         WorkflowEngine engine = engine(connection);
 
+        // a run submitted unprepared (WES, Task 8) gets its workflow in the background, so it isn't there yet
         Path workflowPath = directory.path().resolve(submission.workflowPath()).normalize();
-        if (!workflowPath.startsWith(directory.path()) || !Files.exists(workflowPath)) {
+        if (!workflowPath.startsWith(directory.path()) || (submission.prepared() && !Files.exists(workflowPath))) {
             throw new BadRequestException(
                     "the workflow must be inside the run directory: " + submission.workflowPath());
         }
@@ -118,8 +119,14 @@ public class ComputeRunService {
                 .engineProfiles(List.copyOf(submission.engineProfiles()))
                 .engineEnv(Map.copyOf(submission.engineEnv()))
                 .request(submission.request())
+                .mainScript(submission.mainScript())
+                .computePlatformWorkflowId(submission.computePlatformWorkflowId())
+                .workflowSource(submission.workflowSource())
+                .drsInputs(
+                        submission.drsInputs() == null ? JsonNodeFactory.instance.arrayNode() : submission.drsInputs())
                 .maxDurationSeconds(maxDurationSeconds(platform, connection))
                 .createdAt(Instant.now())
+                .preparedAt(submission.prepared() ? Instant.now() : null)
                 .build();
         computeRunRepository.save(run);
 
@@ -129,6 +136,50 @@ public class ComputeRunService {
 
     public Optional<ComputeRun> findRun(String runId) {
         return computeRunRepository.findById(runId);
+    }
+
+    // queued runs whose workflow and inputs aren't in place yet (WES preparation picks these up, Task 8)
+    public List<ComputeRun> findUnprepared() {
+        return computeRunRepository.findByStateAndPreparedAtIsNull(ComputeRunStates.QUEUED);
+    }
+
+    // the run's workflow and inputs are in place: record its rewritten params and let the queue start it. false if the
+    // run is no longer waiting (e.g. cancelled while it was being prepared); its directory is then cleaned up again
+    public boolean markPrepared(String runId, JsonNode workflowParams) {
+        ComputeRun found = computeRunRepository.findById(runId).orElseThrow();
+        ComputePlatform platform =
+                computePlatformRepository.findById(found.getComputePlatformId()).orElseThrow();
+        ComputeConfig.Connection connection = connection(platform);
+        boolean[] prepared = {false};
+        withLock(platform.getConnectionKey(), () -> {
+            ComputeRun run = computeRunRepository.findById(runId).orElseThrow();
+            if (!ComputeRunStates.QUEUED.equals(run.getState()) || run.getPreparedAt() != null) {
+                engine(connection).cleanUp(run);
+                return;
+            }
+            run.setWorkflowParams(workflowParams);
+            run.setPreparedAt(Instant.now());
+            computeRunRepository.save(run);
+            prepared[0] = true;
+            launchWaiting(platform.getConnectionKey(), connection);
+        });
+        return prepared[0];
+    }
+
+    // preparation failed (a clone or download error): the run ends SYSTEM_ERROR with the reason
+    public void failPreparation(String runId, String reason) {
+        ComputeRun found = computeRunRepository.findById(runId).orElseThrow();
+        ComputePlatform platform =
+                computePlatformRepository.findById(found.getComputePlatformId()).orElseThrow();
+        ComputeConfig.Connection connection = connection(platform);
+        withLock(platform.getConnectionKey(), () -> {
+            ComputeRun run = computeRunRepository.findById(runId).orElseThrow();
+            if (!ComputeRunStates.QUEUED.equals(run.getState())) {
+                return;
+            }
+            run.setStateReason(reason);
+            finish(run, engine(connection), ComputeRunStates.SYSTEM_ERROR, null);
+        });
     }
 
     // a queued run is cancelled at once; a running one gets SIGTERM (its engine cancels its own tasks) and is killed if
@@ -257,6 +308,10 @@ public class ComputeRunService {
                 .size();
         for (ComputeRun run :
                 computeRunRepository.findByConnectionAndStates(connectionKey, List.of(ComputeRunStates.QUEUED))) {
+            if (run.getPreparedAt() == null) {
+                // still being prepared; it doesn't hold back prepared runs behind it
+                continue;
+            }
             if (active >= connection.limits().maxConcurrentRuns()) {
                 return;
             }
@@ -350,12 +405,19 @@ public class ComputeRunService {
     // a run's id and directory, allocated before the run is submitted
     public record RunDirectory(String runId, Path path) {}
 
-    // what WES hands over (Task 8): the workflow (relative to the run directory, already in place), the researcher's
-    // workflow_params (with inputs already staged), the allowlist entry's engine settings, and the WES request
+    // what WES hands over (Task 8): the workflow (relative to the run directory), the researcher's workflow_params,
+    // the allowlist entry's engine settings and source, the DRS inputs to stage, and the WES request
     public record RunSubmission(
             String workflowPath,
+            String mainScript,
             JsonNode workflowParams,
             List<String> engineProfiles,
             Map<String, String> engineEnv,
-            JsonNode request) {}
+            JsonNode request,
+            Long computePlatformWorkflowId,
+            JsonNode workflowSource,
+            JsonNode drsInputs,
+            // false: the workflow and inputs are put in place in the background (WES), and the run starts once
+            // markPrepared is called
+            boolean prepared) {}
 }

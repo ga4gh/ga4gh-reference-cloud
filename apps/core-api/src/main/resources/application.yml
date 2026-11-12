@@ -1,4 +1,10 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        # the compute schedulers (health checks, the TES reconciler, the run poller, run preparation sweeps) each run
+        # long checks; with the default single thread they'd wait on one another
+        size: 4
   config:
     # compute connections (deploy/local/compute/connections.yml locally; a mounted ConfigMap in helm). optional:
     # a missing file means no connections, so compute is off. keep the path in sync with
@@ -204,3 +210,12 @@ ga4gh:
         poll-interval: 5s
         cancel-grace-period: 2m
         launch-timeout: 30s
+      # WES (Task 8)
+      wes:
+        # bundled workflow paths (compute/workflows/nextflow/<name>) resolve from here: the repo root locally
+        bundled-workflows-base-dir: ../..
+        preparation-sweep-interval: 30s
+        git-timeout: 5m
+        download-timeout: 30m
+        default-page-size: 256
+        max-page-size: 2048

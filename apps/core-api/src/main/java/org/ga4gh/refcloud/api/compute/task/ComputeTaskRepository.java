@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.compute.task;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -64,4 +65,20 @@ public interface ComputeTaskRepository extends JpaRepository<ComputeTask, String
             @Param("afterCreatedAt") Instant afterCreatedAt,
             @Param("afterId") String afterId,
             @Param("limit") int limit);
+
+    // a user's core-hours on a platform from tasks that finished at or after `since` (the monthly quota, D11)
+    @Query("""
+            SELECT COALESCE(SUM(t.coreHours), 0) FROM ComputeTask t
+            WHERE t.computePlatformId = :platformId AND t.userId = :userId AND t.endedAt >= :since
+            """)
+    BigDecimal sumUserCoreHoursSince(
+            @Param("platformId") String platformId, @Param("userId") String userId, @Param("since") Instant since);
+
+    // everyone's core-hours on every platform backed by a connection, from tasks that finished at or after `since`
+    // (the connection's pooled monthly budget, D11)
+    @Query("""
+            SELECT COALESCE(SUM(t.coreHours), 0) FROM ComputeTask t, ComputePlatform p
+            WHERE t.computePlatformId = p.id AND p.connectionKey = :connectionKey AND t.endedAt >= :since
+            """)
+    BigDecimal sumConnectionCoreHoursSince(@Param("connectionKey") String connectionKey, @Param("since") Instant since);
 }

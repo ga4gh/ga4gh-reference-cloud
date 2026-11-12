@@ -6,6 +6,7 @@ import static org.testng.Assert.expectThrows;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import org.ga4gh.refcloud.api.compute.ComputePageToken;
 import org.ga4gh.refcloud.api.compute.task.ComputeTask;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.testng.annotations.Test;
@@ -107,7 +108,7 @@ public class TesTaskServiceTest {
                 .createdAt(Instant.parse("2026-11-12T10:00:00.123456Z"))
                 .build();
 
-        TesPageToken decoded = TesPageToken.decode(TesPageToken.after(task).encode());
+        ComputePageToken decoded = ComputePageToken.decode(TesTaskService.pageTokenAfter(task));
 
         assertEquals(decoded.createdAt(), task.getCreatedAt());
         assertEquals(decoded.id(), "abc|def");
@@ -115,7 +116,7 @@ public class TesTaskServiceTest {
 
     @Test
     public void invalidPageTokenIsABadRequest() {
-        expectThrows(BadRequestException.class, () -> TesPageToken.decode("not a token"));
-        expectThrows(BadRequestException.class, () -> TesPageToken.decode("bm8tc2VwYXJhdG9y"));
+        expectThrows(BadRequestException.class, () -> ComputePageToken.decode("not a token"));
+        expectThrows(BadRequestException.class, () -> ComputePageToken.decode("bm8tc2VwYXJhdG9y"));
     }
 }
