@@ -169,3 +169,24 @@ ga4gh:
       # the file imported by spring.config.import above, also read by the admin CLI. its connections bind to
       # ga4gh.refcloud.compute.connections; relative paths in it (e.g. a storage root) resolve from its directory
       connections-file: ${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}
+      # shared by every compute platform's WES and TES service-info. ids are {id-prefix}.{wes|tes}.{platformId}.{id-suffix};
+      # name, description and timestamps come from the platform
+      service-info:
+        id-prefix: org.ga4gh.refcloud
+        id-suffix: local
+        organization:
+          name: Global Alliance for Genomics and Health (GA4GH)
+          url: https://ga4gh.org
+        contact-url: mailto:info@ga4gh.org
+        documentation-url: https://github.com/ga4gh/ga4gh-reference-cloud
+        # WES auth_instructions_url: requesting access to a compute platform and minting a passport token (both in the
+        # researcher UI). the page is written in Task 12 of claude/specs/active/0008-add-compute-wes-tes.md
+        auth-instructions-url: https://docs.refcloud.ga4gh.localhost/compute/access
+        environment: dev
+        version: v0.1.0
+      # connection health checks (D10); unhealthy platforms get 503 on everything but service-info
+      health:
+        check-interval: 60s
+        executor-timeout: 5s
+        # the first `nextflow -version` downloads the pinned nextflow version
+        engine-timeout: 5m

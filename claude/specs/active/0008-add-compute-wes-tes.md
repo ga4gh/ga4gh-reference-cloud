@@ -364,22 +364,80 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
 
 ### Task 5: WES and TES service-info, health, and a dynamic service registry (D6, D10)
 
-* For each Compute Platform, serve `GET /ga4gh/wes/{platformId}/v1/service-info` and `GET /ga4gh/tes/{platformId}/v1/service-info`:
-  * Follow the respective specs: WES `workflow_type_versions`, `workflow_engine_versions` and so on; TES `storage` and so on.
-  * Build them from the platform record plus its connection.
-  * Add the health extension property: `"health": { "status": "healthy" | "unhealthy", "checkedAt": "<ISO 8601>" }`.
-* **Health checker:** a `@Scheduled` job checks every connection that backs a platform:
-  * Funnel's TES `service-info` is reachable;
-  * the `nextflow` executable is present and runs;
-  * the storage root is writable.
+* **Only enabled platforms are visible** (decided 2026-11-12). A disabled platform has been deliberately withheld by the admin, which is different from a temporary outage. It returns `404` on every WES/TES endpoint, including service-info, and isn't listed in the service registry (or, later, the researcher UI). It stays visible through the admin CLI. Once enabled, it shows up everywhere.
+* For each enabled Compute Platform, serve `GET /ga4gh/wes/{platformId}/v1/service-info` and `GET /ga4gh/tes/{platformId}/v1/service-info`.
+  * **IDs:** `{prefix}.{wes|tes}.{platformId}.{suffix}`, e.g. `org.ga4gh.refcloud.wes.nextflow-demo.local`. The prefix and suffix are configurable.
+  * **Shared fields** come from a new config block, `ga4gh.refcloud.compute.service-info`: prefix, suffix, organization, contact URL, documentation URL, `auth_instructions_url`, environment, version.
+  * **Per-platform fields:** name `"{platform name} (WES)"` / `"(TES)"`, the platform's description, and `createdAt`/`updatedAt` from the platform record.
+  * **WES 1.1.0 required fields:**
 
-  Platforms on the same connection share its result. Connection health stays out of `/actuator/health/liveness` and `/readiness`.
-* **503 rule:** every WES/TES request to an unhealthy or disabled platform returns `503` with a GA4GH error body, except `service-info`. Unknown platform IDs return `404`.
-* **Service registry:** `ServiceRegistryService` becomes dynamic. It lists the existing static services plus a WES and a TES service for each registered platform, whatever their health. `/services/{serviceId}` and `/services/types` include them.
+    | Field | Value |
+    |---|---|
+    | `workflow_type_versions` | from the platform's allowlist, e.g. `{"NFL": {"workflow_type_version": ["DSL2"]}}` |
+    | `supported_wes_versions` | `["1.1.0"]` |
+    | `supported_filesystem_protocols` | `["drs"]` (inputs are `drs://` only, D17) |
+    | `workflow_engine_versions` | from the connection, e.g. `{"nextflow": {"workflow_engine_version": ["26.10.5"]}}` |
+    | `default_workflow_engine_parameters` | `[]` (engine parameters are rejected, D21) |
+    | `system_state_counts` | `{}` until runs exist (Task 8) |
+    | `auth_instructions_url` | a docs page on requesting access to a compute platform and minting a passport token, both done in the researcher UI. The page itself is written in Task 12. |
+    | `tags` | `{"platform_type": "<type>"}`. The connection key is internal and isn't exposed. |
+
+  * **TES:** leave out `storage` (shared-filesystem paths are internal). `tesResources_backend_parameters` is `[]`.
+  * **Health extension property:** `"health": { "status": "healthy" | "unhealthy", "checkedAt": "<ISO 8601>" }`.
+* **Health checker:** a `@Scheduled` job checks every connection that backs a platform, every 60 s (configurable). The first check runs at startup, and platforms count as unhealthy until it completes. A connection is healthy only if all three checks pass:
+  * Funnel's TES `service-info` responds (5 s timeout);
+  * `NXF_VER=<pinned> nextflow -version` reports the pinned version. The `nextflow` on the PATH is only a launcher; `NXF_VER` makes it fetch and run exactly the pinned version, which needs internet the first time. Runs will use the same `NXF_VER` (Task 7), so version drift can't happen;
+  * a test file can be written to the storage root. A missing root counts as unhealthy and isn't created; creating it is setup's job (Task 10).
+
+  Platforms on the same connection share its result, and a connection missing from the connections file is unhealthy. Failure reasons go to the logs; service-info shows only `{status, checkedAt}`. Connection health stays out of `/actuator/health/liveness` and `/readiness`.
+* **404/503 rule:** a filter on `/ga4gh/{wes,tes}/{platformId}/v1/**`, so later tasks inherit it:
+  * unknown or disabled platform → `404`;
+  * unhealthy platform → `503`, except `service-info`.
+
+  Error bodies use the WES `ErrorResponse` shape (`{msg, status_code}`) for both WES and TES, since TES defines no error format.
+* **Service registry:** `ServiceRegistryService` becomes dynamic. It lists the existing static services plus a WES and a TES service for each **enabled** platform, whatever their health. It reads platforms from the database on each request, so changes appear without a restart. `/services/{serviceId}` and `/services/types` include them.
 * **Ingress:** add `/ga4gh/wes/*` and `/ga4gh/tes/*` handle blocks to `deploy/local/Caddyfile`, and the same paths to the Helm ingress (`deploy/helm/charts/app/templates/common/ingress.yaml`). Without them, browser and client traffic falls through to Next.js and gets a 404 (see `deploy/local/CLAUDE.md`).
 * **Security:** add the new paths to `SecurityConfig`. `service-info` is public, like the other services. Everything else needs a Hydra JWT (or the run-scoped credential for TES, Task 6), with a `@PreAuthorize` check that the caller holds the platform's visa.
 
 **Decisions (Task 5):**
+
+* **Code (core-api):**
+  * Config: `ComputeServiceInfoConfig` (`ga4gh.refcloud.compute.service-info`: id prefix and suffix, organization, contact and documentation URLs, auth instructions URL, environment, version) and `ComputeHealthConfig` (`ga4gh.refcloud.compute.health`: check interval 60s, executor timeout 5s, engine timeout 5m, since the first `nextflow -version` downloads Nextflow). Both are in `application.yml`; these are deployment settings, not connections.
+  * `health/`: `ComputeHealth` (record + `Status`), `ConnectionChecker` (the three checks), `ComputeHealthService` (`@Scheduled`, `initialDelay = 0`; results in memory per instance; logs each change once, not every round). `ComputeSchedulingConfig` adds `@EnableScheduling`.
+  * `serviceinfo/`: `WesServiceInfo`, `TesServiceInfo` (records implementing `ServiceInfo`, spec fields via `@JsonProperty`), `ComputeServiceInfoService` (`@Transactional(readOnly = true)`).
+  * `wes/WesServiceInfoController`, `tes/TesServiceInfoController`.
+  * `error/ComputeErrorResponse` and `ComputeExceptionHandler`, scoped to the compute package and ordered ahead of `GlobalExceptionHandler`, like the service registry's.
+  * `ComputePlatformAvailabilityFilter`, registered by `ComputeFilterConfig`.
+  * Repository methods `findByIdAndEnabledTrue`, `findAllByEnabledTrueOrderByIdAsc` and `findWorkflowTypes`. `ComputePlatformType.engine()` is the engine name WES reports (`nextflow`).
+* **Every configured connection is checked,** not only ones with a platform. It's simpler, gives deployers feedback in the logs before any platform exists, and warms up Nextflow's download. Platforms read their connection's latest result, and a connection missing from the file is unhealthy.
+* **The availability filter runs before Spring Security** (`FilterRegistrationBean`, order `SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1`; URL patterns `/ga4gh/wes/*`, `/ga4gh/tes/*`). Availability isn't secret: health is public through service-info, and unknown and disabled platforms both return `404`. So any client learns a platform is missing or down before being asked to authenticate. A healthy platform's requests then go through normal authentication.
+* **`503` responses** carry `Retry-After` = the check interval in seconds.
+* **A missing connection** gives empty `workflow_engine_versions` and `tags` in WES service-info rather than guessed values.
+* **Fixed during end-to-end testing:**
+  * Jackson serialized `ComputeHealth.isHealthy()` as an extra `"healthy"` property. It's now `@JsonIgnore`, and the JSON test asserts the health object has exactly `checkedAt` and `status`.
+  * A refused connection logged `unreachable: null`; the exception type is now logged when there's no message.
+* **Build change:** `testCompileOnly 'com.github.spotbugs:spotbugs-annotations:4.10.5'` (same artifact and version as `compileOnly`; lockfile refreshed). Tests that load a class carrying `@SuppressFBWarnings` (here `ConnectionChecker`) otherwise fail `-Werror` with "Cannot find annotation method". Only `COMMAND_INJECTION` on the `nextflow` launch needed a suppression; SpotBugs flagged the path-traversal ones as unused.
+* **Unit tests (23 new; core-api total 128):**
+  * `ConnectionCheckerTest`: a local HTTP server as the executor (OK, trailing slash, wrong credential → 401, unset credential variable, unreachable); fake `nextflow` launcher scripts (pinned version, other version, failing, missing); storage (writable leaves no files, missing isn't created, read-only); all three failures reported.
+  * `ComputeHealthServiceTest`: unhealthy until the first check, healthy, failing then recovering, missing connection.
+  * `ComputeServiceInfoJsonTest`: WES/TES spec field names, the health shape (exact keys; no `checkedAt` before the first check), registry listing keeps the WES fields plus `url`, the `{msg, status_code}` error shape, the service ID format.
+  * Controller/filter slice tests (`@WebMvcTest`) wait for Task 12, which adds Spring's test support. The behaviour is covered end to end below.
+* **End-to-end check** against a throwaway Postgres, a real Nextflow 26.10.5 launcher (`NXF_HOME` in scratch), a fake TES executor (Python) and a 5 s check interval; the platform was managed with the admin CLI:
+  * **Startup:** core-api starts and reports the connection healthy. The launcher downloaded and reported the pinned version.
+  * **Disabled platform:** not in the registry, and both service-infos return `404` with `{msg, status_code}`.
+  * **After allowlist + enable:**
+    * the registry lists WES and TES (`org.ga4gh.refcloud.{wes,tes}.nextflow-demo.local`, URLs `…/ga4gh/{wes,tes}/nextflow-demo/v1`);
+    * `/services/{id}` and `/services/types` include them;
+    * WES service-info has every required field with the agreed values, and TES has `tesResources_backend_parameters` and no `storage`;
+    * an unknown platform returns `404`, and other paths reach authentication (`401`).
+  * **Executor stopped:** the next check logs unhealthy. WES/TES paths return `503` + `Retry-After: 5`, service-info still returns `200` showing `unhealthy`, and the registry still lists the platform as unhealthy.
+  * **Executor restarted:** healthy again, back to `401`.
+  * **Connection key missing from the file:** unhealthy, empty engine versions and tags, `503`.
+  * **Disabled again:** `404` everywhere, gone from the registry and its types.
+  * **Throughout:** `/actuator/health/readiness` stayed `UP`.
+* **Checks:** `./gradlew staticAnalysis` passes and 128 tests pass. Caddy validation and Helm lint, kubeconform and trivy-config pass.
+* The **auth instructions page** (`https://docs.refcloud.ga4gh.localhost/compute/access` locally) is written in Task 12: requesting access to a compute platform and minting a passport token, both in the researcher UI.
+
 
 ### Task 6: Refcloud TES API: proxy to Funnel (D3, D11, D12)
 
@@ -492,6 +550,7 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
   * the terminology table;
   * the supported platform types (D14; stage 1 has `nextflow-funnel-docker` only);
   * the non-standard extensions: health in service-info (D10) and output downloads (D19);
+  * the **auth instructions page** that WES service-info's `auth_instructions_url` points to (`/compute/access` on the docs site): how to request access to a compute platform and mint a passport token, both in the researcher UI;
   * a **workflow compatibility table** per platform type, listing which workflows and versions are known to work (seeded from the Task 1 table: the bundled `drs-checksum` demo and nf-core/demo 1.0.2 work; nf-core/demo 1.2.0 and other workflows using `env`/`eval` outputs need the nf-ga4gh fix, D22), with a link to the upstream nf-ga4gh issue/PR and its status;
   * how to run the demo.
 
@@ -505,6 +564,7 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
     * a ConfigMap template that renders `connections.yml` from it (only when non-empty);
     * mounting it into the core-api and admin-cli Deployments, with `REFCLOUD_COMPUTE_CONNECTIONS_FILE` pointing at it;
     * environment variables from Kubernetes Secrets for connection credentials (created like the existing secrets in `deploy/helm/README.md`).
+    * the compute service-info settings (`ga4gh.refcloud.compute.service-info`, e.g. a non-`local` ID suffix and the public auth instructions URL) as values → environment variables, as the chart already does for DRS and the other services.
 
     Production connections go in the deployer's own values file, passed with `-f`. For the GA4GH refcloud, that's the existing private values repo. This repo carries only the chart wiring and a commented example.
 * Stage 3: MinIO/S3 storage as a connection setting for both platform types (D15, D16).

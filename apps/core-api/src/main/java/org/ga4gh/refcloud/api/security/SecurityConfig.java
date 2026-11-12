@@ -55,6 +55,9 @@ public class SecurityConfig {
                     .matcher(HttpMethod.GET, "/ga4gh/service-registry/v1/services/types"),
             PathPatternRequestMatcher.withDefaults()
                     .matcher(HttpMethod.GET, "/ga4gh/service-registry/v1/services/{serviceId}"),
+            // compute platforms' service-info (only enabled platforms; others 404)
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/wes/{platformId}/v1/service-info"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/tes/{platformId}/v1/service-info"),
             // kubernetes liveness/readiness probes; status only (no details), and never routed by the ingress
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/actuator/health/liveness"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/actuator/health/readiness"),

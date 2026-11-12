@@ -100,6 +100,21 @@ spec:
                 name: refcloud-api
                 port:
                   number: 8080
+          # compute: one WES and one TES service per compute platform (/ga4gh/{wes,tes}/{platformId}/v1/...)
+          - path: /ga4gh/wes/
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-api
+                port:
+                  number: 8080
+          - path: /ga4gh/tes/
+            pathType: Prefix
+            backend:
+              service:
+                name: refcloud-api
+                port:
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:
