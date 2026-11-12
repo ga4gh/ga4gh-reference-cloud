@@ -196,3 +196,11 @@ ga4gh:
         executor-timeout: 30s
         default-page-size: 256
         max-page-size: 2048
+      # workflow runs (Task 7)
+      runs:
+        # core-api's own internal base url, which engines call back on for TES: service to service, not through caddy
+        # (helm: http://refcloud-api:8080)
+        engine-callback-url: http://localhost:8080
+        poll-interval: 5s
+        cancel-grace-period: 2m
+        launch-timeout: 30s

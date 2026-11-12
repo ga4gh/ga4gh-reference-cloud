@@ -14,6 +14,9 @@ public interface ComputeTaskRepository extends JpaRepository<ComputeTask, String
 
     Optional<ComputeTask> findByIdAndComputePlatformId(String id, String computePlatformId);
 
+    // a run's tasks that haven't finished
+    List<ComputeTask> findByRunIdAndStateNotIn(String runId, Collection<String> states);
+
     // tasks forwarded to the executor and not finished, on every platform backed by a connection (pooled capacity)
     @Query("""
             SELECT t FROM ComputeTask t, ComputePlatform p

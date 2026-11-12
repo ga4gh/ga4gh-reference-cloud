@@ -1,6 +1,7 @@
 package org.ga4gh.refcloud.api.security;
 
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatformAccessService;
+import org.ga4gh.refcloud.api.compute.run.RunPrincipal;
 import org.ga4gh.refcloud.api.core.dataset.DatasetService;
 import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableService;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoRequestDTO;
@@ -49,6 +50,9 @@ public class GA4GHPassportTokenEvaluator {
     // compute platforms are never open: a researcher needs an approved request for the platform's visa. a run
     // token (Task 7) is accepted for its own run's platform only
     public boolean canAccessComputePlatform(Authentication authentication, String platformId) {
+        if (authentication != null && authentication.getPrincipal() instanceof RunPrincipal run) {
+            return run.platformId().equals(platformId);
+        }
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
             return computePlatformAccessService.isApproved(jwt.getSubject(), platformId);
         }

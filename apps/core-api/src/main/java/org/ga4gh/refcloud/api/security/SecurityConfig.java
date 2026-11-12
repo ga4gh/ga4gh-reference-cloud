@@ -2,17 +2,25 @@ package org.ga4gh.refcloud.api.security;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
+import org.ga4gh.refcloud.api.compute.run.RunTokenAuthenticationProvider;
+import org.ga4gh.refcloud.api.compute.run.RunTokenService;
+import org.ga4gh.refcloud.api.compute.run.RunTokens;
 import org.ga4gh.refcloud.api.dataconnect.error.DataConnectAccessDeniedHandler;
 import org.ga4gh.refcloud.api.dataconnect.error.DataConnectAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -153,7 +161,28 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(5) // Fallback: Ensure everything else requires a valid Ory Hydra token
+    @Order(5) // Compute TES: a run-scoped token (rcrun_..., an engine acting for a run) or a Hydra token (a researcher)
+    public SecurityFilterChain computeTesFilterChain(
+            HttpSecurity http, JwtDecoder jwtDecoder, RunTokenService runTokenService) throws Exception {
+        // both managers have no parent, so neither falls back to another provider. the run-token provider exists only
+        // here: run tokens are understood on these paths and nowhere else
+        AuthenticationManager runTokens = new ProviderManager(new RunTokenAuthenticationProvider(runTokenService));
+        AuthenticationManager jwts = new ProviderManager(new JwtAuthenticationProvider(jwtDecoder));
+        // service-info is public (matched by the public chain first); everything else under a platform's TES
+        http.securityMatcher(PathPatternRequestMatcher.withDefaults().matcher("/ga4gh/tes/{platformId}/v1/**"))
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2.authenticationManagerResolver(
+                        request -> RunTokens.fromAuthorizationHeader(request.getHeader(HttpHeaders.AUTHORIZATION))
+                                        .isPresent()
+                                ? runTokens
+                                : jwts))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        return http.build();
+    }
+
+    @Bean
+    @Order(6) // Fallback: Ensure everything else requires a valid Ory Hydra token
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2ResourceServer(

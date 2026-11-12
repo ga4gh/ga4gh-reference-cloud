@@ -56,6 +56,11 @@ public class ComputeServiceInfoService {
         this.serviceInfoConfig = serviceInfoConfig;
     }
 
+    // any platform, enabled or not: an active run keeps working on a platform disabled after it started (Task 7)
+    public Optional<ComputePlatform> findPlatform(String platformId) {
+        return computePlatformRepository.findById(platformId);
+    }
+
     public Optional<ComputePlatform> findEnabledPlatform(String platformId) {
         return computePlatformRepository.findByIdAndEnabledTrue(platformId);
     }

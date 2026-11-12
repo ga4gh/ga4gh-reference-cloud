@@ -535,18 +535,258 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
   * an end-to-end check of Nextflow → refcloud TES → Funnel, including the file rule with real nf-ga4gh paths.
 
 
-### Task 7: Workflow engine adapter and the Nextflow implementation (D12, D18)
+### Task 7: Runs: the run lifecycle, run-scoped tokens, and the Nextflow engine (D3, D11, D12, D18)
 
-* Define a `WorkflowEngine` interface with operations to submit, get status, cancel, read logs and list outputs. Keep it free of Nextflow specifics so a Cromwell adapter can be added later.
-* Implement `NextflowEngine` for `nextflow-funnel-docker`:
-  * For each run, launch `nextflow run` as a host subprocess with the run directory layout from D18 (`runs/<run_id>/{inputs,work,outputs}`): work dir set to `work/`, outputs published to `outputs/`.
-  * Configure the nf-ga4gh TES executor to point at the **refcloud** TES for the platform (not Funnel directly), with the run-scoped credential.
-  * Map Nextflow's state to WES states. Capture stdout and stderr for the run log.
-* **Run lifecycle:** cancel runs that exceed the max run duration (the lower of the per-user and connection values). When a run ends (complete, failed or cancelled), delete `inputs/` and `work/`, keep `outputs/`, and revoke the run-scoped credential.
-* **Restarts:** if core-api restarts while runs are active, choose how those runs are reconciled and record it here. For example, mark them `SYSTEM_ERROR`, or reattach if that's feasible.
-* Use a named executor bean for any `@Async` work, per `apps/core-api/CLAUDE.md`.
+**Scope (agreed 2026-11-12):**
+* **Task 7 owns the run itself:**
+  * `compute_run`;
+  * minting the run-scoped token and authenticating it at TES;
+  * the engine adapter: launch, monitor, cancel, clean up;
+  * the max-duration timeout and recovery after a core-api restart;
+  * the **run queue**: starting waiting runs, oldest first, while the connection's `max-concurrent-runs` allows. This moved here from Task 8.
+* **Task 8 owns the WES API:** request checks, the allowlist, the per-user concurrent-run limit, the quota, putting the workflow into the run directory, DRS input staging, the run log, outputs and downloads. It hands a prepared run to Task 7's service.
+
+**Engine:**
+* Define a `WorkflowEngine` interface (launch, poll, terminate, clean up), free of Nextflow specifics so a Cromwell adapter can be added later. Implement `NextflowEngine` for `nextflow-funnel-docker`:
+  * Each run is launched as a host subprocess in its run directory (D18 layout `runs/<run_id>/{inputs,work,outputs}`).
+  * The `nextflow run` command line: `-work-dir work/`, `-params-file params.json` (the researcher's `workflow_params`), `--outdir <run>/outputs`, the allowlist entry's `-profile`s, and `-c refcloud.config`.
+  * `refcloud.config` is generated for the run: `process.executor = 'tes'`, `tes.endpoint = <engine-callback-url>/ga4gh/tes/<platformId>`, `tes.oauthToken = System.getenv('REFCLOUD_TES_TOKEN')`.
+  * Environment: `NXF_VER` and `NXF_PLUGINS_DEFAULT=nf-ga4gh@<version>` from the connection (Task 1), plus the run token, plus the allowlist entry's engine variables. Those can't override the reserved names (`NXF_VER`, `NXF_PLUGINS_DEFAULT`, `NXF_HOME`, `REFCLOUD_*`).
+* **Outputs convention:** allowlisted workflows publish their results through `params.outdir`, the nf-core convention. core-api always passes `--outdir <run>/outputs`, overriding any value the researcher sends. A workflow that publishes elsewhere completes, but has no outputs to list (D19). This is a rule for admins when they allowlist a workflow.
+* **How Nextflow reaches the refcloud TES:** through core-api's own **internal** address (service to service), not through Caddy. A natively running Nextflow would otherwise need its JVM to trust Caddy's local CA. The new setting is `ga4gh.refcloud.compute.runs.engine-callback-url` in `application.yml`: `http://localhost:8080` locally, `http://refcloud-api:8080` in helm. It describes core-api, not a connection.
+* **Run states (WES):**
+
+  | State | Meaning |
+  |---|---|
+  | `QUEUED` | waiting for pooled capacity |
+  | `INITIALIZING` | launching |
+  | `RUNNING` | the engine is alive |
+  | `COMPLETE` | exit 0 |
+  | `EXECUTOR_ERROR` | non-zero exit (the workflow failed) |
+  | `SYSTEM_ERROR` | couldn't launch, or the run was lost |
+  | `CANCELING` → `CANCELED` | cancel requested, then finished |
+
+**Run-scoped token** (design agreed in Task 6):
+* `rcrun_` + 32 random bytes, base64url, minted when the run is **launched**. Only its SHA-256 hash is stored, and the plaintext reaches the engine only as `REFCLOUD_TES_TOKEN`.
+* A dedicated security chain on `/ga4gh/tes/{platformId}/v1/**` routes `rcrun_…` bearer tokens to a run-token provider and everything else to Hydra JWT validation. A run token is accepted only while its run is active, and only on its own platform. `ComputeCallerResolver` and `canAccessComputePlatform` gain the run branch.
+* The hash is cleared when the run ends.
+
+**Run lifecycle:**
+* **Queue:** runs start oldest first while the connection's running count is below `max-concurrent-runs`.
+* **Max run duration:** the lower of the per-user and connection values, counted from when the run **starts** (not while queued). An overdue run is cancelled and ends `CANCELED`, with the reason recorded.
+* **Cancel:** `SIGTERM` to the engine, which cancels its own TES tasks (Task 1). After a 2-minute grace period, `SIGKILL`, and the run's remaining TES tasks are cancelled directly.
+* **When a run ends** (complete, failed, cancelled or lost):
+  * delete `inputs/`, `work/` and Nextflow's `.nextflow/` cache directory;
+  * keep `outputs/` and the logs (`nextflow.log`, stdout, stderr);
+  * clear the token hash;
+  * cancel any of the run's TES tasks still in flight.
+* **Disabled platforms (decided 2026-11-12, option a):** disabling a platform stops new work, and runs already active finish. The availability filter lets a run token for an **active run on that platform** through, even when the platform is disabled. Researchers and new submissions still get `404`. Likewise, a visa revoked mid-run doesn't stop the run: it acts for its user, and was approved when it started (the same spirit as D11's "a run that crosses its quota finishes").
+* **Restarts: reattach.** Runs are tracked through files in the run directory, not an in-memory process handle:
+  * a small launcher script starts the engine, records its PID, and writes the exit code when it finishes;
+  * a scheduled poller checks the process and that file.
+
+  After a restart, core-api reattaches to runs whose engine is still alive. To confirm the PID is still the same process, it checks the process start time against the recorded one, and the command line where the OS provides it. It finishes runs whose exit code is waiting, and marks the rest `SYSTEM_ERROR`, cancelling their leftover TES tasks. (Ctrl-C in the terminal running the native-mode script also signals the engines, so those runs end `SYSTEM_ERROR` rather than reattaching. In helm mode, a Job per run, reattaching is natural.)
+* There's no `@Async` and no thread per run: the poller is `@Scheduled`.
+* `compute_task.run_id` gets its foreign key to `compute_run`.
+* **Testing:** a temporary harness does what Task 8 will do (puts a small workflow into a run directory) and submits through the service. core-api launches a real Nextflow, which calls the refcloud TES with a real run token over HTTP, which forwards to Funnel. That's the first end-to-end run of D3's full path.
 
 **Decisions (Task 7):**
+
+* **Code (core-api):**
+  * `ComputeRunConfig` (`ga4gh.refcloud.compute.runs`): `engine-callback-url` `http://localhost:8080`, `poll-interval` 5s, `cancel-grace-period` 2m, `launch-timeout` 30s.
+  * `run/`:
+    * `ComputeRun`, `ComputeRunRepository`, `ComputeRunStates`;
+    * `RunTokens` (mint, SHA-256 hash, `Authorization` header parsing);
+    * `RunPrincipal` (serializable; the run directory is held as a string), `RunTokenAuthentication`, `RunTokenService`, `RunTokenAuthenticationProvider`;
+    * `ComputeRunService`: allocate a run directory, submit, cancel, the `@Scheduled` poller (check active runs, then start queued ones), launch, finish.
+  * `engine/`:
+    * `WorkflowEngine` (launch, status, terminate, clean up, reserved environment variables);
+    * `EngineStatus` (`Alive` / `Exited` / `Lost`), `EngineProcess`;
+    * `HostProcessRunner`: the generic host-process launcher (pid and exit-code files, identity, signals);
+    * `NextflowEngine`.
+  * The launcher script is a classpath resource (`compute/run-launcher.sh`), copied into each run directory.
+  * **Changeset `create-table-compute-run`:** WES state check; unique `token_hash` and `run_directory`; JSON object checks; indexes (a user's runs, active runs); the `set_updated_at` trigger; and the foreign key from `compute_task.run_id` (cascade).
+  * **Security:** a new chain (order 5, before the fallback, now order 6) on `/ga4gh/tes/{platformId}/v1/**`. Its `authenticationManagerResolver` sends `Bearer rcrun_…` to the run-token provider and everything else to a JWT provider. Both are `ProviderManager`s with no parent. `canAccessComputePlatform` and `ComputeCallerResolver` gained the run branch.
+  * **Option (a), disabled platforms:**
+    * `ComputePlatformAvailabilityFilter` lets a valid token for an **active run on that platform** straight through, past both the disabled (`404`) and unhealthy (`503`) checks. The TES layer copes with an executor outage itself: creates queue, and reads come from our records.
+    * `TesTaskController` looks up the platform regardless of its enabled state for run callers (`ComputeServiceInfoService.findPlatform`).
+  * `TesTaskService.cancelRunTasks(runId)` cancels a run's leftover tasks when its engine is gone.
+* **Run directory:**
+  * **Files written:** `.refcloud-launcher.sh`, `refcloud.config` (no secret: the token is read from the environment), `params.json`, `engine.pid`, `engine.exitcode`, `engine.stdout.log` / `engine.stderr.log`, `launcher.log`, `nextflow.log`.
+  * **When a run ends:** `inputs/`, `work/` and `.nextflow/` are removed.
+  * **On Linux,** files written by Funnel's containers may be root-owned and not deletable by core-api; that's logged, not fatal. On macOS (Docker Desktop) they're owned by the user.
+* **Outcomes:**
+  * Exit 0 → `COMPLETE`. Any other exit → `EXECUTOR_ERROR`, except **126/127** (not executable / command not found) → `SYSTEM_ERROR` "the engine could not be started".
+  * Any run with a cancel requested → `CANCELED`, however it exited (Nextflow exits non-zero on `SIGTERM`).
+  * Engine gone with no exit code → `SYSTEM_ERROR` "the engine process was lost…", or `CANCELED` if a cancel was requested.
+  * Launched but no pid recorded within 2× the launch timeout (core-api stopped mid-launch) → `SYSTEM_ERROR`.
+* **Process identity:** the engine's **start time** is the identity, compared to the recorded one within 1 s. The command line is used only when the OS doesn't report a start time. Requiring the command line to contain the run directory was too strict (it isn't there for every process) and fragile on macOS temp paths.
+* **Security bug found and fixed** in the end-to-end check: a valid run token was accepted as an **authenticated identity on every path** (DRS, WES, `/datasets`). No data was exposed (those checks look for a Hydra `Jwt` and treated it as anonymous), but it passed "must be authenticated" rules everywhere.
+  * **Cause:** `RunTokenAuthenticationProvider` was a `@Component`. Spring Security adds a lone `AuthenticationProvider` bean to the **global** `AuthenticationManager`, which every chain falls back to when its own provider fails.
+  * **Fix:** it's no longer a bean; `SecurityConfig` constructs it for the TES chain only.
+  * Re-verified: a valid run token gets `401` on DRS, WES and `/datasets`, `200` on its own TES and `403` on another platform's TES. A guardrail was added to `apps/core-api/CLAUDE.md`.
+* **nf-ga4gh doesn't survive a TES outage (D23).** In the restart test, core-api reattached correctly, but Nextflow had already aborted. nf-ga4gh's `checkIfRunning()` / `checkIfCompleted()` call `client.getTask(...)` with no error handling, so the first failed status request (`ConnectException` while core-api was down) aborted the whole workflow. Nextflow exited 1, and the run ended `EXECUTOR_ERROR`. **Decision (option 1): fix it upstream**, like D22.
+  * A patch, verified here, makes status requests tolerate transient errors (no response, or `5xx`): each is logged and retried on the next poll, and only errors lasting longer than the new `tes.pollErrorTimeout` (default `10m`) fail the task.
+  * The patch also declares the option in `TesConfig` and adds Spock tests (transient vs permanent errors; retry until the timeout; no retry on `404`). All 68 nf-ga4gh tests pass.
+  * **Verified end to end with the patched plugin:** with core-api down for ~20 s mid-run, Nextflow logged 4 retries, carried on when core-api returned, and the run completed with its output.
+  * **Until the fix is released:** restarting core-api (more than a few seconds of downtime) fails the workflows in flight. The poller still records their end, cancels leftover tasks and cleans up.
+  * Patch (`src/main`; the tests are in the upstream PR):
+
+    ```diff
+    diff --git a/src/main/groovy/nextflow/ga4gh/tes/config/TesConfig.groovy b/src/main/groovy/nextflow/ga4gh/tes/config/TesConfig.groovy
+    index ef546b1..3032ec4 100644
+    --- a/src/main/groovy/nextflow/ga4gh/tes/config/TesConfig.groovy
+    +++ b/src/main/groovy/nextflow/ga4gh/tes/config/TesConfig.groovy
+    @@ -62,6 +62,14 @@ class TesConfig implements ConfigScope {
+         ''')
+         String pollInterval
+     
+    +    @ConfigOption
+    +    @Description('''
+    +    How long task status requests may keep failing with transient errors (the TES server unreachable, or answering
+    +    with a 5xx status) before the task is failed, for example `10m` (default). Until then, each failed request is
+    +    logged and retried on the next poll, so a TES server restart doesn't abort the workflow.
+    +    ''')
+    +    String pollErrorTimeout
+    +
+         @ConfigOption
+         @Description('''
+         API key parameter mode: `query` or `header`.
+    diff --git a/src/main/groovy/nextflow/ga4gh/tes/executor/TesExecutor.groovy b/src/main/groovy/nextflow/ga4gh/tes/executor/TesExecutor.groovy
+    index 4504939..4417d2d 100644
+    --- a/src/main/groovy/nextflow/ga4gh/tes/executor/TesExecutor.groovy
+    +++ b/src/main/groovy/nextflow/ga4gh/tes/executor/TesExecutor.groovy
+    @@ -201,6 +201,14 @@ class TesExecutor extends Executor implements ExtensionPoint {
+             return tpm;
+         }
+     
+    +    /**
+    +     * How long task status requests may keep failing with transient errors before the task is failed
+    +     * (config `tes.pollErrorTimeout`, default 10 minutes)
+    +     */
+    +    Duration getPollErrorTimeout() {
+    +        return Duration.of(session.config.navigate('tes.pollErrorTimeout', '10m') as String)
+    +    }
+    +
+         /*
+          * Prepare and launch the task in the underlying execution platform
+          */
+    diff --git a/src/main/groovy/nextflow/ga4gh/tes/executor/TesTaskHandler.groovy b/src/main/groovy/nextflow/ga4gh/tes/executor/TesTaskHandler.groovy
+    index fae1136..e640b6f 100644
+    --- a/src/main/groovy/nextflow/ga4gh/tes/executor/TesTaskHandler.groovy
+    +++ b/src/main/groovy/nextflow/ga4gh/tes/executor/TesTaskHandler.groovy
+    @@ -25,6 +25,8 @@ import static nextflow.processor.TaskStatus.RUNNING
+     
+     import java.nio.file.Path
+     
+    +import java.io.IOException
+    +
+     import groovy.transform.CompileStatic
+     import groovy.util.logging.Slf4j
+     import nextflow.exception.ProcessUnrecoverableException
+    @@ -103,11 +105,62 @@ class TesTaskHandler extends TaskHandler {
+     
+         protected String getRequestId() { requestId }
+     
+    +    /**
+    +     * When the current run of consecutive transient status-request failures began, or {@code null} if the last
+    +     * status request worked
+    +     */
+    +    private Long pollErrorsSinceMillis
+    +
+    +    /**
+    +     * Gets the task's status from the TES server. A transient failure (the server unreachable, or answering with a
+    +     * 5xx status) is logged and returns {@code null}, meaning "no change yet", so the next poll tries again; only
+    +     * failures lasting longer than {@code tes.pollErrorTimeout} fail the task. Without this, a TES server restart
+    +     * aborted the whole workflow on the first failed poll
+    +     */
+    +    protected TesTask getTaskStatus() {
+    +        try {
+    +            final response = client.getTask(requestId, null)
+    +            pollErrorsSinceMillis = null
+    +            return response
+    +        }
+    +        catch( Exception e ) {
+    +            if( !isTransientError(e) )
+    +                throw e
+    +            final now = System.currentTimeMillis()
+    +            if( pollErrorsSinceMillis == null )
+    +                pollErrorsSinceMillis = now
+    +            final timeout = executor.getPollErrorTimeout()
+    +            if( now - pollErrorsSinceMillis > timeout.toMillis() ) {
+    +                log.warn "[TES] Status requests for task > $task.name have failed for longer than $timeout; giving up"
+    +                throw e
+    +            }
+    +            log.warn "[TES] Could not get the status of task > $task.name; retrying on the next poll -- cause: ${e.message ?: e.class.simpleName}"
+    +            return null
+    +        }
+    +    }
+    +
+    +    /**
+    +     * A failure worth retrying: no response at all (connection refused, timeout) or a 5xx status
+    +     */
+    +    static boolean isTransientError(Throwable error) {
+    +        for( Throwable cause = error; cause != null; cause = cause.cause ) {
+    +            if( cause instanceof ApiException ) {
+    +                final code = ((ApiException) cause).code
+    +                return code == 0 || code >= 500
+    +            }
+    +            if( cause instanceof IOException )
+    +                return true
+    +        }
+    +        return false
+    +    }
+    +
+         @Override
+         boolean checkIfRunning() {
+     
+             if( requestId && isSubmitted() ) {
+    -            final response = client.getTask(requestId, null)
+    +            final response = getTaskStatus()
+    +            if( response == null )
+    +                return false
+                 final started = response.state in STARTED_STATUSES
+                 if( started ) {
+                     log.trace "[TES] Task started > $task.name"
+    @@ -125,7 +178,9 @@ class TesTaskHandler extends TaskHandler {
+                 return false
+             }
+     
+    -        final response = client.getTask(requestId, null)
+    +        final response = getTaskStatus()
+    +        if( response == null )
+    +            return false
+             normalizeTaskUrls(response)
+             if( response.state in COMPLETE_STATUSES ) {
+                 // finalize the task
+    ```
+* **Unit tests (20 new; core-api total 194):**
+  * `RunTokensTest`: format and randomness, SHA-256, header parsing.
+  * `NextflowEngineTest`: the config text, including Groovy escaping, and no secret in it; the exact command line, with `--outdir` last; the environment, where reserved variables always win; reserved-variable detection.
+  * `HostProcessRunnerTest`, using real processes through the launcher: exit code, stdout/stderr and environment; `SIGTERM` (143); `SIGKILL` of a process trapping `TERM` (137); lost; a reused pid never matched or signalled; a missing executable (127).
+  * `ComputeRunServiceTest`: outcomes.
+* **End-to-end check** against a real Funnel 0.11.14, a throwaway Postgres, the real health checks, a real Nextflow 26.10.5 + nf-ga4gh 1.5.0 launched by core-api, and a temporary harness (deleted after) that wrote a small workflow into each run directory, as WES will. The connection allowed 1 concurrent run. Results:
+  1. **A normal run:** Nextflow → refcloud TES (run token over HTTP) → Funnel. `COMPLETE`, output published to `outputs/`, one task `COMPLETE` with core-hours. `work/`, `inputs/` and `.nextflow/` removed; logs kept; token hash cleared.
+  2. **Queue and cancel:** run 3 stayed `QUEUED` while run 2 ran. Cancelling run 2 (`CANCELING` → `CANCELED`) cancelled its TES task, and run 3 then ran and completed.
+  3. **Run tokens:**
+     * own platform: `POST /tasks` `200`, `GET` `200`;
+     * other platform: `403`;
+     * an unknown token: `401`;
+     * platform disabled mid-run: the run token still gets `200`, a researcher gets `404`;
+     * after the run ends: `401`;
+     * outside TES: `401` (after the fix above).
+  4. **Max duration** (per-user 20 s): the run was cancelled about 24 s after it started, ending `CANCELED` with "exceeded the max run duration of PT20S".
+  5. **Restart:** reattach worked. With the released nf-ga4gh the run then failed (above); with the patched plugin and ~20 s downtime, it completed.
+  6. **Lost** (engine and launcher killed while core-api was down): after restart, `SYSTEM_ERROR` with the lost reason; its task still running in Funnel was cancelled; `work/` removed; token cleared.
+* **Checks:** `./gradlew staticAnalysis` passes; 194 tests pass.
+* **Runs that lost contact with the refcloud end `SYSTEM_ERROR`** (done at the user's request, after the main Task 7 work):
+  * `WorkflowEngine.refcloudFailure(run)`, which defaults to none, is consulted only when an engine exits non-zero without a cancel. `NextflowEngine` reads the last 256 KB of the run's own `nextflow.log` and finds the **last** `Session aborted -- Cause: …` line. If the cause names a request to **this platform's** refcloud TES path (`/ga4gh/tes/<platformId>/v1/`; the host isn't compared, in case the callback URL changed), the run ends `SYSTEM_ERROR` with "the workflow engine lost contact with the refcloud TES: <cause>" instead of `EXECUTOR_ERROR`.
+  * With the D23 upstream fix this only happens after an outage longer than `tes.pollErrorTimeout`.
+  * **Tests:**
+    * `NextflowEngineTest`, with fixtures: an excerpt of the real log from the failed restart run (`src/test/resources/compute/nextflow-lost-refcloud-tes.log`), and a failed-workflow log. Cases: the real abort → refcloud failure; the same log for another platform → none; a workflow failure → none; no log → none; the last abort cause wins.
+    * `ComputeRunServiceTest`: a lost-contact failure → `SYSTEM_ERROR` with the reason; a cancel still → `CANCELED`; exit 0 still → `COMPLETE`.
+  * `staticAnalysis` passes and 200 core-api tests pass.
+
 
 ### Task 8: Refcloud WES API (D11, D17, D19, D20)
 
@@ -557,7 +797,7 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
   3. **Concurrent runs:** reject at the per-user limit (D11).
   4. **Monthly quota:** reject when the per-user quota or the connection's pooled budget is used up. The message says which quota was hit and when it resets (the start of the next calendar month, UTC).
   5. **Inputs (D17):** stage the `drs://` inputs.
-  6. **Pooled capacity:** queue the run (`QUEUED`) when the connection's total concurrent runs are at their limit. Otherwise launch it through the `WorkflowEngine`.
+  6. **Hand over:** submit the prepared run (workflow in the run directory, inputs staged) to Task 7's run service. It queues the run (`QUEUED`) until the connection's pooled concurrent-run capacity allows, then launches it.
 * **Workflow resolution (D20):**
   * git entries: run the pinned revision.
   * TRS entries: resolve with the approach chosen in Task 1.
@@ -659,4 +899,5 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
   * TES-side quota checks;
   * an output story, e.g. per-user storage and a download endpoint.
 * **Runtime CPU/memory enforcement on Docker:** Funnel 0.11.14 doesn't pass task resources (or tags) to its `docker run` template. Patch or upstream it so `--cpus`/`--memory` apply (Task 6).
+* Upstream: the nf-ga4gh transient-status-error retry (D23, patch in Decisions (Task 7)). Open an issue and PR alongside the `.command.env` one (D22); once released, bump the pinned nf-ga4gh version.
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.

@@ -635,4 +635,65 @@
             <sql>DROP TABLE compute_task;</sql>
         </rollback>
     </changeSet>
+    <!--
+        workflow runs (claude/specs/active/0008-add-compute-wes-tes.md, Task 7). a run is tracked through files in its
+        run directory (the engine's pid and, once it exits, its exit code) so core-api can reattach after a restart;
+        engine_pid and engine_started_at identify the process. token_hash is the sha-256 of the run-scoped TES token,
+        set while the run is active and cleared when it ends. max_duration_seconds is the effective limit (the lower of
+        the per-user and connection values), counted from started_at
+    -->
+    <changeSet author="jadams" id="create-table-compute-run">
+        <sql dbms="postgresql">
+            CREATE TABLE compute_run (
+                id TEXT NOT NULL,
+                compute_platform_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                state TEXT NOT NULL,
+                state_reason TEXT,
+                run_directory TEXT NOT NULL,
+                workflow_path TEXT NOT NULL,
+                workflow_params JSONB NOT NULL DEFAULT '{}',
+                engine_profiles TEXT[] NOT NULL DEFAULT '{}',
+                engine_env JSONB NOT NULL DEFAULT '{}',
+                request JSONB,
+                max_duration_seconds INTEGER NOT NULL,
+                token_hash TEXT,
+                engine_pid BIGINT,
+                engine_started_at TIMESTAMP WITH TIME ZONE,
+                exit_code INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                started_at TIMESTAMP WITH TIME ZONE,
+                cancel_requested_at TIMESTAMP WITH TIME ZONE,
+                ended_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT compute_run_pkey PRIMARY KEY (id),
+                CONSTRAINT compute_run_compute_platform_id_fkey
+                    FOREIGN KEY (compute_platform_id) REFERENCES compute_platform (id) ON DELETE CASCADE,
+                CONSTRAINT compute_run_token_hash_key UNIQUE (token_hash),
+                CONSTRAINT compute_run_run_directory_key UNIQUE (run_directory),
+                -- the WES 1.1.0 run states
+                CONSTRAINT compute_run_state_check CHECK (state IN ('UNKNOWN', 'QUEUED', 'INITIALIZING', 'RUNNING',
+                    'PAUSED', 'COMPLETE', 'EXECUTOR_ERROR', 'SYSTEM_ERROR', 'CANCELED', 'CANCELING', 'PREEMPTED')),
+                CONSTRAINT compute_run_max_duration_positive_check CHECK (max_duration_seconds > 0),
+                CONSTRAINT compute_run_engine_env_object_check CHECK (jsonb_typeof(engine_env) = 'object'),
+                CONSTRAINT compute_run_workflow_params_object_check CHECK (jsonb_typeof(workflow_params) = 'object')
+            );
+            -- a user's runs, newest first
+            CREATE INDEX compute_run_user_created_idx ON compute_run (compute_platform_id, user_id, created_at DESC, id DESC);
+            -- runs still queued or active (poller, pooled capacity)
+            CREATE INDEX compute_run_active_idx ON compute_run (compute_platform_id, created_at)
+                WHERE state IN ('QUEUED', 'INITIALIZING', 'RUNNING', 'PAUSED', 'CANCELING', 'UNKNOWN');
+            CREATE TRIGGER compute_run_set_updated_at
+                BEFORE UPDATE ON compute_run
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+            ALTER TABLE compute_task ADD CONSTRAINT compute_task_run_id_fkey
+                FOREIGN KEY (run_id) REFERENCES compute_run (id) ON DELETE CASCADE;
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE compute_task DROP CONSTRAINT compute_task_run_id_fkey;
+                DROP TABLE compute_run;
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

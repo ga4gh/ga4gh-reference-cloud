@@ -18,6 +18,7 @@ import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeConnections;
 import org.ga4gh.refcloud.api.compute.ComputeTaskConfig;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
+import org.ga4gh.refcloud.api.compute.platform.ComputePlatformRepository;
 import org.ga4gh.refcloud.api.compute.task.ComputeTask;
 import org.ga4gh.refcloud.api.compute.task.ComputeTaskRepository;
 import org.ga4gh.refcloud.api.compute.task.ComputeTaskStates;
@@ -47,17 +48,21 @@ public class TesTaskService {
 
     private final ComputeTaskConfig taskConfig;
 
+    private final ComputePlatformRepository computePlatformRepository;
+
     private final Map<String, ReentrantLock> forwardLocks = new ConcurrentHashMap<>();
 
     public TesTaskService(
             ComputeTaskRepository computeTaskRepository,
             ComputeConnections computeConnections,
             TesExecutorClient executorClient,
-            ComputeTaskConfig taskConfig) {
+            ComputeTaskConfig taskConfig,
+            ComputePlatformRepository computePlatformRepository) {
         this.computeTaskRepository = computeTaskRepository;
         this.computeConnections = computeConnections;
         this.executorClient = executorClient;
         this.taskConfig = taskConfig;
+        this.computePlatformRepository = computePlatformRepository;
     }
 
     // POST /tasks. returns the refcloud task id. the task is recorded as QUEUED and forwarded right away if the
@@ -165,6 +170,29 @@ public class TesTaskService {
             computeTaskRepository.save(current);
         } finally {
             lock.unlock();
+        }
+    }
+
+    // cancels a run's unfinished tasks once its engine is gone (Task 7): the engine normally cancels its own tasks on
+    // SIGTERM, but not if it was killed or lost. internal, so no caller check
+    public void cancelRunTasks(String runId) {
+        List<ComputeTask> unfinished =
+                computeTaskRepository.findByRunIdAndStateNotIn(runId, ComputeTaskStates.TERMINAL);
+        for (ComputeTask task : unfinished) {
+            try {
+                Optional<ComputeConfig.Connection> connection = computeConnections.find(connectionKeyOf(task));
+                if (task.getExecutorTaskId() == null || connection.isEmpty()) {
+                    task.setState(ComputeTaskStates.CANCELED);
+                    task.setEndedAt(Instant.now());
+                    task.setCoreHours(BigDecimal.ZERO);
+                } else {
+                    executorClient.cancelTask(connection.get(), task.getExecutorTaskId());
+                    task.setState(ComputeTaskStates.CANCELING);
+                }
+                computeTaskRepository.save(task);
+            } catch (ExecutorException exception) {
+                log.warn("could not cancel task {} of run {}: {}", task.getId(), runId, exception.getMessage());
+            }
         }
     }
 
@@ -323,6 +351,13 @@ public class TesTaskService {
                 .find(platform.getConnectionKey())
                 .orElseThrow(() -> new IllegalStateException(
                         "compute platform " + platform.getId() + " has no connection " + platform.getConnectionKey()));
+    }
+
+    private String connectionKeyOf(ComputeTask task) {
+        return computePlatformRepository
+                .findById(task.getComputePlatformId())
+                .map(ComputePlatform::getConnectionKey)
+                .orElse("");
     }
 
     private ReentrantLock lock(String connectionKey) {

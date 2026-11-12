@@ -10,6 +10,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.ga4gh.refcloud.api.compute.error.ComputeErrorResponse;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
+import org.ga4gh.refcloud.api.compute.run.RunTokenService;
+import org.ga4gh.refcloud.api.compute.run.RunTokens;
 import org.ga4gh.refcloud.api.compute.serviceinfo.ComputeServiceInfoService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -34,13 +36,17 @@ public class ComputePlatformAvailabilityFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper;
 
+    private final RunTokenService runTokenService;
+
     public ComputePlatformAvailabilityFilter(
             ComputeServiceInfoService computeServiceInfoService,
             ComputeHealthConfig healthConfig,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            RunTokenService runTokenService) {
         this.computeServiceInfoService = computeServiceInfoService;
         this.healthConfig = healthConfig;
         this.objectMapper = objectMapper;
+        this.runTokenService = runTokenService;
     }
 
     @Override
@@ -56,8 +62,17 @@ public class ComputePlatformAvailabilityFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
+        String api = matcher.group(1);
         String platformId = matcher.group(2);
         String rest = matcher.group(3);
+
+        // an engine calling TES for an active run on this platform always gets through: runs already active finish,
+        // even if the platform is disabled (Task 7, option a) or unhealthy (the TES layer queues task creation and
+        // serves reads from its own records while the executor is down). spring security still authenticates it
+        if ("tes".equals(api) && isActiveRunOn(request, platformId)) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         Optional<ComputePlatform> platform = computeServiceInfoService.findEnabledPlatform(platformId);
         if (platform.isEmpty()) {
@@ -76,6 +91,13 @@ public class ComputePlatformAvailabilityFilter extends OncePerRequestFilter {
             return;
         }
         chain.doFilter(request, response);
+    }
+
+    private boolean isActiveRunOn(HttpServletRequest request, String platformId) {
+        return RunTokens.fromAuthorizationHeader(request.getHeader(HttpHeaders.AUTHORIZATION))
+                .flatMap(runTokenService::findActiveRun)
+                .filter(run -> run.platformId().equals(platformId))
+                .isPresent();
     }
 
     private void write(HttpServletResponse response, HttpStatus status, String msg) throws IOException {

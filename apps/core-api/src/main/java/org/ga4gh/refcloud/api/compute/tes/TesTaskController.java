@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
+import org.ga4gh.refcloud.api.compute.ComputeCaller;
 import org.ga4gh.refcloud.api.compute.ComputeCallerResolver;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
 import org.ga4gh.refcloud.api.compute.serviceinfo.ComputeServiceInfoService;
@@ -49,7 +50,8 @@ public class TesTaskController {
     @PostMapping("/tasks")
     public ResponseEntity<Map<String, String>> createTask(
             @PathVariable String platformId, @RequestBody JsonNode task, Authentication authentication) {
-        String id = tesTaskService.createTask(platform(platformId), callerResolver.resolve(authentication), task);
+        ComputeCaller caller = callerResolver.resolve(authentication);
+        String id = tesTaskService.createTask(platform(platformId, caller), caller, task);
         return ResponseEntity.ok(Map.of("id", id));
     }
 
@@ -75,8 +77,9 @@ public class TesTaskController {
                 tagValues == null || tagValues.isEmpty() ? null : tagValues.get(0),
                 pageSize,
                 pageToken);
-        TesTaskService.TaskPage page = tesTaskService.listTasks(
-                platform(platformId), callerResolver.resolve(authentication), filter, TesTaskViews.parseView(view));
+        ComputeCaller caller = callerResolver.resolve(authentication);
+        TesTaskService.TaskPage page =
+                tesTaskService.listTasks(platform(platformId, caller), caller, filter, TesTaskViews.parseView(view));
         return ResponseEntity.ok(new TaskListResponse(page.tasks(), page.nextPageToken()));
     }
 
@@ -86,20 +89,25 @@ public class TesTaskController {
             @PathVariable String id,
             @RequestParam(name = "view", required = false) String view,
             Authentication authentication) {
-        return ResponseEntity.ok(tesTaskService.getTask(
-                platform(platformId), callerResolver.resolve(authentication), id, TesTaskViews.parseView(view)));
+        ComputeCaller caller = callerResolver.resolve(authentication);
+        return ResponseEntity.ok(
+                tesTaskService.getTask(platform(platformId, caller), caller, id, TesTaskViews.parseView(view)));
     }
 
     @PostMapping("/tasks/{id}:cancel")
     public ResponseEntity<Map<String, String>> cancelTask(
             @PathVariable String platformId, @PathVariable String id, Authentication authentication) {
-        tesTaskService.cancelTask(platform(platformId), callerResolver.resolve(authentication), id);
+        ComputeCaller caller = callerResolver.resolve(authentication);
+        tesTaskService.cancelTask(platform(platformId, caller), caller, id);
         return ResponseEntity.ok(Map.of());
     }
 
-    private ComputePlatform platform(String platformId) {
-        return computeServiceInfoService
-                .findEnabledPlatform(platformId)
+    // researchers only see enabled platforms; an active run's engine also reaches a platform disabled after the run
+    // started (Task 7, option a). canAccessComputePlatform already tied a run token to this platform
+    private ComputePlatform platform(String platformId, ComputeCaller caller) {
+        return (caller.isRun()
+                        ? computeServiceInfoService.findPlatform(platformId)
+                        : computeServiceInfoService.findEnabledPlatform(platformId))
                 .orElseThrow(() -> new ResourceNotFoundException("no compute platform with ID '" + platformId + "'"));
     }
 

@@ -158,6 +158,7 @@ Usage rules:
   | nf-core/demo 1.2.0 and other workflows with `env`/`eval` outputs | ❌ until the nf-ga4gh fix is released |
 
   Allowlists (D20) should only include workflows known to work.
+- **D23. Fix nf-ga4gh's handling of TES outages upstream** (2026-11-12). nf-ga4gh aborts the whole workflow on the first failed task-status request (`checkIfRunning()` / `checkIfCompleted()` have no error handling). So any core-api restart longer than a few seconds fails every workflow in flight, even though core-api reattaches to the run (Task 7). A patch, verified end to end, retries transient errors (no response, or `5xx`) on the next poll, and fails only after a new `tes.pollErrorTimeout` (default 10 minutes). It goes upstream as an issue + PR, like D22; we don't ship a fork. With it, a run survived ~20 s of core-api downtime. Until it's released, restarting core-api fails active runs.
 
 ## Tabled
 
@@ -167,7 +168,7 @@ Usage rules:
 
 - While a platform is unhealthy, serve the last-known state of runs and tasks (from the refcloud's own records) for read requests, instead of returning `503` for everything (D10).
 - Stage 2 (helm) engine launch (proposed 2026-11-11, to be confirmed in stage 2): in Kubernetes, Nextflow runs in its own container as a **Kubernetes Job per WES run**, created by core-api through the Kubernetes API (needs RBAC to create Jobs in the namespace). The Job uses a pinned Nextflow image (the official `nextflow/nextflow` image is published; check its architectures, or build a small image that also pre-caches the pinned nf-ga4gh plugin so runs don't need internet access). It mounts the shared storage (a `hostPath` in minikube; a ReadWriteMany volume, or S3 from stage 3, on real clusters such as EKS) and gets the run-scoped TES token from a Kubernetes Secret. The alternative, running `nextflow` as a subprocess inside the core-api pod, is weaker: Nextflow's JVM would compete with core-api for the pod's memory, and restarting or scaling core-api would kill running workflows (D12, D16).
-- Upstream: track the nf-ga4gh `.command.env` issue/PR (D22). Once released, bump the pinned plugin version and widen the compatibility table. A second gap: nf-ga4gh doesn't return `.command.trace`, so Nextflow's per-task resource metrics are missing (a candidate for a follow-up PR).
+- Upstream: track the nf-ga4gh `.command.env` issue/PR (D22) and the transient-status-error retry issue/PR (D23). Once released, bump the pinned plugin version and widen the compatibility table. A second gap: nf-ga4gh doesn't return `.command.trace`, so Nextflow's per-task resource metrics are missing (a candidate for a follow-up PR).
 - A second engine: Cromwell (WDL). Its server/REST style of integration would show the `WorkflowEngine` adapter is really pluggable, and WDL matters to much of the GA4GH community (D12).
 - A second executor: TESK, for helm mode and real Kubernetes clusters (D12).
 - S3-compatible object storage (MinIO locally, S3 or other object stores in real deployments) as an alternative to the shared directory, giving outputs standard DRS access URLs (D13).
