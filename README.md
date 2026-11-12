@@ -43,6 +43,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | Node Version Manager (nvm) | visit [nodejs.org](https://nodejs.org/en/download) and follow instructions |
 | Node.js v24+ | Install through nvm using `nvm install v24.15.0` then activate with `nvm use v24.15.0` |
 | uv 0.11+ | `brew install uv` |
+| Nextflow 26.10+ (optional: compute) | `brew install nextflow` (see [`deploy/local/README.md`](./deploy/local/README.md#compute-native-mode)) |
 | ory hydra client v26+ | `brew install ory-hydra` |
 | ory kratos client v26+ | `brew install ory/tap/kratos` |
 | kubectl v1.36+ | `brew install kubectl` |
@@ -69,6 +70,8 @@ When running the refcloud natively, all apps in the `apps/` folder will run dire
 All dependency services (i.e. Ory Kratos, Ory, Hydra, etc.) will be run via docker-compose.
 
 To start all services in native mode, run `./scripts/refcloud-run-native.sh`. Follow the links provided in the terminal to access the various services.
+
+Native mode can also run workflows (WES and TES) when Nextflow is installed: see [compute in native mode](./deploy/local/README.md#compute-native-mode).
 
 ### Running the Reference Cloud via Helm
 

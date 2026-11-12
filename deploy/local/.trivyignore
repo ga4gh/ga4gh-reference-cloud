@@ -1,0 +1,10 @@
+# trivy findings ignored for deploy/local's Dockerfiles only (run via ./scripts/refcloud-static-analysis-deploy-local.sh
+# trivy-config). the app Dockerfiles use the repo-wide /.trivyignore, which doesn't include these.
+# one ID per line; every entry needs a reason. remove an entry once it no longer applies.
+
+# DS-0002 (HIGH): image runs as root. funnel/Dockerfile (local development only) runs task containers through the
+# host's Docker socket, which needs root inside the container, and socket access is root-equivalent on the host anyway
+DS-0002
+
+# DS-0026 (LOW): no HEALTHCHECK instruction. same reason as /.trivyignore: compose waits for the services to start
+DS-0026

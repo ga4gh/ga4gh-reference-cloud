@@ -957,13 +957,63 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
   * Native mode defines a default `nextflow-funnel-docker` connection in core-api config.
   * Setup registers a default Compute Platform on it, using the admin CLI, with small per-user limits and the bundled demo on its allowlist (D9).
 * **Run script:** `./scripts/refcloud-run-native.sh` lists the platform's WES and TES endpoints alongside the other GA4GH services. It also prints the demo input's DRS URI (Task 9: `drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`), the two visas it needs, and a pointer to `compute/workflows/nextflow/drs-checksum/README.md`.
-* **Helm mode:** stays working with compute **off**. No connections are configured, so no platforms are registered and nothing compute-related is deployed (stage 2 adds it). Run `./scripts/refcloud-static-analysis-helm.sh` and `./scripts/refcloud-static-analysis-deploy-local.sh`.
+* **Helm mode:** stays working with compute **off**. No connections are configured and nothing compute-related is deployed (stage 2 adds it). Both modes share the host databases, so the platform setup registers shows as unavailable in helm mode (decided 2026-11-12). Run `./scripts/refcloud-static-analysis-helm.sh` and `./scripts/refcloud-static-analysis-deploy-local.sh`.
 * **Docs:** add a `compute/` entry to the root `CLAUDE.md` repository layout. Also document native-mode compute in `deploy/local/README.md`, keeping the root `README.md` to a pointer.
 * **System dependencies:** the root `README.md` requirements table lists every new host dependency with its minimum version, and the docs say what runs where:
   * Nextflow and the Java version it needs run **natively on the host**: core-api launches `nextflow run` as a subprocess.
   * Funnel runs **in a Docker container** (Compose) and starts task containers through the host's Docker socket, so it adds no host dependency beyond Docker.
 
 **Decisions (Task 10):**
+
+* **Already in place from earlier tasks:** the default connection (`nextflow-funnel-docker-local` in `deploy/local/compute/connections.yml`, Task 3); `compute/.gitignore` (Task 1); and the Caddy and Helm ingress routes for `/ga4gh/wes/*` and `/ga4gh/tes/*` (Task 5).
+* **Funnel (decided 2026-11-12: always started, linted with a scoped exception):**
+  * `deploy/local/funnel/Dockerfile`: `quay.io/ohsu-comp-bio/funnel:0.11.14` plus `docker-cli` (Task 1), pinned by tag like the app images. It runs as root, which using the host's Docker socket needs.
+  * `deploy/local/funnel/funnel.yml`: a static config with the Task 1 settings (local compute, BoltDB, and the `RunCommand` with a writable `/tmp`).
+  * **Absolute paths come in as flags.** Funnel's work directory, BoltDB file and allowed directories are absolute host paths, so `docker-compose.yml` passes them as flags (`--Worker.WorkDir`, `--BoltDB.Path`, `--LocalStorage.AllowedDirs`). They're built from `REFCLOUD_COMPUTE_STORAGE_ROOT`, which `scripts/lib/common.sh` exports (`$PWD/compute/nextflow-funnel-docker`). It's also the bind mount, at the same path inside the container.
+  * Compose refuses to start without the variable, with a message saying what to set. Running Compose by hand is documented.
+  * **The `funnel` service:**
+    * always started, like Kratos and Hydra;
+    * the TES API is published on `127.0.0.1:8000` only, since it has no auth;
+    * the Docker socket is mounted (local development only, said in a comment and the docs);
+    * the image is built locally as `refcloud-local/funnel:0.11.14`;
+    * the base image has a healthcheck, so `up --wait` waits for Funnel to be ready.
+* **Static analysis (`scripts/refcloud-static-analysis-deploy-local.sh`):**
+  * hadolint and Trivy now also scan `deploy/local`'s Dockerfiles.
+  * Trivy scans `deploy/local` separately, with its own `deploy/local/.trivyignore`: `DS-0002` (root user), with its reason. So the apps' non-root rule is unchanged. Without the file, `DS-0002` fires on the Funnel Dockerfile, so the exception is needed.
+  * The CVE image list leaves out locally built `refcloud-local/*` images and scans Funnel's base image through its Dockerfile instead.
+  * The script sets `REFCLOUD_COMPUTE_STORAGE_ROOT` itself for `docker compose config`.
+  * CI's `deploy/local/**` path filter already covers the new files.
+* **Nextflow check (`nextflow_installed` in `scripts/lib/common.sh`):**
+  * `nextflow` must be on the `PATH`.
+  * `NXF_VER=<pinned> nextflow -version` must report the version pinned in the connections file. This is the same check as core-api's engine health check.
+  * So the "minimum version" is the exact pinned version, whatever launcher is installed. The first check downloads it into `~/.nextflow` (internet access needed).
+  * Without Nextflow, setup warns and skips compute.
+* **Default platform (decided 2026-11-12: `nextflow-demo`):**
+  * `init_default_compute_platform` runs from `apps/admin-cli` after the datasets are onboarded. It uses the admin CLI: `compute-platform init` (name "Nextflow Demo"), `allowlist add --bundled drs-checksum`, then `enable`.
+  * Per-user limits: 2 concurrent runs; 2 CPU cores, 2 GB of memory and 10 GB of disk per task; 30 minutes per run; 10 core-hours a month.
+  * An existing platform is left as it is, like datasets: an admin may have changed it. The log says how to recreate it.
+* **`--reset`** deletes `compute/nextflow-funnel-docker/` (`reset_compute_storage`, which refuses any other path).
+* **Run script:** `print_service_urls compute` (native mode only) lists every **enabled** platform's WES and TES endpoints, read from the database. It also prints the demo: the bundled workflow, its DRS input, the two visas it needs, and a pointer to the README. With no enabled platform, it says how setup registers one.
+* **Docs:**
+  * root `README.md`: a Nextflow row (`brew install nextflow`; Homebrew has 26.10.5) and a one-line pointer;
+  * `deploy/local/README.md`: a "Compute (native mode)" section covering what runs where, storage, setup, the demo and its two visas, running Compose by hand, helm mode, and the D23 restart limitation;
+  * `deploy/local/CLAUDE.md`: the new files, the Compose command, and notes on the Docker socket and the same-path mount;
+  * root `CLAUDE.md`: the `compute/` directory, and that compute runs in native mode only.
+* **Helm mode (decided 2026-11-12):** compute is off, but the databases are shared, so the `nextflow-demo` platform shows as unavailable there ("connection not configured"), per Task 5's rule. It's documented, not hidden. `./scripts/refcloud-static-analysis-helm.sh` passes; the chart is unchanged.
+* **Verified:**
+  * **Static analysis:** both suites pass.
+  * **The Compose `funnel` service**, started alone under a separate project name with a scratch storage root:
+    * built and became healthy;
+    * its Docker CLI (29.9.3) reached the host daemon (29.4.0);
+    * BoltDB was created under the storage root.
+  * **The demo through that Funnel:** `drs-checksum` on the demo `.bai`, run by Nextflow 26.10.5 with nf-ga4gh 1.5.0's TES executor, completed with the expected report.
+  * **The setup functions,** on a throwaway database (psql via `PGHOST`/`PGPORT`, the CLI via `POSTGRES_PORT`):
+    * `nextflow_installed`: warns without Nextflow; passes with the pinned launcher;
+    * `init_default_compute_platform`: registers the platform with its limits, allowlist entry and enabled state; a re-run skips it;
+    * `print_service_urls compute`: correct before and after setup;
+    * `reset_compute_storage`: refuses an unexpected path and deletes the expected one.
+  * **Not run here:** the full `./scripts/refcloud-setup.sh` and `./scripts/refcloud-run-native.sh` on the developer's machine. They change the local databases, and Nextflow wasn't installed. The user runs them; Task 12 does the full "Done when" check.
+* **The demo needs Task 11 first.** Access requests exist only for datasets today (`POST /datasets/{id}/request-access`). A researcher can't request the platform's visa until Task 11 adds the compute platform request-access endpoint and page, and `visa approve` needs a request to exist. `deploy/local/README.md` already describes the flow as it will be after Task 11.
 
 ### Task 11: Researcher UI: Browse Compute Platforms (D5, D10)
 

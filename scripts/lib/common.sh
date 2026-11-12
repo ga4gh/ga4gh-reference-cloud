@@ -15,6 +15,17 @@ PSQL_DATABASE="refcloudapi"
 ORY_HYDRA_RESEARCHER_CLIENT_ID="ga4gh-reference-cloud-researcher-client"
 ORY_HYDRA_ENDPOINT="http://localhost:4445"
 
+# compute (native mode). the connections file is shared by core-api and the admin CLI; its storage root must be the
+# same directory as REFCLOUD_COMPUTE_STORAGE_ROOT, which docker-compose.yml mounts into Funnel at the same absolute path
+COMPUTE_CONNECTIONS_FILE="./deploy/local/compute/connections.yml"
+export REFCLOUD_COMPUTE_STORAGE_ROOT="$PWD/compute/nextflow-funnel-docker"
+# the platform setup registers, on the connection below, with the bundled demo workflow on its allowlist
+COMPUTE_CONNECTION_KEY="nextflow-funnel-docker-local"
+DEFAULT_COMPUTE_PLATFORM_ID="nextflow-demo"
+# the demo's input: a 1000 Genomes BAM index (compute/workflows/nextflow/drs-checksum/README.md)
+DEMO_DRS_URI="drs://$REFCLOUD_BASE_URL/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai"
+DEMO_DATASET_VISA="ga4gh_visa:aws_opendata_registry_1000_genomes"
+
 # kubernetes (helm mode). all kubectl/helm calls must go through kubectl_local/helm_local,
 # which pass the context and namespace explicitly so they can never touch a non-local cluster
 # and always agree on where secrets and the release live.
@@ -64,6 +75,7 @@ log_error() {
   echo "[ERROR] $1"
 }
 
+# pass "compute" to also list the compute platforms (native mode only; helm mode has compute off)
 print_service_urls() {
   log_info ""
   log_info "Refcloud dev services are now running:"
@@ -74,8 +86,28 @@ print_service_urls() {
   log_info "   * DRS: https://$REFCLOUD_BASE_URL/ga4gh/drs/v1"
   log_info "   * RefGet: https://$REFCLOUD_BASE_URL/ga4gh/refget/v2"
   log_info "   * Service Registry: https://$REFCLOUD_BASE_URL/ga4gh/service-registry/v1"
+  if [[ "$1" == "compute" ]]; then
+    print_compute_urls
+  fi
   log_info ""
   log_info "To begin, visit the Researcher UI service and register a new researcher account."
+}
+
+# each enabled compute platform's WES and TES, and how to run the demo
+print_compute_urls() {
+  local platforms=$(psql -d "$PSQL_DATABASE" -tAc "SELECT id FROM compute_platform WHERE enabled ORDER BY id;" 2>/dev/null)
+  log_info " * Compute (WES and TES, one of each per compute platform):"
+  if [[ -z "$platforms" ]]; then
+    log_info "   * no compute platforms are enabled. setup registers '$DEFAULT_COMPUTE_PLATFORM_ID' when Nextflow is installed (see deploy/local/README.md)"
+    return 0
+  fi
+  local platform
+  for platform in ${(f)platforms}; do
+    log_info "   * $platform: https://$REFCLOUD_BASE_URL/ga4gh/wes/$platform/v1 and https://$REFCLOUD_BASE_URL/ga4gh/tes/$platform/v1"
+  done
+  log_info "   * demo: run the bundled drs-checksum workflow (refcloud:bundled/drs-checksum) on $DEMO_DRS_URI"
+  log_info "     it needs approved visas for the platform (ga4gh_visa:compute_platform:<platform>) and the 1000 Genomes dataset ($DEMO_DATASET_VISA)"
+  log_info "     see compute/workflows/nextflow/drs-checksum/README.md"
 }
 
 # ##############################
@@ -98,6 +130,7 @@ refcloud_image_tag() {
 
 start_docker_compose() {
   log_info "starting docker compose"
+  mkdir -p "$REFCLOUD_COMPUTE_STORAGE_ROOT"
   docker compose -f ./deploy/local/docker-compose.yml up -d --wait > /dev/null 2>&1 || { log_error "failed to start docker compose"; exit 1; }
 }
 
@@ -201,6 +234,80 @@ init_and_onboard_dataset() {
 
   log_info "onboarding dataset '$dataset_id' (this may take a while)"
   uv run refcloud dataset onboard -d "$dataset_id" > /dev/null 2>&1 || { log_error "failed to onboard dataset '$dataset_id'"; exit 1; }
+}
+
+# ##############################
+# COMPUTE (NATIVE MODE)
+# ##############################
+
+# the nextflow version pinned in the connections file. core-api runs exactly this version (NXF_VER), whatever version
+# of the nextflow launcher is installed
+pinned_nextflow_version() {
+  awk '$1 == "nextflow-version:" { print $2; exit }' "$COMPUTE_CONNECTIONS_FILE"
+}
+
+# compute needs nextflow on the PATH, able to run the pinned version. the first check downloads that version into
+# ~/.nextflow (internet access needed), as core-api's own health check would
+nextflow_installed() {
+  if ! command -v nextflow > /dev/null 2>&1; then
+    log_warn "nextflow command not found, skipping compute setup. install Nextflow (see the requirements in README.md) to run workflows in native mode"
+    return 1
+  fi
+  local version=$(pinned_nextflow_version)
+  log_info "checking that nextflow can run version $version (pinned in $COMPUTE_CONNECTIONS_FILE; the first run downloads it)"
+  if ! NXF_VER="$version" nextflow -version 2>&1 | grep -q "version $version "; then
+    log_warn "nextflow could not run version $version, skipping compute setup. run 'NXF_VER=$version nextflow -version' to see why"
+    return 1
+  fi
+  return 0
+}
+
+compute_platform_exists() {
+  [[ "$(psql -d "$PSQL_DATABASE" -tAc "SELECT 1 FROM compute_platform WHERE id = '$1';")" == "1" ]]
+}
+
+# registers the default compute platform with small per-user limits and the bundled demo on its allowlist, and enables
+# it. an existing platform is left as is, since an admin may have changed it. must be called from apps/admin-cli
+init_default_compute_platform() {
+  local platform_id=$DEFAULT_COMPUTE_PLATFORM_ID
+
+  if compute_platform_exists "$platform_id"; then
+    log_info "compute platform '$platform_id' already exists, skipping. to recreate it, run 'uv run refcloud compute-platform delete -p $platform_id' in apps/admin-cli, then setup"
+    return 0
+  fi
+
+  log_info "registering compute platform '$platform_id' on connection '$COMPUTE_CONNECTION_KEY'"
+  uv run refcloud compute-platform init -p "$platform_id" \
+    --name "Nextflow Demo" \
+    --description "Run allowlisted Nextflow workflows on this machine (Funnel + Docker), with refcloud DRS objects as inputs" \
+    --connection "$COMPUTE_CONNECTION_KEY" \
+    --max-concurrent-runs 2 \
+    --max-task-cpu-cores 2 \
+    --max-task-memory-gb 2 \
+    --max-task-disk-gb 10 \
+    --max-run-duration-seconds 1800 \
+    --monthly-core-hours 10 \
+  > /dev/null 2>&1 || { log_error "failed to register compute platform '$platform_id'"; exit 1; }
+
+  log_info "adding the bundled drs-checksum workflow to the allowlist of '$platform_id'"
+  uv run refcloud compute-platform allowlist add -p "$platform_id" --bundled drs-checksum \
+    --name "DRS checksum" \
+    --description "Report a DRS object's name, size, MD5 and SHA-256" \
+  > /dev/null 2>&1 || { log_error "failed to allowlist drs-checksum on '$platform_id'"; exit 1; }
+
+  log_info "enabling compute platform '$platform_id'"
+  uv run refcloud compute-platform enable -p "$platform_id" > /dev/null 2>&1 \
+    || { log_error "failed to enable compute platform '$platform_id'"; exit 1; }
+}
+
+# compute storage is runtime data (run directories, Funnel's database and work directory)
+reset_compute_storage() {
+  if [[ "$REFCLOUD_COMPUTE_STORAGE_ROOT" != */compute/nextflow-funnel-docker ]]; then
+    log_error "refusing to delete unexpected compute storage root '$REFCLOUD_COMPUTE_STORAGE_ROOT'"
+    exit 1
+  fi
+  log_info "deleting compute storage in '$REFCLOUD_COMPUTE_STORAGE_ROOT'"
+  rm -rf "$REFCLOUD_COMPUTE_STORAGE_ROOT" || { log_error "failed to delete compute storage (files created by task containers may need sudo on Linux)"; exit 1; }
 }
 
 # ##############################

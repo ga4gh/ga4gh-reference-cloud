@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Static analysis for the local deployment context (deploy/local) and the app Dockerfiles (apps/**/Dockerfile).
+# Static analysis for the local deployment context (deploy/local, including its Dockerfiles) and the app Dockerfiles
+# (apps/**/Dockerfile).
 # Every tool runs from a pinned docker image (version + digest), so the only requirement is Docker, and
 # local runs match CI (.github/workflows/static-analysis-deploy-local.yml), which calls this script.
 #
@@ -9,7 +10,8 @@
 #       compose       validate deploy/local/docker-compose.yml (docker compose config)
 #       caddy         validate and format-check deploy/local/Caddyfile (caddy validate, caddy fmt)
 #       hadolint      lint the Dockerfiles (best practices, shellcheck of RUN lines); config: .hadolint.yaml
-#       trivy-config  scan the Dockerfiles for security misconfigurations (HIGH/CRITICAL); ignores: .trivyignore
+#       trivy-config  scan the Dockerfiles for security misconfigurations (HIGH/CRITICAL); ignores: .trivyignore for
+#                     the apps, deploy/local/.trivyignore for deploy/local (e.g. Funnel, which needs root)
 #       images        non-blocking: scan the images in docker-compose.yml and the Dockerfiles' final base images
 #                     for CVEs. set SARIF_DIR to write one SARIF report per image instead of a table, and
 #                     SCAN_IMAGES (space-separated) to scan only those images
@@ -29,6 +31,11 @@ HADOLINT_IMAGE="hadolint/hadolint:v2.15.1-alpine@sha256:a1d49ae1a4e83c1dbad26b8c
 CADDY_IMAGE="caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee"
 
 COMPOSE_FILE="deploy/local/docker-compose.yml"
+# docker-compose.yml needs the compute storage root to interpolate (the refcloud scripts export it, see
+# scripts/lib/common.sh); validation only reads it, nothing is mounted
+export REFCLOUD_COMPUTE_STORAGE_ROOT="${REFCLOUD_COMPUTE_STORAGE_ROOT:-${PWD}/compute/nextflow-funnel-docker}"
+# images docker-compose.yml builds locally (not pulled): their base images are scanned through their Dockerfiles
+LOCAL_IMAGE_PREFIX="refcloud-local/"
 CADDYFILE_DIR="deploy/local"
 # trivy's vulnerability db and checks bundle, reused between runs
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-${HOME}/.cache/trivy}"
@@ -47,9 +54,9 @@ log_error() {
   echo "[ERROR] $1" >&2
 }
 
-# app Dockerfiles, relative to the repo root (dependency directories excluded)
+# app and deploy/local Dockerfiles, relative to the repo root (dependency directories excluded)
 list_dockerfiles() {
-  find apps -name Dockerfile -not -path '*/node_modules/*' -not -path '*/.venv/*' | sort
+  find apps deploy/local -name Dockerfile -not -path '*/node_modules/*' -not -path '*/.venv/*' | sort
 }
 
 # trivy, with the repo mounted read-only at /repo and a persistent cache
@@ -86,17 +93,23 @@ check_hadolint() {
 }
 
 check_trivy_config() {
+  local status=0
   log_info "scanning Dockerfiles for HIGH/CRITICAL misconfigurations"
   # dockerfile checks only: helm and other config formats are covered by their own checks
   trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL \
     --misconfig-scanners dockerfile --ignorefile /repo/.trivyignore \
     --skip-dirs '**/node_modules' --skip-dirs '**/.venv' --skip-dirs '**/build' \
-    /repo/apps
+    /repo/apps || status=1
+  # deploy/local has its own ignores (local development only), so the apps' rules stay as strict as they are
+  trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL \
+    --misconfig-scanners dockerfile --ignorefile /repo/deploy/local/.trivyignore \
+    /repo/deploy/local || status=1
+  return ${status}
 }
 
 # images to scan: those docker-compose.yml runs, plus the final (shipped) stage of each Dockerfile
 list_images() {
-  docker compose -f "${COMPOSE_FILE}" config --images
+  docker compose -f "${COMPOSE_FILE}" config --images | grep -v "^${LOCAL_IMAGE_PREFIX}"
   local dockerfile
   for dockerfile in $(list_dockerfiles); do
     awk 'toupper($1) == "FROM" { image = $2 } END { print image }' "${dockerfile}"

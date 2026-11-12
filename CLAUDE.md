@@ -45,11 +45,13 @@ Configuration code for deploying the refcloud is stored in the `deploy/` directo
 * `.github` - GitHub Actions workflows (conventions, including SHA-pinned actions, in `.github/workflows/README.md`) and Dependabot config
 * `assets/` - web/art assets used by the refcloud
 * `claude/` - contains historical and active specs that claude can reference to develop new features and fix bugs
+* `compute/` - compute (WES/TES): bundled demo workflows in `compute/workflows/` (tracked), and native-mode run storage in `compute/nextflow-funnel-docker/` (git-ignored by `compute/.gitignore`, cleared by `--reset`)
 * `docs/` - high-level planning and milestone documentation
 
 ## Things to Note
 
 * When running the refcloud locally via either `deploy/local` or `deploy/helm`, the expected base URL is `https://refcloud.ga4gh.localhost` for all backend & frontend services, and `https://docs.refcloud.ga4gh.localhost` for the docs
 * Only one local mode (native or helm) runs at a time: Caddy and `minikube tunnel` both bind port 443. Both modes share the host Postgres databases.
+* Compute runs in native mode only (helm mode has no compute connection until stage 2, so the default `nextflow-demo` platform shows as unavailable there). Nextflow runs natively (core-api launches `nextflow run`); Funnel runs in Docker Compose and starts task containers through the host's Docker socket, for local development only. See `deploy/local/README.md`.
 * The repo is public and has GitHub push protection on. Never commit real credentials: anything pushed is public and can't be fully removed. Dev-only defaults (`secret`, the Hydra system secret in `deploy/local/ory/hydra/hydra.yml`) are local/minikube-only and allowlisted in `.gitleaks.toml`; any new allowlist entry needs a reason.
 * Versioning of the refcloud apps follows a "lockstep versioning" pattern. When a new release is minted, all apps will have the same docker tag. Docker tags are derived from `git describe --tags` (local helm builds append `-uncommitted` when the working tree has changes)

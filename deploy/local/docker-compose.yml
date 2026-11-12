@@ -70,3 +70,41 @@ services:
     restart: unless-stopped
     networks:
       - intranet
+
+  # TES executor for native-mode compute (claude/specs/active/0008-add-compute-wes-tes.md, Task 10). LOCAL DEVELOPMENT
+  # ONLY: its local backend starts each task as a sibling container on the host's Docker, through the mounted socket.
+  # the storage root is mounted at the same absolute path as on the host, because those sibling containers mount host
+  # paths. the refcloud scripts export REFCLOUD_COMPUTE_STORAGE_ROOT (scripts/lib/common.sh); set it yourself to run
+  # compose by hand. no auth, so the TES API is only published on 127.0.0.1 (core-api's connection, tes-url)
+  funnel:
+    build: ./funnel
+    image: refcloud-local/funnel:0.11.14
+    command:
+      - server
+      - run
+      - --config
+      - /etc/funnel/funnel.yml
+      - --Worker.WorkDir
+      - ${REFCLOUD_COMPUTE_STORAGE_ROOT:?set it to the absolute path of compute/nextflow-funnel-docker}/funnel/work
+      - --BoltDB.Path
+      - ${REFCLOUD_COMPUTE_STORAGE_ROOT}/funnel/db/funnel.db
+      - --LocalStorage.AllowedDirs
+      - ${REFCLOUD_COMPUTE_STORAGE_ROOT}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: ${REFCLOUD_COMPUTE_STORAGE_ROOT}
+        target: ${REFCLOUD_COMPUTE_STORAGE_ROOT}
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./funnel/funnel.yml
+        target: /etc/funnel/funnel.yml
+        read_only: true
+    restart: unless-stopped
+    networks:
+      - intranet

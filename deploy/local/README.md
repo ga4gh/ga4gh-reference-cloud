@@ -4,14 +4,45 @@ Configuration for running the reference cloud's dependency services and ingress 
 
 **For instructions on how to run the full reference cloud, please see the main [README](../../README.md).**
 
-* `docker-compose.yml` - dependency services (Ory Kratos, Ory Hydra)
+* `docker-compose.yml` - dependency services (Ory Kratos, Ory Hydra, Funnel)
 * `Caddyfile` - Caddy ingress for `https://refcloud.ga4gh.localhost` and `https://docs.refcloud.ga4gh.localhost`
 * `ory/` - Kratos and Hydra configuration
 * `compute/connections.yml` - compute connections (engine + executor + storage + pooled limits) for native mode, read by core-api and the admin CLI
+* `funnel/` - the Funnel (TES executor) image and config for native-mode compute
+* `.trivyignore` - Trivy exceptions for this directory's Dockerfiles only (each with its reason)
+
+## Compute (native mode)
+
+Native mode can run workflows through the refcloud's WES and TES APIs: a researcher submits an allowlisted workflow to a compute platform's WES, with refcloud DRS objects as inputs, and downloads its outputs from WES. The design is in [`claude/discussions/0000-about-adding-compute.md`](../../claude/discussions/0000-about-adding-compute.md) and [`claude/specs/active/0008-add-compute-wes-tes.md`](../../claude/specs/active/0008-add-compute-wes-tes.md).
+
+**What runs where:**
+
+| Component | Runs | Notes |
+|-|-|-|
+| core-api (WES, TES) | natively | launches one `nextflow run` per WES run, as a subprocess |
+| Nextflow and its nf-ga4gh plugin (TES executor) | natively, on the host | needs `nextflow` on the `PATH` (see the requirements in the main [README](../../README.md)). core-api runs the Nextflow and nf-ga4gh versions pinned in `compute/connections.yml`; Nextflow downloads both into `~/.nextflow` the first time, so that needs internet access |
+| Funnel (TES server) | Docker Compose (`funnel`, built from `funnel/Dockerfile`) | TES API on `127.0.0.1:8000`, with no auth. Starts each task as a container on the host's Docker through the mounted Docker socket: **for local development only** |
+| task containers | the host's Docker | started by Funnel |
+
+**Storage:** `compute/nextflow-funnel-docker/` (git-ignored) holds the run directories (`runs/<run_id>/`: the workflow, staged inputs, work, outputs and logs) and Funnel's database and work directory. Funnel mounts it at the same absolute path as on the host, because the task containers it starts mount host paths. `./scripts/refcloud-setup.sh --reset` deletes it.
+
+**Setup:** `./scripts/refcloud-setup.sh` checks that `nextflow` can run the pinned version, downloading it the first time. If it can't, setup warns and skips compute. Otherwise it registers and enables the `nextflow-demo` compute platform on the `nextflow-funnel-docker-local` connection, with the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow on its allowlist and small per-user limits: 2 concurrent runs; 2 CPU cores, 2 GB of memory and 10 GB of disk per task; 30 minutes per run; 10 core-hours a month. An existing platform is left as it is; to recreate it, delete it with `uv run refcloud compute-platform delete -p nextflow-demo` (in `apps/admin-cli`) and run setup again.
+
+**Running the demo:** `./scripts/refcloud-run-native.sh` lists each enabled platform's WES and TES endpoints, and the demo's input. The researcher needs two approved visas: the platform's (`ga4gh_visa:compute_platform:nextflow-demo`) and the 1000 Genomes dataset's (`ga4gh_visa:aws_opendata_registry_1000_genomes`). They request access to each in the researcher UI (Browse Datasets and Browse Compute Platforms), and an admin approves each request with `uv run refcloud visa approve -u <user id> -v <visa id>` in `apps/admin-cli`. Then follow the [drs-checksum README](../../compute/workflows/nextflow/drs-checksum/README.md).
+
+**Running Docker Compose by hand:** `docker-compose.yml` needs the storage root's absolute path, which the scripts set. From the repo root:
+
+```bash
+REFCLOUD_COMPUTE_STORAGE_ROOT=$PWD/compute/nextflow-funnel-docker docker compose -f deploy/local/docker-compose.yml up -d
+```
+
+**Helm mode** has no compute: no connection is configured until stage 2. Both modes share the host databases, so the `nextflow-demo` platform registered by setup shows as unavailable in helm mode ("connection not configured").
+
+**Known limitation:** until nf-ga4gh releases a fix for transient TES errors (D23 in the discussion doc), restarting core-api for more than a few seconds fails the workflows that are running.
 
 ## Static Analysis
 
-Static analysis of this directory and of every app Dockerfile (`apps/**/Dockerfile`) runs in CI on every pull request that changes them. Run it locally from the repo root (requires only Docker; each tool runs from a pinned image, so local runs match CI):
+Static analysis of this directory (including `funnel/Dockerfile`) and of every app Dockerfile (`apps/**/Dockerfile`) runs in CI on every pull request that changes them. Run it locally from the repo root (requires only Docker; each tool runs from a pinned image, so local runs match CI):
 
 | Check | Command |
 |-|-|
