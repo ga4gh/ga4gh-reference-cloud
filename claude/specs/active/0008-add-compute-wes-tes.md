@@ -19,7 +19,7 @@ In summary:
 * WES stages `drs://` inputs at submission (D17). Outputs stay with the run and are downloaded through a non-standard WES endpoint (D18, D19). There is no write-back to DRS.
 * Workflows come only from allowlisted pinned git sources, TRS versions, or bundled demos (D20).
 
-**Done when:** on a fresh native-mode setup (`./scripts/refcloud-setup.sh` then `./scripts/refcloud-run-native.sh`), a researcher with an approved visa for the default platform can:
+**Done when:** on a fresh native-mode setup (`./scripts/refcloud-setup.sh` then `./scripts/refcloud-run-native.sh`), a researcher with approved visas for the default platform **and** the 1000 Genomes dataset (it's visa-gated, Task 9) can:
 
 1. submit the bundled demo workflow through WES with a 1000 Genomes `.bai` DRS object as input;
 2. watch it run through the refcloud TES on Funnel;
@@ -912,6 +912,36 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 
 **Decisions (Task 9):**
 
+* **Files** (`compute/workflows/nextflow/drs-checksum/`; `compute/.gitignore` already tracks `workflows/`):
+  * `main.nf`, `nextflow.config` (manifest only);
+  * `README.md`: what it does, the demo input and its visas, the expected report, how an admin allowlists it, an example WES submission, and a standalone run.
+* **The workflow:**
+  * one process, `CHECKSUM`, in `ubuntu:24.04` (task images need `bash`, Task 1), pinned by tag like the Compose images;
+  * one parameter, `input`; core-api sets `outdir`;
+  * it writes `checksum-report.json` (`name`, `size`, `md5`, `sha256`), published to `outdir`;
+  * a missing input fails with a clear error.
+* **Strict Nextflow 26 syntax:** `nextflow lint` passes on Nextflow 26.10.5, so the allowlist entry needs no engine settings. No `env`/`eval` outputs, so it works on released nf-ga4gh 1.5.0 (D22).
+* **Safe with any file name:** the input is staged under a fixed name, so the shell never quotes an arbitrary name. The original name goes into the report as an escaped JSON string. Through WES, staged names are already safe (Task 8), but standalone runs aren't. Checked with a file named `it's a "test" file.bai`: the report is valid JSON, and its checksums match the host's `md5` and `shasum`.
+* **Demo input:**
+  * `drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`, 6,842,584 bytes.
+  * The 1000 Genomes onboarding (`apps/admin-cli/.../onboard_1000_genomes.py`) uses each S3 file name as the DRS object ID, so the ID is the same on every setup. HG00096 is the first subject onboarded.
+  * It reads `exome_alignment/` files; Task 8's test used a `low_coverage` file that isn't onboarded.
+  * Its DRS checksum (`type` `etag`, the S3 ETag) equals its MD5, so the report's `md5` can be checked against DRS.
+* **Two visas (decided 2026-11-12):** the 1000 Genomes dataset is visa-gated (`ga4gh_visa:aws_opendata_registry_1000_genomes`). So the demo researcher needs both the dataset's visa and the platform's. The Objective now says so, and D20 has a note.
+* **The demo ID** is recorded in the workflow's README now. Tasks 10 (run script output) and 12 (docs page) now say to pick it up.
+* **Verified end to end** (throwaway Postgres, Funnel, Nextflow 26.10.5):
+  * **Admin CLI on the throwaway database:**
+    * `seed`, `dataset init`, then the real `dataset onboard`, stopped once HG00096 was in. The `.bai` row matched the S3 listing (ID, size, key, `etag`).
+    * `compute-platform init` (it correctly refused a per-user limit above the connection's ceiling), `allowlist add --bundled drs-checksum` (it found the folder), `enable`, and `visa approve`.
+  * **core-api** used its default `bundled-workflows-base-dir` (`../..`, the repo root), so the workflow came from this folder.
+  * **A researcher with only the platform's visa** → `403` "you don't have access to DRS object …".
+  * **A researcher with both visas** → `COMPLETE`, with one output, `checksum-report.json`:
+    * name `HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`;
+    * size 6842584;
+    * md5 `a8a1f1ba420f7d75c7955b04b5972c54`, equal to the DRS checksum;
+    * sha256 `89d6677f9e8d54fd3d771177ab352fb5d7435cf4ad1fb5dec33e5a508612f5c0`.
+  * **After the run:** the run directory kept only `outputs/` and logs.
+
 ### Task 10: Local native-mode setup (D13, D16, D18)
 
 * **Funnel:** add a pinned Funnel service to `deploy/local/docker-compose.yml`, following the Task 1 findings: Docker socket, the shared directory mounted at the same path as on the host, and local storage settings. Note that the socket mount is for local development only.
@@ -926,7 +956,7 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 * **Default connection and platform:**
   * Native mode defines a default `nextflow-funnel-docker` connection in core-api config.
   * Setup registers a default Compute Platform on it, using the admin CLI, with small per-user limits and the bundled demo on its allowlist (D9).
-* **Run script:** `./scripts/refcloud-run-native.sh` lists the platform's WES and TES endpoints alongside the other GA4GH services.
+* **Run script:** `./scripts/refcloud-run-native.sh` lists the platform's WES and TES endpoints alongside the other GA4GH services. It also prints the demo input's DRS URI (Task 9: `drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`), the two visas it needs, and a pointer to `compute/workflows/nextflow/drs-checksum/README.md`.
 * **Helm mode:** stays working with compute **off**. No connections are configured, so no platforms are registered and nothing compute-related is deployed (stage 2 adds it). Run `./scripts/refcloud-static-analysis-helm.sh` and `./scripts/refcloud-static-analysis-deploy-local.sh`.
 * **Docs:** add a `compute/` entry to the root `CLAUDE.md` repository layout. Also document native-mode compute in `deploy/local/README.md`, keeping the root `README.md` to a pointer.
 * **System dependencies:** the root `README.md` requirements table lists every new host dependency with its minimum version, and the docs say what runs where:
@@ -961,7 +991,7 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
   * the non-standard extensions: health in service-info (D10) and output downloads (D19);
   * the **auth instructions page** that WES service-info's `auth_instructions_url` points to (`/compute/access` on the docs site): how to request access to a compute platform and mint a passport token, both in the researcher UI;
   * a **workflow compatibility table** per platform type, listing which workflows and versions are known to work (seeded from the Task 1 table: the bundled `drs-checksum` demo and nf-core/demo 1.0.2 work; nf-core/demo 1.2.0 and other workflows using `env`/`eval` outputs need the nf-ga4gh fix, D22), with a link to the upstream nf-ga4gh issue/PR and its status;
-  * how to run the demo.
+  * how to run the demo: the demo input and its two visas, and the example submission, from `compute/workflows/nextflow/drs-checksum/README.md` (Task 9).
 
 **Decisions (Task 12):**
 
