@@ -44,4 +44,8 @@ ga4gh:
             max-task-memory-gb: 4
             max-task-disk-gb: 20
             max-run-duration-seconds: 3600
+            # a task that requests no resources is treated as requesting these (limits, accounting) and is sent with them.
+            # on docker, funnel can't enforce cpu/memory on the container, so these are admission and accounting only
+            default-task-cpu-cores: 1
+            default-task-memory-gb: 1
             # monthly-core-hours-budget: 100

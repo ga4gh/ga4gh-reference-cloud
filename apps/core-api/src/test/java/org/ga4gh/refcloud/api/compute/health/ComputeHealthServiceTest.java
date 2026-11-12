@@ -55,6 +55,8 @@ public class ComputeHealthServiceTest {
         properties.put(prefix + "limits.max-task-memory-gb", "1");
         properties.put(prefix + "limits.max-task-disk-gb", "1");
         properties.put(prefix + "limits.max-run-duration-seconds", "60");
+        properties.put(prefix + "limits.default-task-cpu-cores", "1");
+        properties.put(prefix + "limits.default-task-memory-gb", "1");
         ComputeConfig config = new Binder(new MapConfigurationPropertySource(properties))
                 .bind("ga4gh.refcloud.compute", ComputeConfig.class)
                 .get();

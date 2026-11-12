@@ -73,6 +73,8 @@ public class ComputeConfigTest {
         properties.put(PREFIX + "limits.max-task-memory-gb", "4");
         properties.put(PREFIX + "limits.max-task-disk-gb", "10");
         properties.put(PREFIX + "limits.max-run-duration-seconds", "600");
+        properties.put(PREFIX + "limits.default-task-cpu-cores", "1");
+        properties.put(PREFIX + "limits.default-task-memory-gb", "1");
         return properties;
     }
 
@@ -163,6 +165,17 @@ public class ComputeConfigTest {
         properties.put(PREFIX + "limits.max-concurrent-runs", "0");
 
         assertEquals(validator.validate(bind(properties)).size(), 1);
+    }
+
+    @Test
+    public void defaultTaskResourcesAboveTheCeilingIsAViolation() {
+        Map<String, Object> properties = validConnection();
+        properties.put(PREFIX + "limits.default-task-memory-gb", "8");
+
+        Set<ConstraintViolation<ComputeConfig>> violations = validator.validate(bind(properties));
+
+        assertEquals(violations.size(), 1);
+        assertTrue(violations.iterator().next().getMessage().contains("default task resources"));
     }
 
     @Test

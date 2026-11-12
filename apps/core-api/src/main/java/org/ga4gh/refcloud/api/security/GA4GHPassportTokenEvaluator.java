@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.security;
 
+import org.ga4gh.refcloud.api.compute.platform.ComputePlatformAccessService;
 import org.ga4gh.refcloud.api.core.dataset.DatasetService;
 import org.ga4gh.refcloud.api.dataconnect.table.DataConnectTableService;
 import org.ga4gh.refcloud.api.drs.authinfo.MultiDrsObjectAuthInfoRequestDTO;
@@ -28,17 +29,30 @@ public class GA4GHPassportTokenEvaluator {
 
     private final DataConnectTableService dataConnectTableService;
 
+    private final ComputePlatformAccessService computePlatformAccessService;
+
     public GA4GHPassportTokenEvaluator(
             JwtDecoder jwtDecoder,
             DrsObjectService drsObjectService,
             DatasetService datasetService,
             RefgetSequenceService refgetSequenceService,
-            DataConnectTableService dataConnectTableService) {
+            DataConnectTableService dataConnectTableService,
+            ComputePlatformAccessService computePlatformAccessService) {
         this.jwtDecoder = jwtDecoder;
         this.drsObjectService = drsObjectService;
         this.datasetService = datasetService;
         this.refgetSequenceService = refgetSequenceService;
         this.dataConnectTableService = dataConnectTableService;
+        this.computePlatformAccessService = computePlatformAccessService;
+    }
+
+    // compute platforms are never open: a researcher needs an approved request for the platform's visa. a run
+    // token (Task 7) is accepted for its own run's platform only
+    public boolean canAccessComputePlatform(Authentication authentication, String platformId) {
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+            return computePlatformAccessService.isApproved(jwt.getSubject(), platformId);
+        }
+        return false;
     }
 
     // anonymous requests are allowed through, but can only access open datasets

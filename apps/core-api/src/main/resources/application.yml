@@ -190,3 +190,9 @@ ga4gh:
         executor-timeout: 5s
         # the first `nextflow -version` downloads the pinned nextflow version
         engine-timeout: 5m
+      # tes tasks (Task 6): reads are served from compute_task, kept current by a reconciler
+      tasks:
+        reconcile-interval: 10s
+        executor-timeout: 30s
+        default-page-size: 256
+        max-page-size: 2048

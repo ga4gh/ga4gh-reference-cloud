@@ -441,18 +441,99 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
 
 ### Task 6: Refcloud TES API: proxy to Funnel (D3, D11, D12)
 
-* Implement the TES 1.1 endpoints under `/ga4gh/tes/{platformId}/v1`, forwarding to the connection's Funnel TES (TES calling TES; D12 executor pluggability).
+Researchers submit work **only through WES** and inspect it through WES and TES (decided 2026-11-12). TES task creation exists for the workflow engine, not for researchers.
+
+* Implement the TES 1.1 endpoints under `/ga4gh/tes/{platformId}/v1`, forwarding to the connection's Funnel TES (TES calling TES; D12 executor pluggability). All of them inherit the Task 5 availability filter (`404` unknown/disabled, `503` unhealthy).
 * **Two kinds of caller:**
-  * Researchers calling directly with a Hydra JWT, who must hold the platform's visa.
-  * Nextflow processes using a run-scoped credential (D12), which identifies the run and so the user. The credential is valid only while its run is active.
-* Record every task in `compute_task`.
-* Each caller sees only their own tasks in `GET /tasks` and `GET /tasks/{id}`. Task IDs returned to clients are the refcloud's, not Funnel's.
+  * **Researchers** (Hydra-issued passport JWT, validated like every other API, plus an approved visa for the platform, checked in the database). They get **read-only TES**: `GET /tasks`, `GET /tasks/{id}` and `POST /tasks/{id}:cancel` on their own tasks. `POST /tasks` returns `403` with "submit work through this platform's WES". Direct submission is a Future Direction.
+  * **Workflow engines** (Nextflow), using a **run-scoped token**. They can create, read and cancel tasks for their own run. The token is minted and wired up in Task 7, when runs exist. Task 6 builds TES around a caller abstraction (a researcher, or a run acting for its user) so Task 7 only adds the run-token authentication. Its design (decided 2026-11-12):
+    * **Minted by core-api (WES)** once per run when it launches Nextflow: an **opaque** random token (32 bytes from `SecureRandom`, base64url, prefix `rcrun_`), not a JWT. A JWT would need key management and still couldn't be revoked without a database lookup, and Hydra can't easily issue per-run claims.
+    * **Only its SHA-256 hash is stored** (on `compute_run`). The plaintext reaches that run's Nextflow process only as an environment variable (`REFCLOUD_TES_TOKEN` → `tes.oauthToken`, Task 1) and is never written to disk.
+    * **Validation:** for TES paths, Spring Security routes a bearer token by its shape: `rcrun_…` to a run-token provider, anything else to normal Hydra JWT validation. The provider hashes the token and finds the run. It accepts only if the run is **active** and on the **same platform** as the path, then authenticates as "this run, for its user". The token stops working when the run ends, and the hash is cleared.
+    * The caller's user is the one used for task visibility, limits and usage.
+    * The Funnel request **never** carries a researcher's JWT or the run token. core-api calls Funnel with the connection's service credential (`credential-env`; none locally).
+* **Task records** (`compute_task`, Liquibase; timestamps `timestamptz`):
+  * refcloud task ID (returned to clients; Funnel's ID is never exposed), Funnel task ID (null until forwarded);
+  * platform, user (`sub`), nullable `run_id` (its foreign key arrives with `compute_run` in Task 7);
+  * state;
+  * requested resources (CPU cores, RAM, disk);
+  * the original request (so queued tasks can be forwarded later), and the latest TES document from Funnel;
+  * created, started and ended times, and core-hours.
+* **Reads are served from `compute_task`, not live from Funnel.** A reconciler (`@Scheduled`, about every 10 s):
+  * polls Funnel for every forwarded task still in flight, and also refreshes a task on `GET`;
+  * updates its state, document, times and core-hours;
+  * releases pooled capacity and forwards queued tasks, oldest first.
+
+  `GET /tasks` and `GET /tasks/{id}` support the MINIMAL, BASIC and FULL views, built from the stored document with the refcloud task ID substituted.
+* **Visibility:** a researcher sees **every task created on their behalf**, which means every task from their WES runs. A run token sees only its own run's tasks.
+* **`GET /tasks`:** the TES filters (`name_prefix`, `state`, `tag_key`/`tag_value`) and `page_size`/`page_token`. The page token is opaque, based on task creation order.
+* **Tags:** client tags pass through. The refcloud's internal tags (`refcloud_task_id`, `refcloud_user`, `refcloud_run`) are added on the way to Funnel and stripped from every response.
+* **Files:** a run-token task's `file://` inputs and outputs must be inside **that run's own directory** under the storage root (the storage root is shared by all users, and Funnel's `AllowedDirs` covers all of it). Anything else is rejected. Runs arrive in Task 7, so this check is built here and exercised end to end there.
 * **Limits at task creation (D11):**
-  * Reject per-task resources above the per-user limit or the connection ceiling.
-  * Queue (`QUEUED`) when the connection's total tasks / CPU / memory in flight is full, and forward the task to Funnel when capacity frees up.
-* **Usage:** when a task finishes, compute its compute-hours (CPU cores × wall time from the TES task logs) and store them for quota accounting.
+  * **Defaults:** a task with no resource request is treated as requesting the connection's new `default-task-cpu-cores` / `default-task-memory-gb` (`connections.yml`, e.g. 1 core, 1 GB). These are also written onto the task forwarded to Funnel.
+  * **Reject** per-task resources above the per-user limit or the connection ceiling.
+  * **Queue** (`QUEUED`, not forwarded) when the connection's total tasks / CPU / memory in flight is full; the reconciler forwards it when capacity frees up.
+  * **If Funnel errors on forward,** the task stays `QUEUED` and the reconciler retries. A longer outage turns the platform unhealthy, and the filter returns `503`.
+  * **Quota:** checked at WES submission (Task 8). Tasks from a running workflow are never rejected for quota (D11: a run that crosses its quota finishes).
+  * **Docker limitation:** Funnel 0.11.14's Docker template receives no resource fields, and the code that would pass task tags into it is commented out (`worker/worker.go:269`). So on `nextflow-funnel-docker`, CPU and memory are enforced **at admission and for accounting only**; a container can use more than it requested. Funnel's Kubernetes backend is different (stage 2).
+* **Cancel:** a queued task is marked `CANCELED` locally; a forwarded one is also cancelled in Funnel.
+* **Usage:** when a task finishes, its core-hours are CPU cores (requested, or the default) × wall time from the TES task log (`start_time` → `end_time`), stored for quota accounting.
+* **Testing:** task creation has no HTTP caller until run tokens arrive (Task 7). Test the service layer with a test caller against a real Funnel and a throwaway database: forwarding, reconciling, queueing under tiny limits, usage, cancel, and the file-path rule. Test the researcher read endpoints over HTTP. Task 7 tests the full engine → TES path.
 
 **Decisions (Task 6):**
+
+* **Code (core-api):**
+  * `ComputeTaskConfig` (`ga4gh.refcloud.compute.tasks`: reconcile interval 10s, executor timeout 30s, page sizes 256 default / 2048 max).
+  * `ComputeCaller` (a researcher, or a run with its user and run directory) and `ComputeCallerResolver`. Today the resolver maps a Hydra `Jwt` to a researcher; Task 7 adds the run principal.
+  * `task/`: `ComputeTask`, `ComputeTaskRepository` (in-flight and waiting per connection; a native, keyset-paged list query using `jsonb_exists` rather than the `?` operator, which JDBC reads as a parameter), `ComputeTaskStates`.
+  * `tes/`:
+    * `TesTaskRules`: shape, reserved tags, file locations, resources, the accepted and forwarded documents. Pure, no Spring.
+    * `TesTaskViews`: MINIMAL, BASIC and FULL rendering.
+    * `TesPageToken`.
+    * `TesExecutorClient` (JDK `HttpClient`) and `ExecutorException`.
+    * `TesTaskService`: create, forward, reconcile, read, cancel, usage.
+    * `TesTaskController`.
+  * `platform/ComputePlatformAccessService` and `ComputePlatformRepository.hasVisaAssertion`, behind `GA4GHPassportTokenEvaluator.canAccessComputePlatform`, which the controller applies at class level with `@PreAuthorize`.
+  * `ComputeExceptionHandler` now maps `BadRequestException` → 400, `ForbiddenException` and `AccessDeniedException` → 403, and `ExecutorException` → 503.
+* **`compute_task`** (changeset `create-table-compute-task`):
+  * the TES state values are enforced by a check constraint, and resources must be positive;
+  * three indexes: the user's tasks newest first (paging), a run's tasks, and active tasks (a partial index);
+  * the `set_updated_at` trigger.
+
+  `run_id` has no foreign key yet; it gets one with `compute_run` in Task 7.
+* **Connection config:** `limits.default-task-cpu-cores` / `default-task-memory-gb` were added (required; `connections.yml` sets 1 / 1). An `@AssertTrue` rejects defaults above the per-task ceilings.
+* **Forwarding:**
+  * Waiting tasks are forwarded **in strict creation order**: a task that doesn't fit holds back the ones behind it, so a large task can't be starved by smaller ones.
+  * A task larger than the connection's **total** capacity is rejected at creation, since it could never run.
+  * Forwarding and cancel are serialized per connection with an in-process lock. That's enough for one core-api instance (stage 1); several replicas would need a database lock.
+* **Executor system logs are never exposed.** End-to-end testing found Funnel's task ID leaking into the FULL view through `logs[].system_logs`, Funnel's internal log lines (its `docker run` command, host paths, container IDs). Every view now drops `system_logs`. FULL keeps the user's executor stdout, stderr and exit codes, and a unit test pins it.
+* **Usage:** core-hours = requested (or default) CPU cores × (end − start) of the **latest** attempt in the TES log (6 decimal places). It's recorded once, when the task first reaches a final state. A task cancelled before it started records 0. A task the executor no longer knows (404) becomes `SYSTEM_ERROR`.
+* **Unit tests (48 new; core-api total 176):**
+  * `TesTaskRulesTest`:
+    * shape, reserved tags;
+    * allowed locations (nf-ga4gh's plain paths, `file://`, `https` inputs, inline content);
+    * refused locations: another run, `run-10` vs `run-1`, `..` traversal, `/etc/passwd`, https output, `s3://`, relative paths;
+    * defaults; per-task ceiling vs per-user limit; non-integer and non-positive values; the accepted and forwarded documents.
+  * `TesTaskViewsTest`: each view, internal tags and the executor ID hidden, no `system_logs`, a queued task rendered from its request.
+  * `TesTaskServiceTest`: state and times from the executor document, core-hours (latest attempt, recorded once, 0 if never started), unknown state, page token round trip and rejection.
+  * `ComputeConfigTest`: defaults above the ceiling.
+* **End-to-end check** against a real Funnel 0.11.14 (Compose, Docker socket, same-path storage), a throwaway Postgres, the platform's real health checks (scratch Nextflow launcher), and a temporary harness (deleted after). The harness ran a local key server standing in for Hydra and signed test JWTs with the real issuer, so the researcher paths went through real Spring Security. Run tokens don't exist yet, so tasks were created through the service as a workflow run. Results:
+  * **Queue:** with `max-tasks-in-flight: 1`, A was forwarded and B stayed `QUEUED` (not forwarded) until A finished. Both completed, and both output files landed in the run's `outputs/` directory.
+  * **Usage:** A recorded 0.00165 core-hours (1 core × ~6 s).
+  * **Refused:** an input from another run's directory and a 3-core task (ceiling 2), with clear messages.
+  * **Researcher `POST /tasks`:** `403` "submit work through this platform's WES".
+  * **Cancel:** a queued task → `CANCELED` locally (0 core-hours, never forwarded). A running one → `CANCELING`, then `CANCELED` after reconcile (core-hours for the time it ran).
+  * **`GET /tasks`:** all 4 of the researcher's tasks (from "their" run); paging 3 + 1 with no further token; `state`, `name_prefix` and tag filters.
+  * **FULL / BASIC:** the refcloud ID, the client tag only, the exit code; Funnel's ID nowhere in the body. BASIC has no stdout and no `system_logs`.
+  * **Another approved researcher:** no tasks, `404` on get and cancel.
+  * **An unapproved researcher:** `403`. **No token:** `401`. **Unknown task:** `404`. **Bad view or page token:** `400`.
+  * **Service-info** is still public.
+* **Checks:** `./gradlew staticAnalysis` passes, and 176 tests pass.
+* **For Task 7:**
+  * the run-token authentication: provider, principal, `ComputeCallerResolver` branch, and an evaluator branch accepting a run token only for its own platform;
+  * `compute_run` and the foreign key from `compute_task.run_id`;
+  * an end-to-end check of Nextflow → refcloud TES → Funnel, including the file rule with real nf-ga4gh paths.
+
 
 ### Task 7: Workflow engine adapter and the Nextflow implementation (D12, D18)
 
@@ -572,4 +653,10 @@ Scope (narrowed 2026-11-11): connections config, `compute_platform`, the workflo
 * Dataset visa IDs: consider a typed format such as `ga4gh:dataset:{dataset_id}` (today `ga4gh_visa:{dataset_id}`), alongside `ga4gh_visa:compute_platform:{platform_id}`. Tabled for a future ticket; it needs a data migration for existing visas and their assertions.
 * Run Hibernate schema validation in CI: a job with a Postgres service that applies the changelog and boots core-api with `ddl-auto: validate`, so entity/column drift fails the build. The whole schema validates as of Task 3.
 * Allowlist sources hosted outside GitHub (GitLab, Bitbucket, Dockstore-hosted tools): each needs its own repository URL parsing and `workflow_url` format. Today they get a clear "not supported yet" error (Task 4).
+* **Direct TES task submission by researchers** (deferred 2026-11-12; researchers submit through WES only). It would need:
+  * a **per-platform image allowlist**: a new table plus admin CLI commands. The workflow allowlist can't vet a task that names its container image and command directly, and a pipeline's images can't be derived reliably in advance;
+  * input restrictions: `https://` and inline `content` only, no `file://`; `drs://` stays a WES concern (D17);
+  * TES-side quota checks;
+  * an output story, e.g. per-user storage and a download endpoint.
+* **Runtime CPU/memory enforcement on Docker:** Funnel 0.11.14 doesn't pass task resources (or tags) to its `docker run` template. Patch or upstream it so `--cpus`/`--memory` apply (Task 6).
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.

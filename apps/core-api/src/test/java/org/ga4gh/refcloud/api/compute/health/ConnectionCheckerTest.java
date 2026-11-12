@@ -168,7 +168,8 @@ public class ConnectionCheckerTest {
                 engine(workDir.resolve("no-such-nextflow"), "26.10.5"),
                 new ComputeConfig.Executor(URI.create("http://127.0.0.1:1"), null),
                 new ComputeConfig.Storage(ComputeConfig.StorageType.SHARED_FILESYSTEM, "x"),
-                new ComputeConfig.Limits(1, 1, 1, BigDecimal.ONE, 1, BigDecimal.ONE, BigDecimal.ONE, 60, null));
+                new ComputeConfig.Limits(
+                        1, 1, 1, BigDecimal.ONE, 1, BigDecimal.ONE, BigDecimal.ONE, 60, null, 1, BigDecimal.ONE));
 
         List<String> failures = checker.check(connection, workDir.resolve("no-such-storage"));
 

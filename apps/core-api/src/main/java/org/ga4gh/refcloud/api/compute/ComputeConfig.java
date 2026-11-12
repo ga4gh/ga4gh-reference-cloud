@@ -1,6 +1,7 @@
 package org.ga4gh.refcloud.api.compute;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -59,7 +60,20 @@ public record ComputeConfig(
             @NotNull @Positive BigDecimal maxTaskMemoryGb,
             @NotNull @Positive BigDecimal maxTaskDiskGb,
             @Positive int maxRunDurationSeconds,
-            @Positive BigDecimal monthlyCoreHoursBudget) {}
+            @Positive BigDecimal monthlyCoreHoursBudget,
+            // what a task that requests no resources is treated as requesting (limits, accounting), and is sent with
+            @Positive int defaultTaskCpuCores,
+            @NotNull @Positive BigDecimal defaultTaskMemoryGb) {
+
+        // a default request has to fit within the per-task ceilings
+        @AssertTrue(message = "default task resources must not exceed max-task-cpu-cores / max-task-memory-gb")
+        public boolean isDefaultTaskWithinCeilings() {
+            return defaultTaskCpuCores <= maxTaskCpuCores
+                    && (defaultTaskMemoryGb == null
+                            || maxTaskMemoryGb == null
+                            || defaultTaskMemoryGb.compareTo(maxTaskMemoryGb) <= 0);
+        }
+    }
 
     public enum StorageType {
         // a directory shared by the engine and the executor (a host directory, or a hostPath / shared volume)

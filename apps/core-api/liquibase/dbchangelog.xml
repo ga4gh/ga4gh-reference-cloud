@@ -581,4 +581,58 @@
             </sql>
         </rollback>
     </changeSet>
+    <!--
+        tes tasks the refcloud has accepted (claude/specs/active/0008-add-compute-wes-tes.md, Task 6). reads are served
+        from here: executor_task holds the latest task document from the executor (funnel), kept current by a
+        reconciler; request holds the task as accepted, so a queued task can be forwarded later. executor_task_id is
+        null until the task is forwarded. run_id gets its foreign key when compute_run arrives (Task 7)
+    -->
+    <changeSet author="jadams" id="create-table-compute-task">
+        <sql dbms="postgresql">
+            CREATE TABLE compute_task (
+                id TEXT NOT NULL,
+                compute_platform_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                run_id TEXT,
+                state TEXT NOT NULL,
+                name TEXT,
+                executor_task_id TEXT,
+                cpu_cores INTEGER NOT NULL,
+                ram_gb NUMERIC NOT NULL,
+                disk_gb NUMERIC,
+                request JSONB NOT NULL,
+                executor_task JSONB,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+                forwarded_at TIMESTAMP WITH TIME ZONE,
+                started_at TIMESTAMP WITH TIME ZONE,
+                ended_at TIMESTAMP WITH TIME ZONE,
+                core_hours NUMERIC,
+                CONSTRAINT compute_task_pkey PRIMARY KEY (id),
+                CONSTRAINT compute_task_compute_platform_id_fkey
+                    FOREIGN KEY (compute_platform_id) REFERENCES compute_platform (id) ON DELETE CASCADE,
+                CONSTRAINT compute_task_executor_task_id_key UNIQUE (executor_task_id),
+                -- the TES 1.1 task states
+                CONSTRAINT compute_task_state_check CHECK (state IN ('UNKNOWN', 'QUEUED', 'INITIALIZING', 'RUNNING',
+                    'PAUSED', 'COMPLETE', 'EXECUTOR_ERROR', 'SYSTEM_ERROR', 'CANCELED', 'PREEMPTED', 'CANCELING')),
+                CONSTRAINT compute_task_resources_positive_check CHECK (
+                    cpu_cores > 0 AND ram_gb > 0 AND (disk_gb IS NULL OR disk_gb > 0)
+                ),
+                CONSTRAINT compute_task_core_hours_check CHECK (core_hours IS NULL OR core_hours >= 0)
+            );
+            -- a user's tasks, newest first (GET /tasks, keyset paging)
+            CREATE INDEX compute_task_user_created_idx ON compute_task (compute_platform_id, user_id, created_at DESC, id DESC);
+            -- a run's tasks
+            CREATE INDEX compute_task_run_idx ON compute_task (run_id) WHERE run_id IS NOT NULL;
+            -- tasks still in flight or waiting to be forwarded (reconciler, pooled capacity)
+            CREATE INDEX compute_task_active_idx ON compute_task (compute_platform_id, created_at)
+                WHERE state NOT IN ('COMPLETE', 'EXECUTOR_ERROR', 'SYSTEM_ERROR', 'CANCELED', 'PREEMPTED');
+            CREATE TRIGGER compute_task_set_updated_at
+                BEFORE UPDATE ON compute_task
+                FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+        </sql>
+        <rollback>
+            <sql>DROP TABLE compute_task;</sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>
