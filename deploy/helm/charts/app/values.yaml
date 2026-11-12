@@ -28,9 +28,23 @@ ga4gh:
         organization:
           name: Global Alliance for Genomics and Health
           url: https://ga4gh.org
-        contactUrl: mailto:jeremy.adams@ga4gh.org
+        contactUrl: mailto:info@ga4gh.org
         documentationUrl: https://github.com/ga4gh/ga4gh-reference-cloud
         createdAt: 2026-07-20T12:00:00Z
         updatedAt: 2026-07-20T12:00:00Z
+        environment: local
+        version: 0.1.0
+    serviceRegistry:
+      serviceInfo:
+        id: org.ga4gh.refcloud.serviceregistry.local.helm
+        name: GA4GH Reference Cloud Service Registry (Local Helm Environment)
+        description: GA4GH reference implementation of the Service Registry specification, listing the GA4GH services this reference cloud provides
+        organization:
+          name: Global Alliance for Genomics and Health
+          url: https://ga4gh.org
+        contactUrl: mailto:info@ga4gh.org
+        documentationUrl: https://github.com/ga4gh/ga4gh-reference-cloud
+        createdAt: 2026-11-09T12:00:00Z
+        updatedAt: 2026-11-09T12:00:00Z
         environment: local
         version: 0.1.0

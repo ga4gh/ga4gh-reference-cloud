@@ -49,6 +49,12 @@ public class SecurityConfig {
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/drs/v1/service-info"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/refget/v2/sequence/service-info"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/data-connect/v1/service-info"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/service-registry/v1/service-info"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/ga4gh/service-registry/v1/services"),
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.GET, "/ga4gh/service-registry/v1/services/types"),
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.GET, "/ga4gh/service-registry/v1/services/{serviceId}"),
             // kubernetes liveness/readiness probes; status only (no details), and never routed by the ingress
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/actuator/health/liveness"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/actuator/health/readiness"),

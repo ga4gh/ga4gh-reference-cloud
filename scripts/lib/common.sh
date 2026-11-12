@@ -73,6 +73,7 @@ print_service_urls() {
   log_info "   * Data Connect: https://$REFCLOUD_BASE_URL/ga4gh/data-connect/v1"
   log_info "   * DRS: https://$REFCLOUD_BASE_URL/ga4gh/drs/v1"
   log_info "   * RefGet: https://$REFCLOUD_BASE_URL/ga4gh/refget/v2"
+  log_info "   * Service Registry: https://$REFCLOUD_BASE_URL/ga4gh/service-registry/v1"
   log_info ""
   log_info "To begin, visit the Researcher UI service and register a new researcher account."
 }

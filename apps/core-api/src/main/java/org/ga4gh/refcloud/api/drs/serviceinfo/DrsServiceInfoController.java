@@ -1,7 +1,7 @@
 package org.ga4gh.refcloud.api.drs.serviceinfo;
 
 import org.ga4gh.refcloud.api.drs.DrsConfig;
-import org.ga4gh.refcloud.api.drs.DrsConfig.ServiceInfo;
+import org.ga4gh.refcloud.api.drs.DrsConfig.DrsServiceInfo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +18,7 @@ public class DrsServiceInfoController {
     }
 
     @GetMapping
-    public ResponseEntity<ServiceInfo> getServiceInfo() {
+    public ResponseEntity<DrsServiceInfo> getServiceInfo() {
         return ResponseEntity.ok(drsConfig.serviceInfo());
     }
 }

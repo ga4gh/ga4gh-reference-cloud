@@ -1,7 +1,7 @@
 package org.ga4gh.refcloud.api.refget.sequence.serviceinfo;
 
 import org.ga4gh.refcloud.api.refget.RefgetConfig;
-import org.ga4gh.refcloud.api.refget.RefgetConfig.Sequence.ServiceInfo;
+import org.ga4gh.refcloud.api.refget.RefgetConfig.Sequence.RefgetSequenceServiceInfo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +18,7 @@ public class RefgetSequenceServiceInfoController {
     }
 
     @GetMapping
-    public ResponseEntity<ServiceInfo> getServiceInfo() {
+    public ResponseEntity<RefgetSequenceServiceInfo> getServiceInfo() {
         return ResponseEntity.ok(refgetConfig.sequence().serviceInfo());
     }
 }
