@@ -1,15 +1,11 @@
-import { NodeInputProps, useOnload } from "./helpers"
+import { NodeInputProps, useOnload } from "./helpers";
 
-export function NodeInputHidden<T>({ attributes }: NodeInputProps) {
-  useOnload(attributes as any)
+export function NodeInputHidden({ attributes }: NodeInputProps) {
+  useOnload(attributes);
 
   return (
     <>
-    <input
-      type={attributes.type}
-      name={attributes.name}
-      value={attributes.value || "true"}
-    />
+      <input type={attributes.type} name={attributes.name} value={attributes.value || "true"} />
     </>
-  )
+  );
 }

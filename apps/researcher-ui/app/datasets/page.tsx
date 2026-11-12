@@ -10,7 +10,7 @@ export default async function DatasetsPage() {
 
   try {
     await ory.toSession({ cookie });
-  } catch (err: any) {
+  } catch {
     redirect("/login");
   }
 

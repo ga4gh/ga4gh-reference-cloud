@@ -28,10 +28,9 @@ public class DataConnectQueryRewriterTest {
     // tables visible to the test user; refcloud.restricted.drs_object exists but is not visible,
     // so the resolver returns empty for it exactly as for a table that does not exist
     private static final Map<String, ResolvedTable> VISIBLE_TABLES = Map.of(
-        "refcloud.platform.datasets", new ResolvedTable("refcloud.platform.datasets", null, DATASETS_QUERY),
-        "refcloud.open_a.drs_object", new ResolvedTable("refcloud.open_a.drs_object", "open_a", DRS_OBJECT_QUERY),
-        "refcloud.open_b.drs_object", new ResolvedTable("refcloud.open_b.drs_object", "open_b", DRS_OBJECT_QUERY)
-    );
+            "refcloud.platform.datasets", new ResolvedTable("refcloud.platform.datasets", null, DATASETS_QUERY),
+            "refcloud.open_a.drs_object", new ResolvedTable("refcloud.open_a.drs_object", "open_a", DRS_OBJECT_QUERY),
+            "refcloud.open_b.drs_object", new ResolvedTable("refcloud.open_b.drs_object", "open_b", DRS_OBJECT_QUERY));
 
     private static final Map<String, Object> GLOBAL_PARAMETERS = Map.of("drs_host_domain", "refcloud.example.org");
 
@@ -52,14 +51,13 @@ public class DataConnectQueryRewriterTest {
 
     private RewrittenQuery rewrite(String sql, List<?> positionalParameters) {
         return rewriter.rewrite(
-            sql,
-            tableName -> {
-                resolvedTableNames.add(tableName);
-                return Optional.ofNullable(VISIBLE_TABLES.get(tableName));
-            },
-            GLOBAL_PARAMETERS,
-            positionalParameters
-        );
+                sql,
+                tableName -> {
+                    resolvedTableNames.add(tableName);
+                    return Optional.ofNullable(VISIBLE_TABLES.get(tableName));
+                },
+                GLOBAL_PARAMETERS,
+                positionalParameters);
     }
 
     // ---- valid queries ----
@@ -68,9 +66,10 @@ public class DataConnectQueryRewriterTest {
     public void rewritesTableReferenceToInternalQueryCte() {
         RewrittenQuery result = rewrite("SELECT id, name FROM refcloud.platform.datasets WHERE name LIKE 'a%'");
 
-        assertEquals(result.sql(),
-            "WITH dc_table_1 AS NOT MATERIALIZED (SELECT d.id, d.name FROM dataset d) "
-                + "SELECT id, name FROM dc_table_1 datasets WHERE name LIKE 'a%'");
+        assertEquals(
+                result.sql(),
+                "WITH dc_table_1 AS NOT MATERIALIZED (SELECT d.id, d.name FROM dataset d) "
+                        + "SELECT id, name FROM dc_table_1 datasets WHERE name LIKE 'a%'");
         assertTrue(result.parameters().isEmpty());
         assertEquals(resolvedTableNames, List.of("refcloud.platform.datasets"));
     }
@@ -82,10 +81,11 @@ public class DataConnectQueryRewriterTest {
         assertTrue(result.sql().contains("o.dataset_id = :dc_table_1_dataset_id"), result.sql());
         assertTrue(result.sql().contains("CAST(:drs_host_domain AS TEXT)"), result.sql());
         assertTrue(result.sql().endsWith("SELECT id, size FROM dc_table_1 drs_object WHERE size > 100"), result.sql());
-        assertEquals(result.parameters(), Map.of(
-            "dc_table_1_dataset_id", "open_a",
-            "drs_host_domain", "refcloud.example.org"
-        ));
+        assertEquals(
+                result.parameters(),
+                Map.of(
+                        "dc_table_1_dataset_id", "open_a",
+                        "drs_host_domain", "refcloud.example.org"));
     }
 
     @Test
@@ -112,13 +112,16 @@ public class DataConnectQueryRewriterTest {
 
         assertTrue(result.sql().contains("dc_table_1 AS NOT MATERIALIZED"), result.sql());
         assertFalse(result.sql().contains("dc_table_2"), result.sql());
-        assertTrue(result.sql().endsWith("FROM dc_table_1 a JOIN dc_table_1 b ON a.name = b.name AND a.id <> b.id"), result.sql());
+        assertTrue(
+                result.sql().endsWith("FROM dc_table_1 a JOIN dc_table_1 b ON a.name = b.name AND a.id <> b.id"),
+                result.sql());
         assertEquals(resolvedTableNames, List.of("refcloud.open_a.drs_object"));
     }
 
     @Test
     public void fullyQualifiedColumnQualifiersPointAtTheTableAlias() {
-        RewrittenQuery result = rewrite("SELECT refcloud.platform.datasets.id, datasets.name FROM refcloud.platform.datasets");
+        RewrittenQuery result =
+                rewrite("SELECT refcloud.platform.datasets.id, datasets.name FROM refcloud.platform.datasets");
 
         assertTrue(result.sql().endsWith("SELECT datasets.id, datasets.name FROM dc_table_1 datasets"), result.sql());
     }
@@ -134,17 +137,21 @@ public class DataConnectQueryRewriterTest {
             SELECT s.id FROM (SELECT id FROM refcloud.open_a.drs_object) s
             """);
 
-        assertEquals(resolvedTableNames.stream().distinct().sorted().toList(), List.of(
-            "refcloud.open_a.drs_object", "refcloud.open_b.drs_object", "refcloud.platform.datasets"
-        ));
+        assertEquals(
+                resolvedTableNames.stream().distinct().sorted().toList(),
+                List.of("refcloud.open_a.drs_object", "refcloud.open_b.drs_object", "refcloud.platform.datasets"));
         assertFalse(result.sql().contains("refcloud."), "every table reference must be rewritten: " + result.sql());
         // researcher CTEs come after the table CTEs, so they can't shadow base tables
-        assertTrue(result.sql().indexOf("dc_table_3 AS NOT MATERIALIZED") < result.sql().indexOf("recent AS ("), result.sql());
+        assertTrue(
+                result.sql().indexOf("dc_table_3 AS NOT MATERIALIZED")
+                        < result.sql().indexOf("recent AS ("),
+                result.sql());
     }
 
     @Test
     public void generatedCteNamesAvoidResearcherCteNames() {
-        RewrittenQuery result = rewrite("WITH dc_table_1 AS (SELECT 1 AS n) SELECT d.id, x.n FROM refcloud.platform.datasets d, dc_table_1 x");
+        RewrittenQuery result = rewrite(
+                "WITH dc_table_1 AS (SELECT 1 AS n) SELECT d.id, x.n FROM refcloud.platform.datasets d, dc_table_1 x");
 
         assertTrue(result.sql().startsWith("WITH dc_table_2 AS NOT MATERIALIZED"), result.sql());
         assertTrue(result.sql().endsWith("FROM dc_table_2 d, dc_table_1 x"), result.sql());
@@ -167,7 +174,8 @@ public class DataConnectQueryRewriterTest {
 
     @Test
     public void reportsReferencedTableNames() {
-        RewrittenQuery result = rewrite("SELECT a.id FROM refcloud.open_a.drs_object a JOIN refcloud.platform.datasets d ON a.name = d.name");
+        RewrittenQuery result = rewrite(
+                "SELECT a.id FROM refcloud.open_a.drs_object a JOIN refcloud.platform.datasets d ON a.name = d.name");
 
         assertEquals(result.tableNames(), List.of("refcloud.open_a.drs_object", "refcloud.platform.datasets"));
     }
@@ -193,7 +201,9 @@ public class DataConnectQueryRewriterTest {
 
     @Test
     public void bindsNullPositionalParameter() {
-        RewrittenQuery result = rewrite("SELECT id FROM refcloud.platform.datasets WHERE coalesce(?, name) = name", java.util.Arrays.asList((Object) null));
+        RewrittenQuery result = rewrite(
+                "SELECT id FROM refcloud.platform.datasets WHERE coalesce(?, name) = name",
+                java.util.Arrays.asList((Object) null));
 
         assertTrue(result.parameters().containsKey("dc_param_1"));
         assertEquals(result.parameters().get("dc_param_1"), null);
@@ -202,9 +212,9 @@ public class DataConnectQueryRewriterTest {
     @DataProvider
     public Object[][] positionalParameterCountMismatches() {
         return new Object[][] {
-            { "SELECT id FROM refcloud.platform.datasets WHERE id = ?", List.of() },
-            { "SELECT id FROM refcloud.platform.datasets WHERE id = ?", List.of("a", "b") },
-            { "SELECT id FROM refcloud.platform.datasets", List.of("a") },
+            {"SELECT id FROM refcloud.platform.datasets WHERE id = ?", List.of()},
+            {"SELECT id FROM refcloud.platform.datasets WHERE id = ?", List.of("a", "b")},
+            {"SELECT id FROM refcloud.platform.datasets", List.of("a")},
         };
     }
 
@@ -226,29 +236,34 @@ public class DataConnectQueryRewriterTest {
             FROM refcloud.platform.datasets d
             """);
 
-        assertTrue(result.sql().endsWith("SELECT d.id AS dataset_id, name, d.description FROM dc_table_1 d"), result.sql());
-        assertEquals(result.columnSchemaRefs(), Map.of(
-            "dataset_id", "https://example.org/id.json",
-            "name", "https://example.org/name.json"
-        ));
+        assertTrue(
+                result.sql().endsWith("SELECT d.id AS dataset_id, name, d.description FROM dc_table_1 d"),
+                result.sql());
+        assertEquals(
+                result.columnSchemaRefs(),
+                Map.of(
+                        "dataset_id", "https://example.org/id.json",
+                        "name", "https://example.org/name.json"));
     }
 
     @DataProvider
     public Object[][] invalidGa4ghTypeUses() {
         return new Object[][] {
             // only as an item of the outermost select list
-            { "SELECT id FROM refcloud.platform.datasets WHERE ga4gh_type(id, '$ref:x') = 'a'" },
-            { "SELECT x.id FROM (SELECT ga4gh_type(id, '$ref:x') AS id FROM refcloud.platform.datasets) x" },
-            { "SELECT ga4gh_type(id, '$ref:x') FROM refcloud.platform.datasets UNION SELECT id FROM refcloud.platform.datasets" },
-            { "SELECT lower(ga4gh_type(id, '$ref:x')) FROM refcloud.platform.datasets" },
+            {"SELECT id FROM refcloud.platform.datasets WHERE ga4gh_type(id, '$ref:x') = 'a'"},
+            {"SELECT x.id FROM (SELECT ga4gh_type(id, '$ref:x') AS id FROM refcloud.platform.datasets) x"},
+            {
+                "SELECT ga4gh_type(id, '$ref:x') FROM refcloud.platform.datasets UNION SELECT id FROM refcloud.platform.datasets"
+            },
+            {"SELECT lower(ga4gh_type(id, '$ref:x')) FROM refcloud.platform.datasets"},
             // wrong arguments
-            { "SELECT ga4gh_type(id) FROM refcloud.platform.datasets" },
-            { "SELECT ga4gh_type(id, 'https://example.org/no-prefix.json') FROM refcloud.platform.datasets" },
-            { "SELECT ga4gh_type(id, name) FROM refcloud.platform.datasets" },
+            {"SELECT ga4gh_type(id) FROM refcloud.platform.datasets"},
+            {"SELECT ga4gh_type(id, 'https://example.org/no-prefix.json') FROM refcloud.platform.datasets"},
+            {"SELECT ga4gh_type(id, name) FROM refcloud.platform.datasets"},
             // an expression needs an alias to name the column
-            { "SELECT ga4gh_type(lower(id), '$ref:x') FROM refcloud.platform.datasets" },
+            {"SELECT ga4gh_type(lower(id), '$ref:x') FROM refcloud.platform.datasets"},
             // the wrapped value is still validated
-            { "SELECT ga4gh_type(pg_sleep(10), '$ref:x') AS slept" },
+            {"SELECT ga4gh_type(pg_sleep(10), '$ref:x') AS slept"},
         };
     }
 
@@ -260,18 +275,29 @@ public class DataConnectQueryRewriterTest {
     @DataProvider
     public Object[][] allowedQueries() {
         return new Object[][] {
-            { "SELECT count(*), min(size), max(size), sum(size), avg(size) FROM refcloud.open_a.drs_object" },
-            { "SELECT DISTINCT lower(name), upper(id), substring(name, 1, 3), name || '-' || id FROM refcloud.open_a.drs_object" },
-            { "SELECT CASE WHEN size > 10 THEN 'big' ELSE 'small' END, COALESCE(name, ''), CAST(size AS bigint), size::text FROM refcloud.open_a.drs_object" },
-            { "SELECT id FROM refcloud.open_a.drs_object WHERE name ILIKE '%bam' AND size BETWEEN 1 AND 100 AND name IS NOT NULL AND NOT (size = 0)" },
-            { "SELECT id FROM refcloud.open_a.drs_object WHERE id IN ('a', 'b') OR name LIKE 'x%' ORDER BY size DESC NULLS LAST, id LIMIT 10 OFFSET 5" },
-            { "SELECT name, count(*) FROM refcloud.open_a.drs_object GROUP BY name HAVING count(*) > 1" },
-            { "SELECT EXTRACT(YEAR FROM CURRENT_DATE), now() - INTERVAL '1 day', date_trunc('day', now()) FROM refcloud.platform.datasets" },
-            { "SELECT name::jsonb -> 0 ->> 'type' FROM refcloud.open_a.drs_object WHERE name::jsonb @> '[\"x\"]'::jsonb" },
-            { "SELECT CAST(size AS varchar(10)), CAST(size AS double precision) FROM refcloud.open_a.drs_object" },
-            { "SELECT id FROM refcloud.open_a.drs_object a LEFT JOIN refcloud.open_b.drs_object b USING (id)" },
-            { "SELECT id FROM refcloud.open_a.drs_object EXCEPT SELECT id FROM refcloud.open_b.drs_object" },
-            { "SELECT id FROM refcloud.open_a.drs_object WHERE id = ANY(CAST('{a,b}' AS varchar[]))" },
+            {"SELECT count(*), min(size), max(size), sum(size), avg(size) FROM refcloud.open_a.drs_object"},
+            {
+                "SELECT DISTINCT lower(name), upper(id), substring(name, 1, 3), name || '-' || id FROM refcloud.open_a.drs_object"
+            },
+            {
+                "SELECT CASE WHEN size > 10 THEN 'big' ELSE 'small' END, COALESCE(name, ''), CAST(size AS bigint), size::text FROM refcloud.open_a.drs_object"
+            },
+            {
+                "SELECT id FROM refcloud.open_a.drs_object WHERE name ILIKE '%bam' AND size BETWEEN 1 AND 100 AND name IS NOT NULL AND NOT (size = 0)"
+            },
+            {
+                "SELECT id FROM refcloud.open_a.drs_object WHERE id IN ('a', 'b') OR name LIKE 'x%' ORDER BY size DESC NULLS LAST, id LIMIT 10 OFFSET 5"
+            },
+            {"SELECT name, count(*) FROM refcloud.open_a.drs_object GROUP BY name HAVING count(*) > 1"},
+            {
+                "SELECT EXTRACT(YEAR FROM CURRENT_DATE), now() - INTERVAL '1 day', date_trunc('day', now()) FROM refcloud.platform.datasets"
+            },
+            {"SELECT name::jsonb -> 0 ->> 'type' FROM refcloud.open_a.drs_object WHERE name::jsonb @> '[\"x\"]'::jsonb"
+            },
+            {"SELECT CAST(size AS varchar(10)), CAST(size AS double precision) FROM refcloud.open_a.drs_object"},
+            {"SELECT id FROM refcloud.open_a.drs_object a LEFT JOIN refcloud.open_b.drs_object b USING (id)"},
+            {"SELECT id FROM refcloud.open_a.drs_object EXCEPT SELECT id FROM refcloud.open_b.drs_object"},
+            {"SELECT id FROM refcloud.open_a.drs_object WHERE id = ANY(CAST('{a,b}' AS varchar[]))"},
         };
     }
 
@@ -288,51 +314,51 @@ public class DataConnectQueryRewriterTest {
     public Object[][] invalidQueries() {
         return new Object[][] {
             // not exactly one SELECT statement
-            { "" },
-            { "   " },
-            { "SELEC * FRM refcloud.platform.datasets" },
-            { "SELECT 1; DROP TABLE dataset" },
-            { "SELECT id FROM refcloud.platform.datasets; SELECT 1" },
-            { "SELECT 1 /* ; */ ; DROP TABLE dataset --" },
-            { "DROP TABLE dataset" },
-            { "DELETE FROM dataset" },
-            { "UPDATE dataset SET name = 'x'" },
-            { "INSERT INTO dataset (id) VALUES ('x')" },
-            { "TABLE refcloud.platform.datasets" },
-            { "VALUES (1)" },
+            {""},
+            {"   "},
+            {"SELEC * FRM refcloud.platform.datasets"},
+            {"SELECT 1; DROP TABLE dataset"},
+            {"SELECT id FROM refcloud.platform.datasets; SELECT 1"},
+            {"SELECT 1 /* ; */ ; DROP TABLE dataset --"},
+            {"DROP TABLE dataset"},
+            {"DELETE FROM dataset"},
+            {"UPDATE dataset SET name = 'x'"},
+            {"INSERT INTO dataset (id) VALUES ('x')"},
+            {"TABLE refcloud.platform.datasets"},
+            {"VALUES (1)"},
             // dangerous or unlisted functions, anywhere in the query
-            { "SELECT pg_sleep(10)" },
-            { "SELECT \"pg_sleep\"(10)" },
-            { "SELECT query_to_xml('select * from passport_user', true, true, '')" },
-            { "SELECT set_config('role', 'refcloudapi', false)" },
-            { "SELECT current_setting('data_directory')" },
-            { "SELECT version()" },
-            { "SELECT pg_catalog.lower(name) FROM refcloud.platform.datasets" },
-            { "SELECT id FROM refcloud.platform.datasets WHERE id = (SELECT pg_sleep(5)::text)" },
-            { "SELECT id FROM refcloud.platform.datasets UNION SELECT pg_read_file('/etc/passwd')" },
-            { "SELECT id FROM refcloud.platform.datasets d WHERE d.id IN (SELECT dblink('host=evil', 'select 1'))" },
-            { "SELECT * FROM generate_series(1, 10)" },
+            {"SELECT pg_sleep(10)"},
+            {"SELECT \"pg_sleep\"(10)"},
+            {"SELECT query_to_xml('select * from passport_user', true, true, '')"},
+            {"SELECT set_config('role', 'refcloudapi', false)"},
+            {"SELECT current_setting('data_directory')"},
+            {"SELECT version()"},
+            {"SELECT pg_catalog.lower(name) FROM refcloud.platform.datasets"},
+            {"SELECT id FROM refcloud.platform.datasets WHERE id = (SELECT pg_sleep(5)::text)"},
+            {"SELECT id FROM refcloud.platform.datasets UNION SELECT pg_read_file('/etc/passwd')"},
+            {"SELECT id FROM refcloud.platform.datasets d WHERE d.id IN (SELECT dblink('host=evil', 'select 1'))"},
+            {"SELECT * FROM generate_series(1, 10)"},
             // session information disguised as columns
-            { "SELECT current_user" },
-            { "SELECT session_user FROM refcloud.platform.datasets" },
+            {"SELECT current_user"},
+            {"SELECT session_user FROM refcloud.platform.datasets"},
             // writes and locks hidden in SELECT syntax
-            { "SELECT id INTO stolen FROM refcloud.platform.datasets" },
-            { "SELECT * FROM refcloud.platform.datasets FOR UPDATE" },
+            {"SELECT id INTO stolen FROM refcloud.platform.datasets"},
+            {"SELECT * FROM refcloud.platform.datasets FOR UPDATE"},
             // unsupported constructs
-            { "WITH RECURSIVE r AS (SELECT 1) SELECT * FROM r" },
-            { "SELECT * FROM refcloud.platform.datasets d, LATERAL (SELECT 1) l" },
-            { "SELECT count(*) OVER () FROM refcloud.platform.datasets" },
+            {"WITH RECURSIVE r AS (SELECT 1) SELECT * FROM r"},
+            {"SELECT * FROM refcloud.platform.datasets d, LATERAL (SELECT 1) l"},
+            {"SELECT count(*) OVER () FROM refcloud.platform.datasets"},
             // researchers must not supply named parameters (they could bind to another dataset),
             // numbered parameters, or more ? placeholders than values (none are supplied here)
-            { "SELECT * FROM refcloud.open_a.drs_object WHERE id = :dataset_id" },
-            { "SELECT * FROM refcloud.open_a.drs_object WHERE id = ?" },
-            { "SELECT * FROM refcloud.open_a.drs_object WHERE id = ?1" },
-            { "SELECT * FROM refcloud.open_a.drs_object WHERE id = $1" },
+            {"SELECT * FROM refcloud.open_a.drs_object WHERE id = :dataset_id"},
+            {"SELECT * FROM refcloud.open_a.drs_object WHERE id = ?"},
+            {"SELECT * FROM refcloud.open_a.drs_object WHERE id = ?1"},
+            {"SELECT * FROM refcloud.open_a.drs_object WHERE id = $1"},
             // casts to system types
-            { "SELECT 'pg_authid'::regclass" },
-            { "SELECT CAST(name AS regproc) FROM refcloud.platform.datasets" },
+            {"SELECT 'pg_authid'::regclass"},
+            {"SELECT CAST(name AS regproc) FROM refcloud.platform.datasets"},
             // over the length limit
-            { "SELECT " + "1".repeat(MAX_QUERY_LENGTH) },
+            {"SELECT " + "1".repeat(MAX_QUERY_LENGTH)},
         };
     }
 
@@ -347,19 +373,19 @@ public class DataConnectQueryRewriterTest {
     @DataProvider
     public Object[][] unknownOrInaccessibleTables() {
         return new Object[][] {
-            { "SELECT * FROM pg_catalog.pg_user" },
-            { "SELECT * FROM pg_user" },
-            { "SELECT * FROM information_schema.tables" },
-            { "SELECT * FROM passport_user" },
-            { "SELECT * FROM drs_object" },
-            { "SELECT * FROM public.drs_object" },
-            { "SELECT * FROM refcloud.does_not.exist" },
-            { "SELECT * FROM refcloud.restricted.drs_object" },
-            { "SELECT * FROM \"REFCLOUD\".platform.datasets" },
-            { "SELECT * FROM refcloud.platform.datasets WHERE EXISTS (SELECT 1 FROM refcloud.restricted.drs_object)" },
-            { "SELECT id FROM refcloud.platform.datasets UNION SELECT id FROM passport_user" },
-            { "WITH x AS (SELECT * FROM refcloud.restricted.drs_object) SELECT * FROM x" },
-            { "SELECT a.id FROM refcloud.open_a.drs_object a JOIN refcloud.restricted.drs_object b ON a.id = b.id" },
+            {"SELECT * FROM pg_catalog.pg_user"},
+            {"SELECT * FROM pg_user"},
+            {"SELECT * FROM information_schema.tables"},
+            {"SELECT * FROM passport_user"},
+            {"SELECT * FROM drs_object"},
+            {"SELECT * FROM public.drs_object"},
+            {"SELECT * FROM refcloud.does_not.exist"},
+            {"SELECT * FROM refcloud.restricted.drs_object"},
+            {"SELECT * FROM \"REFCLOUD\".platform.datasets"},
+            {"SELECT * FROM refcloud.platform.datasets WHERE EXISTS (SELECT 1 FROM refcloud.restricted.drs_object)"},
+            {"SELECT id FROM refcloud.platform.datasets UNION SELECT id FROM passport_user"},
+            {"WITH x AS (SELECT * FROM refcloud.restricted.drs_object) SELECT * FROM x"},
+            {"SELECT a.id FROM refcloud.open_a.drs_object a JOIN refcloud.restricted.drs_object b ON a.id = b.id"},
         };
     }
 

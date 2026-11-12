@@ -1,13 +1,17 @@
 package org.ga4gh.refcloud.api.core.dataset;
 
+import java.util.List;
+import org.ga4gh.refcloud.api.security.KratosSessionResponse.Identity;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
-
-import org.ga4gh.refcloud.api.security.KratosSessionResponse.Identity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/datasets")
@@ -26,13 +30,15 @@ public class DatasetPublicController {
     }
 
     @GetMapping("/{datasetId}")
-    public ResponseEntity<DatasetResponseDTO> getDatasetById(@AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
+    public ResponseEntity<DatasetResponseDTO> getDatasetById(
+            @AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
         DatasetResponseDTO dataset = datasetService.getDatasetById(identity.getId(), datasetId);
         return ResponseEntity.ok(dataset);
     }
 
     @PostMapping("/{datasetId}/request-access")
-    public ResponseEntity<DatasetResponseDTO> requestAccessToDatasetById(@AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
+    public ResponseEntity<DatasetResponseDTO> requestAccessToDatasetById(
+            @AuthenticationPrincipal Identity identity, @PathVariable String datasetId) {
         DatasetResponseDTO dataset = datasetService.requestAccessToDatasetById(identity.getId(), datasetId);
         return ResponseEntity.ok(dataset);
     }
@@ -40,13 +46,13 @@ public class DatasetPublicController {
     @GetMapping("/{datasetId}/manifests")
     @PreAuthorize("@GA4GHPassportTokenEvaluator.canAccessDataset(authentication, #datasetId)")
     public ResponseEntity<Page<ManifestResponseDTO>> getManifestsForDataset(
-        @PathVariable String datasetId,
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "10") int size,
-        @RequestParam(defaultValue = "id") String sortBy,
-        @RequestParam(defaultValue = "asc") String direction
-    ) {
-        Page<ManifestResponseDTO> manifestDtoPage = datasetService.getDrsObjectManifestsForDataset(datasetId, page, size, sortBy, direction);
+            @PathVariable String datasetId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction) {
+        Page<ManifestResponseDTO> manifestDtoPage =
+                datasetService.getDrsObjectManifestsForDataset(datasetId, page, size, sortBy, direction);
         return ResponseEntity.ok(manifestDtoPage);
     }
 }

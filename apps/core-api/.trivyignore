@@ -1,0 +1,3 @@
+# Vulnerabilities accepted by the dependency audit (./scripts/audit-deps.sh), one ID per line.
+# Every entry needs a reason comment above it (why it can't be fixed yet, and when to revisit); remove it once
+# a fixed version is in gradle.lockfile. Prefer upgrading (then `./gradlew dependencies --write-locks`) over adding an entry.

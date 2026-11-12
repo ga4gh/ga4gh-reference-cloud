@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { LoginFlow, UpdateLoginFlowBody } from "@ory/client";
 import { AxiosError } from "axios";
@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ActionCard, CenterLink } from "@/components/ui/styled";
-import { LogoutLink} from "@/utils/ory/hooks";
+import { LogoutLink } from "@/utils/ory/hooks";
 import { Flow } from "@/components/ui";
 import { handleGetFlowError, handleFlowError } from "@/utils/ory/errors";
 import ory from "@/utils/ory/sdk";
@@ -22,7 +22,7 @@ export default function LoginClient() {
   const refresh = searchParams?.get("refresh");
   const aal = searchParams?.get("aal") || undefined;
 
-  const onLogout = LogoutLink([aal, refresh]);
+  const onLogout = LogoutLink(`${aal}:${refresh}`);
 
   useEffect(() => {
     if (flow) return;
@@ -51,7 +51,7 @@ export default function LoginClient() {
 
   const onSubmit = (values: UpdateLoginFlowBody) => {
     router.push(`/login?flow=${flow?.id}`);
-    
+
     return ory
       .updateLoginFlow({
         flow: String(flow?.id),
@@ -99,7 +99,12 @@ export default function LoginClient() {
             <div className="flex w-full flex-col">
               <div className="divider" />
             </div>
-            <p>New user? <Link href="/registration"><span className="ga4gh-link">Sign up</span></Link></p>
+            <p>
+              New user?{" "}
+              <Link href="/registration">
+                <span className="ga4gh-link">Sign up</span>
+              </Link>
+            </p>
           </>
         )}
       </div>

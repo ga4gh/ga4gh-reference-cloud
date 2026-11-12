@@ -1,0 +1,59 @@
+name: Static Analysis - Workflows
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+# every check runs through ./scripts/refcloud-static-analysis-workflows.sh, which pins each tool's image
+# (version + digest), so CI and local runs are identical
+jobs:
+  # always runs (no workflow-level paths filter), so the required check below always reports a status
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # paths-filter lists the PR's changed files via the GitHub API
+    outputs:
+      # manual runs always check everything
+      workflows: ${{ github.event_name != 'pull_request' || steps.filter.outputs.workflows == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            workflows:
+              - '.github/**'
+              - 'scripts/refcloud-static-analysis-workflows.sh'
+
+  # required status check. skipped (which GitHub counts as passing) when nothing it checks changed.
+  # runs and fails if detect-changes didn't succeed, since a skip would otherwise let the PR merge unchecked
+  static-analysis:
+    name: Static Analysis (workflows)
+    needs: detect-changes
+    if: ${{ !cancelled() && (needs.detect-changes.result != 'success' || needs.detect-changes.outputs.workflows == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: |
+          echo "::error::detect-changes did not succeed (${{ needs.detect-changes.result }}), so changes could not be checked"
+          exit 1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # each check runs even if an earlier one fails, so a single run reports every problem
+      - name: Lint workflows (actionlint)
+        run: ./scripts/refcloud-static-analysis-workflows.sh actionlint
+
+      - name: Audit workflow security (zizmor)
+        if: ${{ !cancelled() }}
+        env:
+          # read-only token for zizmor's online audits (known-vulnerable actions, impostor commits)
+          GH_TOKEN: ${{ github.token }}
+          ZIZMOR_FORMAT: github
+        run: ./scripts/refcloud-static-analysis-workflows.sh zizmor

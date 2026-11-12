@@ -4,6 +4,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface PassportUserRepository extends JpaRepository<PassportUser, String> {
-
-}
+public interface PassportUserRepository extends JpaRepository<PassportUser, String> {}

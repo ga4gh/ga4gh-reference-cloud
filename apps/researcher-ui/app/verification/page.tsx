@@ -9,11 +9,13 @@ export const metadata: Metadata = {
 
 export default function VerificationPage() {
   return (
-    <Suspense fallback={
-      <div className="p-8 flex items-center justify-center">
-        <span className="loading loading-spinner loading-md">Loading verification...</span>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="p-8 flex items-center justify-center">
+          <span className="loading loading-spinner loading-md">Loading verification...</span>
+        </div>
+      }
+    >
       <VerificationClient />
     </Suspense>
   );

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { RecoveryFlow, UpdateRecoveryFlowBody } from "@ory/client";
 import { AxiosError } from "axios";
@@ -13,7 +13,7 @@ import ory from "@/utils/ory/sdk";
 export default function RecoveryClient() {
   const [flow, setFlow] = useState<RecoveryFlow>();
   const router = useRouter();
-  
+
   const searchParams = useSearchParams();
   const flowId = searchParams?.get("flow") || undefined;
   const returnTo = searchParams?.get("return_to") || "";
@@ -73,13 +73,13 @@ export default function RecoveryClient() {
   return (
     <>
       <MarginCard>
-        <h1 
-          style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 600, 
-            color: '#111827', 
-            marginBottom: '1rem',
-            textAlign: 'center' 
+        <h1
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: 600,
+            color: "#111827",
+            marginBottom: "1rem",
+            textAlign: "center",
           }}
         >
           Recover your account

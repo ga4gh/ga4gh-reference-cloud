@@ -80,6 +80,21 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
   psql -d refcloudapi -c "UPDATE databasechangelog SET filename = 'dbchangelog.xml' WHERE filename = 'apps/core-api/liquibase/dbchangelog.xml';"
   ```
 
+## Static Analysis
+
+The chart is checked on every pull request that changes `deploy/helm/` (`.github/workflows/static-analysis-helm.yml`), rendered with its default (local) values. Each tool runs from a Docker image pinned by version and digest, so the only requirement is Docker. Run from the repo root:
+
+| Check | Command |
+|-|-|
+| All checks | `./scripts/refcloud-static-analysis-helm.sh` |
+| Chart linting (`helm lint --strict`) | `./scripts/refcloud-static-analysis-helm.sh lint` |
+| Rendered manifests against the Kubernetes API schemas ([kubeconform](https://github.com/yannh/kubeconform)) | `./scripts/refcloud-static-analysis-helm.sh kubeconform` |
+| Security misconfigurations ([Trivy](https://trivy.dev/), HIGH and CRITICAL) | `./scripts/refcloud-static-analysis-helm.sh trivy-config` |
+
+Accepted Trivy findings are listed in `.trivyignore.yaml`, each scoped to the files it applies to and with a reason.
+
+Every pod runs as a non-root user with a read-only root filesystem (writable `emptyDir` volumes at `/tmp` and wherever else an app writes), no privilege escalation and no Linux capabilities. Every long-running app has liveness and readiness probes.
+
 ## Remote Deployment (AWS)
 
 The chart's defaults target local minikube. For AWS, supply overrides at deploy time and create the secrets yourself.

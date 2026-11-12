@@ -1,10 +1,5 @@
 package org.ga4gh.refcloud.api.passport.passportuservisaassertion;
 
-import java.time.LocalDateTime;
-import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
-import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
@@ -12,11 +7,16 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.ga4gh.refcloud.api.passport.passportuser.PassportUser;
+import org.ga4gh.refcloud.api.passport.passportvisa.PassportVisa;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "passport_user_visa_assertion")

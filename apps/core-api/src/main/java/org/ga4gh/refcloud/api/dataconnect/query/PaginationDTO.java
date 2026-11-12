@@ -5,6 +5,4 @@ import tools.jackson.databind.annotation.JsonNaming;
 
 // Data Connect "Pagination" object
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public record PaginationDTO(
-    String nextPageUrl
-) {}
+public record PaginationDTO(String nextPageUrl) {}

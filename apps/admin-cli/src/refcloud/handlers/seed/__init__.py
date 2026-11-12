@@ -1,8 +1,11 @@
-import click
 import datetime
 import json
+
+import click
+
 from refcloud.config.database_engine import DatabaseEngine
-from refcloud.config.seed_resources import list_table_type_dirs, list_platform_table_files
+from refcloud.config.seed_resources import list_platform_table_files, list_table_type_dirs
+
 
 def seed_database():
     """Seed platform-wide data into the database
@@ -55,17 +58,22 @@ def load_data_connect_table_types():
 
         # guard against copy/paste errors between table type directories
         if table_type["id"] != table_type_dir.name:
-            click.echo(f"error: table type id ({table_type['id']}) does not match its directory name ({table_type_dir.name}). exiting")
+            click.echo(
+                f"error: table type id ({table_type['id']}) "
+                f"does not match its directory name ({table_type_dir.name}). exiting"
+            )
             raise SystemExit(1)
 
-        table_types.append({
-            "id": table_type["id"],
-            "description": table_type["description"],
-            "data_model_template": json.loads((table_type_dir / "data-model.json").read_text()),
-            "internal_query": (table_type_dir / "internal-query.sql").read_text(),
-            "created_at": now,
-            "updated_at": now,
-        })
+        table_types.append(
+            {
+                "id": table_type["id"],
+                "description": table_type["description"],
+                "data_model_template": json.loads((table_type_dir / "data-model.json").read_text()),
+                "internal_query": (table_type_dir / "internal-query.sql").read_text(),
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
 
     return table_types
 
@@ -80,16 +88,21 @@ def load_platform_data_connect_tables():
 
         # platform tables are not tied to any dataset; dataset-specific tables are created by 'dataset onboard'
         if table["dataset_id"] is not None:
-            click.echo(f"error: platform table ({table['table_name']}) in {table_file.name} must have a null dataset_id. exiting")
+            click.echo(
+                f"error: platform table ({table['table_name']}) in {table_file.name} "
+                "must have a null dataset_id. exiting"
+            )
             raise SystemExit(1)
 
-        tables.append({
-            "table_name": table["table_name"],
-            "dataset_id": table["dataset_id"],
-            "table_type": table["table_type"],
-            "description": table["description"],
-            "created_at": now,
-            "updated_at": now,
-        })
+        tables.append(
+            {
+                "table_name": table["table_name"],
+                "dataset_id": table["dataset_id"],
+                "table_type": table["table_type"],
+                "description": table["description"],
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
 
     return tables

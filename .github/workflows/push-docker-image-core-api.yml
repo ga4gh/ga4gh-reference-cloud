@@ -15,4 +15,7 @@ jobs:
     with:
       app-path: apps/core-api
       docker-repo: refcloud-core-api
-    secrets: inherit
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}

@@ -8,28 +8,21 @@
  * <Link>) so this title can sit alongside it inside a single link, the
  * same structure refcloud-ui uses.
  */
-import React, {type ReactNode} from 'react';
-import Link from '@docusaurus/Link';
-import useBaseUrl from '@docusaurus/useBaseUrl';
-import {useThemeConfig} from '@docusaurus/theme-common';
+import { type ReactNode } from "react";
+import Link from "@docusaurus/Link";
+import useBaseUrl from "@docusaurus/useBaseUrl";
+import { useThemeConfig } from "@docusaurus/theme-common";
 
 export default function NavbarLogo(): ReactNode {
   const {
-    navbar: {logo},
+    navbar: { logo },
   } = useThemeConfig();
-  const logoLink = useBaseUrl(logo?.href || '/');
+  const logoLink = useBaseUrl(logo?.href || "/");
+  const logoSrc = useBaseUrl(logo?.src ?? "");
 
   return (
     <Link to={logoLink} className="navbar__brand">
-      {logo && (
-        <img
-          className="navbar__logo"
-          src={useBaseUrl(logo.src)}
-          alt={logo.alt}
-          width={logo.width}
-          height={logo.height}
-        />
-      )}
+      {logo && <img className="navbar__logo" src={logoSrc} alt={logo.alt} width={logo.width} height={logo.height} />}
       <b className="navbar__title text--truncate">
         <span className="navbar__title-brand">GA4GH</span>
         <span className="navbar__title-rest">Reference Cloud Docs</span>

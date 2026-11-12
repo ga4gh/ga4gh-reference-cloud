@@ -12,12 +12,39 @@ spec:
       labels:
         app.kubernetes.io/name: refcloud-api
     spec:
+      {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-core-api") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           name: refcloud-api
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          # tomcat and the JVM write to /tmp
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - containerPort: 8080
+          # spring boot actuator health groups (unauthenticated in SecurityConfig, not routed by the ingress).
+          # the startup probe allows up to 3 minutes for startup before liveness checks begin
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 10
           env:
             - name: PSQL_USER
               valueFrom:

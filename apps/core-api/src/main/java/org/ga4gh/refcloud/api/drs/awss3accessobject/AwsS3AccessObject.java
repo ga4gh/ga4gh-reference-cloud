@@ -1,7 +1,5 @@
 package org.ga4gh.refcloud.api.drs.awss3accessobject;
 
-import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,6 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
 
 @Entity
 @Table(name = "aws_s3_access_object")

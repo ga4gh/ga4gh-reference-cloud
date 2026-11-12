@@ -23,10 +23,14 @@ public class DataConnectQueryService {
 
     private final DataConnectQueryRewriter dataConnectQueryRewriter;
 
-    public DataConnectQueryService(DataConnectTableRepository dataConnectTableRepository, DataConnectConfig dataConnectConfig, DrsConfig drsConfig) {
+    public DataConnectQueryService(
+            DataConnectTableRepository dataConnectTableRepository,
+            DataConnectConfig dataConnectConfig,
+            DrsConfig drsConfig) {
         this.dataConnectTableRepository = dataConnectTableRepository;
         this.drsConfig = drsConfig;
-        this.dataConnectQueryRewriter = new DataConnectQueryRewriter(dataConnectConfig.query().maxLength());
+        this.dataConnectQueryRewriter =
+                new DataConnectQueryRewriter(dataConnectConfig.query().maxLength());
     }
 
     // validates and rewrites researcher-submitted SQL; userId is null for anonymous requests.
@@ -38,23 +42,22 @@ public class DataConnectQueryService {
     // positionalParameters supplies one bind value per ? placeholder, in text order
     public RewrittenQuery prepareQuery(String sql, List<?> positionalParameters, String userId) {
         return dataConnectQueryRewriter.rewrite(
-            sql,
-            tableName -> findVisibleTable(tableName, userId),
-            Map.of(DRS_HOST_DOMAIN_PARAMETER, drsConfig.hostDomain()),
-            positionalParameters
-        );
+                sql,
+                tableName -> findVisibleTable(tableName, userId),
+                Map.of(DRS_HOST_DOMAIN_PARAMETER, drsConfig.hostDomain()),
+                positionalParameters);
     }
 
     private Optional<ResolvedTable> findVisibleTable(String tableName, String userId) {
-        return dataConnectTableRepository.findVisibleByTableName(tableName, userId)
-            .map(this::toResolvedTable);
+        return dataConnectTableRepository
+                .findVisibleByTableName(tableName, userId)
+                .map(this::toResolvedTable);
     }
 
     private ResolvedTable toResolvedTable(DataConnectTable table) {
         return new ResolvedTable(
-            table.getTableName(),
-            table.getDataset() == null ? null : table.getDataset().getId(),
-            table.getTableType().getInternalQuery()
-        );
+                table.getTableName(),
+                table.getDataset() == null ? null : table.getDataset().getId(),
+                table.getTableType().getInternalQuery());
     }
 }

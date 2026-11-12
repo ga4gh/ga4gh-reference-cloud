@@ -1,6 +1,7 @@
 package org.ga4gh.refcloud.api.dataconnect.error;
 
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.exception.ServiceUnavailableException;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-import lombok.extern.slf4j.Slf4j;
 
 // Returns Data Connect errors in the spec's ErrorResponse format. Scoped to the Data Connect
 // controllers and ordered ahead of GlobalExceptionHandler, so DRS and Refget keep the app's
@@ -46,8 +46,8 @@ public class DataConnectExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<DataConnectErrorResponseDTO> handleNotValid(MethodArgumentNotValidException exception) {
         String detail = exception.getBindingResult().getFieldErrors().stream()
-            .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
-            .collect(Collectors.joining("; "));
+                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+                .collect(Collectors.joining("; "));
         return invalidRequest(detail.isEmpty() ? "request is not valid" : detail);
     }
 
@@ -78,8 +78,10 @@ public class DataConnectExceptionHandler {
     @ExceptionHandler(ServiceUnavailableException.class)
     public ResponseEntity<DataConnectErrorResponseDTO> handleServiceUnavailable(ServiceUnavailableException exception) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-            .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, exception.getRetryAfter().toSeconds())))
-            .body(DataConnectErrorResponseDTO.of("Search storage full", exception.getMessage()));
+                .header(
+                        HttpHeaders.RETRY_AFTER,
+                        String.valueOf(Math.max(1, exception.getRetryAfter().toSeconds())))
+                .body(DataConnectErrorResponseDTO.of("Search storage full", exception.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -100,8 +102,8 @@ public class DataConnectExceptionHandler {
             HttpStatusCode status = errorResponse.getStatusCode();
             String detail = errorResponse.getBody().getDetail();
             return ResponseEntity.status(status)
-                .headers(errorResponse.getHeaders())
-                .body(DataConnectErrorResponseDTO.of(title(status), detail == null ? title(status) : detail));
+                    .headers(errorResponse.getHeaders())
+                    .body(DataConnectErrorResponseDTO.of(title(status), detail == null ? title(status) : detail));
         }
 
         log.error("unhandled exception in Data Connect request", exception);

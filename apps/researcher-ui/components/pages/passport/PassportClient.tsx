@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { usePassportToken } from '@/components/context/PassportTokenContext';
-import PassportTokenDisplay from '@/components/pages/passport/PassportTokenDisplay';
+import { usePassportToken } from "@/components/context/PassportTokenContext";
+import PassportTokenDisplay from "@/components/pages/passport/PassportTokenDisplay";
 
 export default function PassportClient() {
   const { isTokenLoaded } = usePassportToken();

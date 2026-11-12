@@ -1,9 +1,5 @@
 package org.ga4gh.refcloud.api.passport.passportvisa;
 
-import java.util.HashSet;
-import java.util.Set;
-import org.ga4gh.refcloud.api.core.dataset.Dataset;
-import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertion;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -11,11 +7,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.ga4gh.refcloud.api.core.dataset.Dataset;
+import org.ga4gh.refcloud.api.passport.passportuservisaassertion.PassportUserVisaAssertion;
 
 @Entity
 @Table(name = "passport_visa")

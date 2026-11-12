@@ -25,5 +25,4 @@ public class KratosWebhookController {
         passportUserService.savePassportUser(passportUser);
         return ResponseEntity.noContent().build();
     }
-    
 }

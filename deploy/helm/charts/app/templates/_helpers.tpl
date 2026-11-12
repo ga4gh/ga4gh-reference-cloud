@@ -38,3 +38,31 @@ imagePullSecrets:
 {{- end }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Pod-level security context, shared by every pod. runAsUser is set explicitly because
+runAsNonRoot can't verify images whose USER is a name (hydra, liquibase, researcher-ui);
+it must match the image's user, which owns the image's files.
+Usage: {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
+*/}}
+{{- define "refcloud.podSecurityContext" -}}
+securityContext:
+  runAsNonRoot: true
+  runAsUser: {{ . }}
+  seccompProfile:
+    type: RuntimeDefault
+{{- end -}}
+
+{{/*
+Container-level security context, shared by every container. The root filesystem is
+read-only, so each container mounts a writable emptyDir volume at /tmp,
+plus any other path it writes to.
+Usage: {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+*/}}
+{{- define "refcloud.containerSecurityContext" -}}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+{{- end -}}

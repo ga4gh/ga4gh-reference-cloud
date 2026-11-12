@@ -2,21 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 
 function getOryTargetUrl(request: NextRequest) {
   const oryUrl = process.env.ORY_SDK_URL || "http://localhost:4000";
-  
+
   const url = new URL(request.url);
   const pathWithParams = url.pathname.replace("/api/.ory", "") + url.search;
-  
+
   return new URL(pathWithParams, oryUrl).toString();
 }
 
 async function handleOryProxy(request: NextRequest) {
   const targetUrl = getOryTargetUrl(request);
-  
+
   const forwardHeaders = new Headers(request.headers);
-  
+
   const originalHost = request.headers.get("host") || "";
   forwardHeaders.set("x-forwarded-host", originalHost);
-  
+
   forwardHeaders.delete("host");
   forwardHeaders.delete("content-length");
 
@@ -31,8 +31,8 @@ async function handleOryProxy(request: NextRequest) {
       headers: forwardHeaders,
       body: body,
       redirect: "manual",
-      // @ts-ignore - Next.js fetch cache configurations
-      duplex: "half",    // Required by Node fetch specification for tracking input streams
+      // @ts-expect-error - duplex is required by Node fetch for streamed bodies but is missing from RequestInit
+      duplex: "half", // Required by Node fetch specification for tracking input streams
     });
 
     const responseHeaders = new Headers(response.headers);
@@ -54,8 +54,18 @@ async function handleOryProxy(request: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) { return handleOryProxy(req); }
-export async function POST(req: NextRequest) { return handleOryProxy(req); }
-export async function PUT(req: NextRequest) { return handleOryProxy(req); }
-export async function PATCH(req: NextRequest) { return handleOryProxy(req); }
-export async function DELETE(req: NextRequest) { return handleOryProxy(req); }
+export async function GET(req: NextRequest) {
+  return handleOryProxy(req);
+}
+export async function POST(req: NextRequest) {
+  return handleOryProxy(req);
+}
+export async function PUT(req: NextRequest) {
+  return handleOryProxy(req);
+}
+export async function PATCH(req: NextRequest) {
+  return handleOryProxy(req);
+}
+export async function DELETE(req: NextRequest) {
+  return handleOryProxy(req);
+}

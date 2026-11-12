@@ -10,8 +10,16 @@ metadata:
 spec:
   template:
     spec:
+      {{- include "refcloud.podSecurityContext" 1001 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: refcloud-api-db-migration
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-core-api-liquibase") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:

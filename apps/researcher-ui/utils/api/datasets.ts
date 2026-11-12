@@ -12,11 +12,11 @@ export interface CoreApiResponse {
 export async function fetchDatasets(sessionToken: string): Promise<CoreApiResponse> {
   const apiBaseUrl = process.env.REFCLOUD_API_BASE_URL;
   if (!apiBaseUrl) {
-    throw new Error('REFCLOUD_API_BASE_URL is not set');
+    throw new Error("REFCLOUD_API_BASE_URL is not set");
   }
 
   const result = await fetch(`${apiBaseUrl}/datasets`, {
-    headers: { 'X-Session-Token': sessionToken },
+    headers: { "X-Session-Token": sessionToken },
   });
   const data = await result.json().catch(() => null);
 

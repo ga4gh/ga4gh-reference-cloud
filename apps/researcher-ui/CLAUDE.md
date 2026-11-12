@@ -23,9 +23,17 @@ This repo serves as the researcher UI for the refcloud.
 
 ### Code Quality & Validation
 
-* TBD: Run linter
-* TBD: Fix linting/formatting errors
-* TBD: Run type check
+All tools are pinned (`package-lock.json`, and the semgrep version in `package.json`), so local runs match CI (`.github/workflows/static-analysis-researcher-ui.yml`, which also runs weekly). Each command fails on any problem, warnings included.
+
+* Check formatting (Prettier): `npm run format:check`
+* Run linter (ESLint, `eslint-config-next` core-web-vitals + typescript): `npm run lint`
+* Run type check: `npm run typecheck`
+* Audit dependencies (fails at high severity and above, dev dependencies included): `npm run audit:deps`
+* Run security rules (Semgrep, via `uvx`, so uv must be installed): `npm run semgrep`
+* Fix formatting and auto-fixable lint errors: `npm run format && npm run lint:fix`
+* TypeScript runs side by side: `tsc` is TypeScript 7 (aliased as `@typescript/native`), while the `typescript` package is aliased to `@typescript/typescript6`, because `typescript-eslint` (and `next build`'s type check) need the TS 6 API. Don't "fix" the alias until typescript-eslint supports TS 7.
+* Prettier formats code only; Markdown and `tsconfig.json` are excluded (`.prettierignore`).
+* Don't silence a rule (`eslint-disable`, `@ts-expect-error`) without a `--` reason; prefer a real fix.
 
 ### Testing
 

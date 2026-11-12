@@ -43,15 +43,19 @@ class QueryValueConverter {
             case "int8", "numeric" -> resultSet.getString(columnIndex);
             case "date" -> format(resultSet.getObject(columnIndex, LocalDate.class), DateTimeFormatter.ISO_LOCAL_DATE);
             case "time" -> format(resultSet.getObject(columnIndex, LocalTime.class), DateTimeFormatter.ISO_LOCAL_TIME);
-            case "timetz" -> format(resultSet.getObject(columnIndex, OffsetTime.class), DateTimeFormatter.ISO_OFFSET_TIME);
-            case "timestamp" -> format(resultSet.getObject(columnIndex, LocalDateTime.class), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-            case "timestamptz" -> format(resultSet.getObject(columnIndex, OffsetDateTime.class), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+            case "timetz" ->
+                format(resultSet.getObject(columnIndex, OffsetTime.class), DateTimeFormatter.ISO_OFFSET_TIME);
+            case "timestamp" ->
+                format(resultSet.getObject(columnIndex, LocalDateTime.class), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            case "timestamptz" ->
+                format(resultSet.getObject(columnIndex, OffsetDateTime.class), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             // returned in ISO 8601 form (e.g. P1DT2H) because the executor sets intervalstyle = 'iso_8601'
             case "interval" -> resultSet.getString(columnIndex);
             case "json", "jsonb" -> readJson(resultSet.getString(columnIndex));
-            default -> typeName.startsWith("_")
-                ? readArray(resultSet.getArray(columnIndex))
-                : resultSet.getString(columnIndex);
+            default ->
+                typeName.startsWith("_")
+                        ? readArray(resultSet.getArray(columnIndex))
+                        : resultSet.getString(columnIndex);
         };
     }
 

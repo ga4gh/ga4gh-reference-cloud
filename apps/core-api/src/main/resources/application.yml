@@ -27,6 +27,14 @@ spring:
           issuer-uri: https://refcloud.ga4gh.localhost
           jwk-set-uri: http://127.0.0.1:4444/.well-known/jwks.json
 
+# health probe groups (/actuator/health/liveness, /actuator/health/readiness) for the helm chart's kubernetes
+# probes. enabled explicitly so they also exist outside kubernetes, e.g. when running natively
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 ga4gh:
   refcloud:
     security:

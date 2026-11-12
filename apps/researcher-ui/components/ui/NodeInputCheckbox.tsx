@@ -1,19 +1,23 @@
-import styled from "styled-components"
-import { NodeInputProps } from "./helpers"
+import { UiNode } from "@ory/client";
+import styled from "styled-components";
+import { NodeInputProps } from "./helpers";
 
-export function getNodeLabel(node: any): string {
+export function getNodeLabel(node: UiNode): string {
   if (node.meta?.label?.text) {
-    return node.meta.label.text
+    return node.meta.label.text;
   }
 
-  return node.attributes?.name || ""
+  return ("name" in node.attributes && node.attributes.name) || "";
 }
 
 const CheckboxContainer = styled.div<{ $hasError?: boolean }>`
   display: flex;
   flex-direction: column;
   margin-bottom: 1rem;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
 
   .checkbox-label-wrapper {
     display: flex;
@@ -43,17 +47,12 @@ const CheckboxContainer = styled.div<{ $hasError?: boolean }>`
     white-space: pre-line;
     color: ${(props) => (props.$hasError ? "#e53e3e" : "#718096")};
   }
-`
+`;
 
-export function NodeInputCheckbox({
-  node,
-  attributes,
-  setValue,
-  disabled,
-}: NodeInputProps) {
-  const hasError = !!node.messages.find(({ type }) => type === "error")
-  const isDisabled = attributes.disabled || disabled
-  const subtitleText = node.messages.map(({ text }) => text).join("\n")
+export function NodeInputCheckbox({ node, attributes, setValue, disabled }: NodeInputProps) {
+  const hasError = !!node.messages.find(({ type }) => type === "error");
+  const isDisabled = attributes.disabled || disabled;
+  const subtitleText = node.messages.map(({ text }) => text).join("\n");
 
   return (
     <CheckboxContainer $hasError={hasError}>
@@ -67,12 +66,8 @@ export function NodeInputCheckbox({
         />
         <span>{getNodeLabel(node)}</span>
       </label>
-      
-      {subtitleText && (
-        <div className="subtitle">
-          {subtitleText}
-        </div>
-      )}
+
+      {subtitleText && <div className="subtitle">{subtitleText}</div>}
     </CheckboxContainer>
-  )
+  );
 }

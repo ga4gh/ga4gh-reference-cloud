@@ -1,4 +1,5 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
+import drsApiSidebar from "./docs/api-reference/drs/sidebar";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -19,46 +20,42 @@ const sidebars: SidebarsConfig = {
   // But you can create a sidebar manually
   tutorialSidebar: [
     {
-      type: 'category',
-      label: 'Getting Started',
+      type: "category",
+      label: "Getting Started",
       items: [
-        'getting-started/start-here',
-        'getting-started/what-is-the-ga4gh-reference-cloud',
-        'getting-started/registration-and-login',
-        'getting-started/requesting-access-to-datasets',
-        'getting-started/obtaining-a-passport-token',
-        'getting-started/exploring-datasets',
+        "getting-started/start-here",
+        "getting-started/what-is-the-ga4gh-reference-cloud",
+        "getting-started/registration-and-login",
+        "getting-started/requesting-access-to-datasets",
+        "getting-started/obtaining-a-passport-token",
+        "getting-started/exploring-datasets",
       ],
     },
     {
-      type: 'category',
-      label: 'Interactive Demos',
+      type: "category",
+      label: "Interactive Demos",
       items: [
-        'interactive-demos/intro-to-interactive-demos',
-        'interactive-demos/explore-1000-genomes-data-via-drs-api',
+        "interactive-demos/intro-to-interactive-demos",
+        "interactive-demos/explore-1000-genomes-data-via-drs-api",
       ],
     },
     {
-      type: 'category',
-      label: 'Deployment',
-      items: [
-        'deployment/deploying-the-reference-cloud',
-      ],
+      type: "category",
+      label: "Deployment",
+      items: ["deployment/deploying-the-reference-cloud"],
     },
     {
-      type: 'category',
-      label: 'API Reference',
+      type: "category",
+      label: "API Reference",
       items: [
-        'api-reference/api-reference-overview',
+        "api-reference/api-reference-overview",
         {
-          type: 'category',
-          label: 'DRS API Reference',
-          items: [
-            require('./docs/api-reference/drs/sidebar.ts')
-          ]
-        }
+          type: "category",
+          label: "DRS API Reference",
+          items: [drsApiSidebar],
+        },
       ],
-    }
+    },
   ],
 };
 

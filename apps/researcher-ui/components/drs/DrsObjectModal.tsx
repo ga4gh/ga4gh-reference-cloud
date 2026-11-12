@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import DrsObjectDownloadButton from '@/components/drs/DrsObjectDownloadButton';
+import { useEffect, useRef, useState } from "react";
+import DrsObjectDownloadButton from "@/components/drs/DrsObjectDownloadButton";
 
 type DrsAccessMethod = {
-  access_url?: { url: string }
-}
+  access_url?: { url: string };
+};
 
 export type DrsObject = {
-  id: string
-  access_methods?: DrsAccessMethod[]
-  [field: string]: unknown
-}
+  id: string;
+  access_methods?: DrsAccessMethod[];
+  [field: string]: unknown;
+};
 
 interface DrsObjectModalProps {
   // the modal is open while drsId is set
-  drsId: string | null
-  onClose: () => void
+  drsId: string | null;
+  onClose: () => void;
 }
 
 // extracts the object ID from a hostname-based DRS URI (drs://<host>/<id>)
@@ -31,6 +31,15 @@ export default function DrsObjectModal({ drsId, onClose }: DrsObjectModalProps) 
   const [drsObject, setDrsObject] = useState<DrsObject | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // clear the previous object as soon as a different one is requested. adjusted during render rather than in the
+  // effect, see https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [shownDrsId, setShownDrsId] = useState(drsId);
+  if (drsId !== shownDrsId) {
+    setShownDrsId(drsId);
+    setDrsObject(null);
+    setError(null);
+  }
+
   useEffect(() => {
     if (!drsId) {
       modalRef.current?.close();
@@ -38,8 +47,6 @@ export default function DrsObjectModal({ drsId, onClose }: DrsObjectModalProps) 
     }
 
     modalRef.current?.showModal();
-    setDrsObject(null);
-    setError(null);
 
     let isCurrent = true; // ignore a response for an object the user has since navigated away from
     const loadDrsObject = async () => {
@@ -52,12 +59,14 @@ export default function DrsObjectModal({ drsId, onClose }: DrsObjectModalProps) 
         if (isCurrent) setDrsObject(body);
       } catch (err) {
         console.error(`Failed to fetch DRS object ${drsId}:`, err);
-        if (isCurrent) setError(err instanceof Error ? err.message : 'Failed to load DRS object');
+        if (isCurrent) setError(err instanceof Error ? err.message : "Failed to load DRS object");
       }
     };
 
     loadDrsObject();
-    return () => { isCurrent = false; };
+    return () => {
+      isCurrent = false;
+    };
   }, [drsId]);
 
   return (
@@ -68,10 +77,16 @@ export default function DrsObjectModal({ drsId, onClose }: DrsObjectModalProps) 
         <div className="card bg-base-100 box-shadow-card">
           <div className="card-body">
             {error ? (
-              <div role="alert" className="alert alert-error rounded-none"><span>{error}</span></div>
+              <div role="alert" className="alert alert-error rounded-none">
+                <span>{error}</span>
+              </div>
             ) : (
-              <div className={`pl-0 w-full text-left bg-base-300 text-base-content max-h-[70vh] rounded-none overflow-auto ${drsObject ? '' : 'animate-pulse'}`}>
-                <pre className="p-2"><code>{drsObject ? JSON.stringify(drsObject, null, 2) : 'Loading…'}</code></pre>
+              <div
+                className={`pl-0 w-full text-left bg-base-300 text-base-content max-h-[70vh] rounded-none overflow-auto ${drsObject ? "" : "animate-pulse"}`}
+              >
+                <pre className="p-2">
+                  <code>{drsObject ? JSON.stringify(drsObject, null, 2) : "Loading…"}</code>
+                </pre>
               </div>
             )}
           </div>

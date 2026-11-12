@@ -1,5 +1,6 @@
 package org.ga4gh.refcloud.api.dataconnect.query;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -19,9 +20,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
-import org.springframework.jdbc.core.support.AbstractSqlTypeValue;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.support.AbstractSqlTypeValue;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -34,6 +35,10 @@ import tools.jackson.databind.ObjectMapper;
 // Uses its own transaction manager over the Data Connect pool (not a bean), so it neither joins
 // nor replaces the primary JPA transaction manager.
 @Component
+@SuppressFBWarnings(
+        value = "SQL_INJECTION_SPRING_JDBC",
+        justification = "the only concatenated SQL is SET LOCAL statement_timeout with a numeric value from config"
+                + " (postgres SET can't take bind parameters); user queries run with named parameters")
 public class DataConnectQueryExecutor {
 
     // Postgres SQLSTATEs (https://www.postgresql.org/docs/current/errcodes-appendix.html)
@@ -53,10 +58,9 @@ public class DataConnectQueryExecutor {
     private final Duration statementTimeout;
 
     public DataConnectQueryExecutor(
-        @Qualifier(DataConnectDataSourceConfig.DATA_SOURCE) DataSource dataSource,
-        DataConnectConfig dataConnectConfig,
-        ObjectMapper objectMapper
-    ) {
+            @Qualifier(DataConnectDataSourceConfig.DATA_SOURCE) DataSource dataSource,
+            DataConnectConfig dataConnectConfig,
+            ObjectMapper objectMapper) {
         this.statementTimeout = dataConnectConfig.query().statementTimeout();
 
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
@@ -113,12 +117,18 @@ public class DataConnectQueryExecutor {
         parameters.forEach((name, value) -> {
             if (value instanceof ArrayParameter array) {
                 // bound as one SQL array; a plain collection would be expanded into a list of values
-                source.addValue(name, new AbstractSqlTypeValue() {
-                    @Override
-                    protected Object createTypeValue(Connection connection, int sqlType, String typeName) throws SQLException {
-                        return connection.createArrayOf(array.elementTypeName(), array.elements().toArray());
-                    }
-                }, Types.ARRAY);
+                source.addValue(
+                        name,
+                        new AbstractSqlTypeValue() {
+                            @Override
+                            protected Object createTypeValue(Connection connection, int sqlType, String typeName)
+                                    throws SQLException {
+                                return connection.createArrayOf(
+                                        array.elementTypeName(),
+                                        array.elements().toArray());
+                            }
+                        },
+                        Types.ARRAY);
             } else {
                 source.addValue(name, value);
             }
@@ -134,7 +144,8 @@ public class DataConnectQueryExecutor {
             String name = metaData.getColumnLabel(i);
             // rows are JSON objects keyed by column name, so names must be unique
             if (!columnNames.add(name)) {
-                throw new InvalidQueryException("duplicate column name in query result: " + name + " (use a column alias)");
+                throw new InvalidQueryException(
+                        "duplicate column name in query result: " + name + " (use a column alias)");
             }
             columns.add(new QueryColumn(name, metaData.getColumnTypeName(i)));
         }
@@ -155,8 +166,8 @@ public class DataConnectQueryExecutor {
             if (maxBytes != Long.MAX_VALUE) {
                 totalBytes += objectMapper.writeValueAsBytes(row).length;
                 if (totalBytes > maxBytes) {
-                    throw new InvalidQueryException("query result exceeds the maximum size of "
-                        + formatSize(maxBytes) + "; narrow the query or add LIMIT");
+                    throw new InvalidQueryException("query result exceeds the maximum size of " + formatSize(maxBytes)
+                            + "; narrow the query or add LIMIT");
                 }
             }
             rows.add(row);
@@ -175,9 +186,11 @@ public class DataConnectQueryExecutor {
             return exception;
         }
         if (QUERY_CANCELED.equals(sqlState)) {
-            return new InvalidQueryException("query exceeded the time limit of " + statementTimeout.toSeconds() + " seconds");
+            return new InvalidQueryException(
+                    "query exceeded the time limit of " + statementTimeout.toSeconds() + " seconds");
         }
-        if (sqlState.startsWith(DATA_EXCEPTION_CLASS) || sqlState.startsWith(SYNTAX_ERROR_OR_ACCESS_RULE_VIOLATION_CLASS)) {
+        if (sqlState.startsWith(DATA_EXCEPTION_CLASS)
+                || sqlState.startsWith(SYNTAX_ERROR_OR_ACCESS_RULE_VIOLATION_CLASS)) {
             return new InvalidQueryException("query failed: " + firstLine(sqlException.getMessage()));
         }
         return exception;

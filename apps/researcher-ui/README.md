@@ -13,6 +13,22 @@ To run the researcher UI by itself, see below.
 * Install dependencies: `npm install`
 * Run local dev server: `npm run dev`
 
+## Static Analysis
+
+Static analysis runs in CI on every pull request that changes `apps/researcher-ui/`, and weekly so that new dependency advisories surface. All tools are pinned, so local runs match CI. Run the checks locally before opening a PR:
+
+| Check | Command |
+|-|-|
+| Formatting ([Prettier](https://prettier.io/)) | `npm run format:check` |
+| Linting ([ESLint](https://eslint.org/) with [`eslint-config-next`](https://nextjs.org/docs/app/api-reference/config/eslint)) | `npm run lint` |
+| Type checking (`tsc --noEmit`) | `npm run typecheck` |
+| Dependency vulnerabilities (`npm audit`, high severity and above) | `npm run audit:deps` |
+| Security rules ([Semgrep](https://semgrep.dev/), Node.js/TypeScript/React/Next.js rulesets) | `npm run semgrep` |
+
+Semgrep runs through `uvx`, so it requires [uv](https://docs.astral.sh/uv/) (also used by the admin CLI).
+
+To fix formatting and auto-fixable lint errors: `npm run format && npm run lint:fix`
+
 ## Configuration
 
 | Environment Variable Name | Description | Example |

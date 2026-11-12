@@ -10,10 +10,13 @@ COPY . .
 
 RUN npm run build
 
-FROM nginx:1.31.3-alpine
+# runs as a non-root user (uid 101) and listens on 8080, unlike the root-run nginx image
+FROM nginxinc/nginx-unprivileged:1.31.3-alpine
 
 COPY --from=builder /app/build /usr/share/nginx/html
 
-EXPOSE 80
+USER 101
+
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]

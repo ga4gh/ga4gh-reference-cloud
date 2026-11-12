@@ -1,8 +1,5 @@
 package org.ga4gh.refcloud.api.drs.drsobjectchecksum;
 
-import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -16,6 +13,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.ga4gh.refcloud.api.drs.drsobject.DrsObject;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "drs_object_checksum")

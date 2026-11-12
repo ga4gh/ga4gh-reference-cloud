@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { FlowError } from "@ory/client";
 import { AxiosError } from "axios";
@@ -46,16 +46,14 @@ export default function AuthErrorClient() {
     <>
       <MarginCard>
         <div className="w-full max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold font-heading text-error mb-4">
-          An error occurred
-          </h2>
-        
+          <h2 className="text-2xl font-bold font-heading text-error mb-4">An error occurred</h2>
+
           <div className="bg-brand-dark text-emerald-400 p-4 rounded-none font-mono text-xs overflow-x-auto shadow-inner border border-brand-light">
             <pre>{JSON.stringify(error, null, 2)}</pre>
           </div>
         </div>
       </MarginCard>
-      
+
       <ActionCard>
         <Link href="/">
           <CenterLink>Go back</CenterLink>
