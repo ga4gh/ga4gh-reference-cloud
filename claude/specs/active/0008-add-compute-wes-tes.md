@@ -1028,6 +1028,53 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 
 **Decisions (Task 11):**
 
+* **core-api (`compute/platform/`):**
+  * `GET /compute-platforms` and `POST /compute-platforms/{platformId}/request-access` (`ComputePlatformController`, `ComputePlatformService`, `ComputePlatformResponseDTO`). Both are on the Kratos-session chain (`ORY_KRATOS_SESSION_ENDPOINTS`), like `/datasets`.
+  * Only **enabled** platforms are listed or accept requests; others are `404`, as everywhere outside the admin CLI.
+  * **Each platform has:**
+    * `id`, `name`, `description`;
+    * `platformType`: the connection's type, or `null` when its connection isn't configured;
+    * `health`: the same `{status, checkedAt}` as service-info;
+    * public `wesUrl` and `tesUrl`, from the service registry's base URL;
+    * `limits`, `workflows` and `visa` (with the user's assertion), described below.
+  * **Card extras (decided 2026-11-13):** allowlisted `workflows` (name, description, the exact `workflow_url`, type and version) and per-user `limits`.
+  * **How limits are shown.** Per-task resources and the run duration are the per-user limit or the connection's ceiling, whichever is lower (`ComputePlatformService.limits`), so a researcher sees what they can actually use. Concurrent runs and monthly core-hours are `null` without a per-user limit, since the connection's limits for those are pooled.
+  * `ComputeExceptionHandler` (the WES `ErrorResponse` format) is now scoped to the `compute.wes` and `compute.tes` packages. So `/compute-platforms` errors use `GlobalExceptionHandler`'s format, like `/datasets`.
+* **Request access (decided 2026-11-13: proper status codes, datasets fixed too):**
+  * an unknown or disabled platform is `404`;
+  * an existing request (any status) is returned as it is, with `200`, so a repeat request is harmless;
+  * a missing passport user is `404`;
+  * a missing session is `403`, as for `/datasets`.
+
+  The **datasets** endpoints got the same fixes. They used to return `200` with an empty body for an unknown dataset, an unknown user, or an existing request. Now an unknown dataset is `404` (on `GET /datasets/{id}` too), an existing request is returned, and a missing user is `404`. The datasets request button now merges the returned visa into the card, keeping `tables` and `hasManifests`.
+* **Researcher UI:**
+  * **Page and routes:**
+    * the `/compute-platforms` page: a server fetch over the internal URL, with a client fallback;
+    * Next.js routes `/api/compute-platforms` and `/api/compute-platforms/[id]/request-access`.
+  * **Components** (`components/pages/compute-platforms/`): `ComputePlatformsClient`, `ComputePlatformCard`, `ComputePlatformRequestAccessButton`, and `CopyableValue` (a monospace value with a copy button, for URLs and `workflow_url`s).
+  * **The card:**
+    * the health pill ("healthy"/"unhealthy"), with the check time in UTC so server and browser agree;
+    * the platform type, or "not configured";
+    * copyable WES and TES URLs;
+    * "Workflows you can run" and "Your limits";
+    * the access status, with Request Access only when not yet requested.
+  * **Sidebar (decided 2026-11-13):** a new "Compute" section with "Browse Compute Platforms".
+  * The visa types and access-status pill classes moved to `utils/passportVisa.ts`, shared with the datasets page. Documented in `apps/researcher-ui/CLAUDE.md`.
+* **Verified**, against a throwaway database (seeded with the admin CLI and setup's `init_default_compute_platform`), a fake Kratos `whoami`, the Compose Funnel under a separate project, and core-api with the pinned Nextflow on its `PATH`:
+  * **core-api:**
+    * the list hides the disabled platform;
+    * `nextflow-demo` is healthy, with its effective limits and its workflow;
+    * a platform with a missing connection shows `platformType: null` and unhealthy;
+    * request access: twice gives `200`/`200`, and the assertion is `Requested`; disabled, unknown and missing-user cases are `404`;
+    * datasets: `404`s, an existing request returned, `400` for an open dataset.
+  * **UI API routes**, through a test proxy that adds the session cookie: request access for a platform and a dataset (repeat-safe), `404` for an unknown platform, `401` without a session.
+  * **Page:** rendered in headless Chrome against `next build` + `next start`. The dev server's hot-reload client doesn't run headless; the datasets page didn't render that way either. Checked:
+    * the sidebar's Compute section and both cards (healthy and unhealthy);
+    * copyable URLs, workflows and limits;
+    * NotRequested with the Request Access button, then Approved after `visa approve`;
+    * the datasets page unchanged ("Requested", "Open Access").
+  * **Checks:** core-api has 224 tests (4 new: effective limits), and `staticAnalysis` is clean. The researcher UI's format, lint, type check, Semgrep and `next build` all pass.
+
 ### Task 12: Tests, docs, and the end-to-end check
 
 * **Tests:**

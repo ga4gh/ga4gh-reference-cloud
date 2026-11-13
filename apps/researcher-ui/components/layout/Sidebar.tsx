@@ -25,7 +25,7 @@ type NavSection = {
 
 // The nav items themselves, shared between the always-visible desktop
 // sidebar (below) and the collapsible mobile dropdown panel rendered by
-// Navbar below 768px width / on touch screens. Each of the 4 sections is
+// Navbar below 768px width / on touch screens. Each of the sections is
 // its own collapsible submenu with a chevron, matching new_ga4gh's mobile
 // nav (mobile-nav.js's menu-item-has-children accordion behavior).
 export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
@@ -34,6 +34,7 @@ export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     "data-access": true,
+    compute: true,
     "docs-guides": true,
     settings: true,
   });
@@ -51,6 +52,11 @@ export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
         { label: "Explore Data", href: "/data-connect" },
         { label: "View Passport Token", href: "/passport" },
       ],
+    },
+    {
+      key: "compute",
+      title: "Compute",
+      items: [{ label: "Browse Compute Platforms", href: "/compute-platforms" }],
     },
     {
       key: "docs-guides",

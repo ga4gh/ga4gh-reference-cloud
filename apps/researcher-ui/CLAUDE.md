@@ -62,6 +62,15 @@ The browser never calls core-api's GA4GH APIs directly: the passport lives in th
 * The UI never follows Data Connect's `next_page_url`: it takes the `page_token` from it and calls its own proxy. `pagination` is omitted on the last page.
 * Manifest downloads go through the manifest-content proxy (`components/drs/DrsObjectDownloadButton.tsx` rewrites refcloud manifest access URLs to it), because a plain browser link can't send the passport.
 
+### Datasets and compute platforms (Kratos session)
+
+`/datasets` and `/compute-platforms` call core-api's refcloud endpoints with the researcher's **Kratos session** (`X-Session-Token` from the `ory_kratos_session` cookie), not the passport: the server page fetches over `REFCLOUD_API_BASE_URL` (`utils/api/datasets.ts`, `utils/api/computePlatforms.ts`), and the browser goes through `/api/datasets`, `/api/compute-platforms` and their `[id]/request-access` routes.
+
+* Request access returns the dataset or platform with the user's request, new or already existing, so a second click is harmless. Unknown IDs are `404`.
+* Visa types, the access-status enum and the status pill classes are shared in `utils/passportVisa.ts`.
+* **Browse Compute Platforms** (`components/pages/compute-platforms/`) lists the **enabled** platforms with their health (as in WES/TES service-info), platform type, WES and TES URLs, allowlisted workflows (the exact `workflow_url` to submit), the user's limits and their access status. Every platform has a visa (no open-access compute).
+* `EnvProvider` renders the app only after fetching `/api/config/env` on the client, so pages are rendered in the browser, not in the server's HTML.
+
 ### Explore Data page (`/data-connect`)
 
 * `components/pages/data-connect/DataConnectClient.tsx` holds the dataset and table dropdowns. Datasets and their readable tables come from `/api/datasets` (`tables`, `hasManifests`); the platform-wide `refcloud.platform.datasets` table is a fixed "Platform" entry. The selection is kept in the URL (`?dataset=<id>&table=<table type | drs-manifests>`).

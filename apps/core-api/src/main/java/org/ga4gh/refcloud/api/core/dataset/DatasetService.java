@@ -107,12 +107,10 @@ public class DatasetService {
         return datasetDtos;
     }
 
+    // 404 for an unknown dataset
     @Transactional(readOnly = true)
     public DatasetResponseDTO getDatasetById(String userId, String datasetId) {
-        Dataset dataset = datasetRepository.findByIdWithTagsAndVisas(datasetId).orElse(null);
-        if (dataset == null) {
-            return null;
-        }
+        Dataset dataset = loadDataset(datasetId);
 
         // open datasets have no visa, and so no assertion
         PassportUserVisaAssertion assertion = null;
@@ -141,13 +139,11 @@ public class DatasetService {
         return Optional.ofNullable(dataset.getPassportVisa()).map(PassportVisa::getId);
     }
 
+    // creates a Requested access request for the dataset's visa. 404 for an unknown dataset, 400 for an open one. a
+    // request that already exists is left as it is (whatever its status) and returned, so asking twice is harmless
     @Transactional
     public DatasetResponseDTO requestAccessToDatasetById(String userId, String datasetId) {
-        // retrieve dataset & visa object from db
-        Dataset dataset = datasetRepository.findByIdWithTagsAndVisas(datasetId).orElse(null);
-        if (dataset == null) {
-            return null;
-        }
+        Dataset dataset = loadDataset(datasetId);
 
         // open datasets have no visa to request
         if (dataset.getPassportVisa() == null) {
@@ -155,23 +151,21 @@ public class DatasetService {
                     "Dataset with ID: " + datasetId + " is open access and does not require an access request");
         }
 
-        // retrieve user object from db
-        Optional<PassportUser> user = passportUserRepository.findById(userId);
-        if (user.isEmpty()) {
-            return null;
-        }
-
-        // check if an assertion object alredy exists. If it does, do not attempt to save to db
         Optional<PassportUserVisaAssertion> existingAssertion =
                 passportUserVisaAssertionRepository.findFirstByPassportUserIdAndPassportVisaId(
                         userId, dataset.getPassportVisa().getId());
         if (existingAssertion.isPresent()) {
-            return null;
+            // tables and hasManifests are only returned by the read endpoints
+            return convertToResponseDto(dataset, existingAssertion.get(), null, null);
         }
+
+        PassportUser user = passportUserRepository
+                .findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("No passport user with ID: " + userId));
 
         PassportUserVisaAssertion assertion = new PassportUserVisaAssertion();
         assertion.setPassportVisa(dataset.getPassportVisa());
-        assertion.setPassportUser(user.get());
+        assertion.setPassportUser(user);
         assertion.setCurrentStatus(PassportVisaAssertionStatus.Requested);
         assertion.setCurrentStatusAt(Instant.now());
         passportUserVisaAssertionRepository.save(assertion);

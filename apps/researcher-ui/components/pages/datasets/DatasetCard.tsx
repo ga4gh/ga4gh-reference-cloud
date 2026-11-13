@@ -1,5 +1,6 @@
 import React, { Dispatch, SetStateAction } from "react";
-import { Dataset, PassportVisaAssertionStatus } from "./DatasetsClient";
+import { Dataset } from "./DatasetsClient";
+import { ACCESS_STATUS_CLASSES, PassportVisaAssertionStatus } from "@/utils/passportVisa";
 import DatasetRequestAccessButton from "./DatasetRequestAccessButton";
 
 interface DatasetCardProps {
@@ -23,17 +24,10 @@ const DatasetCard = ({
   datasetMap,
   setDatasetMap,
 }: DatasetCardProps) => {
-  const accessBadgeClassesMap: Record<string, string> = {
-    NotRequested: "ga4gh-status ga4gh-status--not-requested",
-    Requested: "ga4gh-status ga4gh-status--requested",
-    Approved: "ga4gh-status ga4gh-status--approved",
-    Denied: "ga4gh-status ga4gh-status--denied",
-    Revoked: "ga4gh-status ga4gh-status--denied",
-    Expired: "ga4gh-status ga4gh-status--denied",
-  };
-
   // open datasets have no visa, so they show a fixed badge instead of an access status
-  const accessBadgeClasses = isOpen ? accessBadgeClassesMap.Approved : accessBadgeClassesMap[currentStatus];
+  const accessBadgeClasses = isOpen
+    ? ACCESS_STATUS_CLASSES[PassportVisaAssertionStatus.Approved]
+    : ACCESS_STATUS_CLASSES[currentStatus];
   const accessBadgeLabel = isOpen ? "Open Access" : currentStatus;
 
   return (
@@ -58,7 +52,7 @@ const DatasetCard = ({
           <div className="ga4gh-cta">Access Status:</div>
           <div className={accessBadgeClasses}>{accessBadgeLabel}</div>
         </div>
-        {!isOpen && currentStatus === "NotRequested" ? (
+        {!isOpen && currentStatus === PassportVisaAssertionStatus.NotRequested ? (
           <DatasetRequestAccessButton id={id} datasetMap={datasetMap} setDatasetMap={setDatasetMap} />
         ) : null}
       </div>

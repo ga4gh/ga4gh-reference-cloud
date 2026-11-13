@@ -50,7 +50,11 @@ public class SecurityConfig {
     private static final List<RequestMatcher> ORY_KRATOS_SESSION_ENDPOINTS = List.of(
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets"),
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/datasets/{datasetId}"),
-            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/datasets/{datasetId}/request-access"));
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/datasets/{datasetId}/request-access"),
+            // compute platforms for the researcher UI (Task 11), like the datasets above
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/compute-platforms"),
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.POST, "/compute-platforms/{platformId}/request-access"));
 
     private static final List<RequestMatcher> PUBLIC_ENDPOINTS = List.of(
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.OPTIONS, "/ga4gh/drs/v1/objects/{id}"),

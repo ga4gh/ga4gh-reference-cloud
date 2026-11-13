@@ -15,11 +15,12 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-// returns WES and TES errors as ComputeErrorResponse. scoped to the compute controllers and ordered ahead of
-// GlobalExceptionHandler, so other APIs keep their own error formats
+// returns WES and TES errors as ComputeErrorResponse. scoped to the WES and TES controllers and ordered ahead of
+// GlobalExceptionHandler, so other APIs keep their own error formats. the researcher UI's /compute-platforms
+// (compute.platform) isn't a GA4GH API: it uses GlobalExceptionHandler, like /datasets
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(basePackages = "org.ga4gh.refcloud.api.compute")
+@RestControllerAdvice(basePackages = {"org.ga4gh.refcloud.api.compute.wes", "org.ga4gh.refcloud.api.compute.tes"})
 public class ComputeExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
