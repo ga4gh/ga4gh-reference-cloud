@@ -1092,6 +1092,63 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 
 **Decisions (Task 12):**
 
+* **`@WebMvcTest` and `@DataJpaTest` deferred (decided 2026-11-13)** to the refcloud-wide testing-framework spec. They need new test infrastructure: `spring-boot-starter-test` wired into TestNG, and a real Postgres (Testcontainers) for the repositories. Logged under Future Directions with the coverage they should have. Coverage today:
+  * the compute unit tests (TestNG, no Spring context), which have grown task by task;
+  * the end-to-end checks recorded under each task's Decisions.
+* **End-to-end check (decided 2026-11-13: a script, run by the user on a fresh `--reset` setup):**
+  * **`scripts/refcloud-compute-demo.sh [-p <platform id>] <passport token>`** (zsh; needs only `curl` and Node, both already requirements). It:
+    * checks the platform's health;
+    * submits `refcloud:bundled/drs-checksum` on the demo's DRS object;
+    * follows the run until it ends;
+    * downloads `checksum-report.json` through the output download endpoint;
+    * checks the report's MD5 against the DRS object's checksum.
+
+    Refusals are explained: `401` (get a new token), `403` (which visas), `404` (no such platform), and a connection failure (is native mode running?). HTTPS is verified against Caddy's local CA when it's in its default place (`REFCLOUD_CA_CERT` overrides it). `REFCLOUD_DEMO_BASE_URL` points the script at another deployment.
+  * **`deploy/local/README.md`:** "Running the demo end to end" gives the steps:
+    * install Nextflow, then `./scripts/refcloud-setup.sh --reset` and `./scripts/refcloud-run-native.sh`;
+    * register, then request 1000 Genomes and Nextflow Demo in the researcher UI;
+    * approve both with `visa approve`;
+    * copy a passport token and run the script.
+
+    The root `CLAUDE.md` scripts list has the script too.
+  * **The script, verified** on a throwaway stack shaped like a fresh setup:
+    * the admin CLI's `seed`, `dataset init` and the real onboarding (stopped once HG00096 was in), setup's `init_default_compute_platform`, and `visa approve`;
+    * the Compose Funnel, core-api with released nf-ga4gh 1.5.0, and passport JWTs signed by a Node stand-in for Hydra's JWKS.
+
+    Results: `COMPLETE` in about 20 s, with the expected report and its MD5 matching DRS. The `401`, `403` (after `visa revoke` on the dataset), `404` and connection-refused paths each gave their message.
+  * **The run on the user's machine (fresh `--reset`, real Kratos/Hydra/Caddy):** _to be recorded after the user runs it._
+* **`auth_instructions_url` fixed:** it pointed at `https://docs.refcloud.ga4gh.localhost/compute/access`, but docs pages are served under `/docs/`. It's now `.../docs/compute/access`, verified in service-info and as a route in the docs build.
+* **Docs site (decided 2026-11-13: a Compute section plus a demo):**
+  * `docs/compute/compute-overview.mdx`:
+    * how compute works (access, the allowlist, DRS inputs, limits, outputs, TES);
+    * the terminology table;
+    * the supported platform types: `nextflow-funnel-docker` available locally, Kubernetes planned;
+    * the two non-standard extensions: health in service-info, and the output and log endpoints;
+    * the workflow compatibility table for `nextflow-funnel-docker`.
+
+    The two nf-ga4gh fixes are described as **pending upstream (not yet filed**, decided 2026-11-13) with no links. Future Directions says to add them.
+  * `docs/compute/access.mdx` (the `auth_instructions_url` page, `/docs/compute/access`): request access to the platform; request the input data's dataset; get a passport token; use it as a bearer token. Includes the local admin's `visa approve`.
+  * `docs/interactive-demos/run-a-workflow-via-wes.mdx`, walked through with curl/HTTPS tabs (`HttpsCurlCodeBlock`) like the DRS demo:
+    * service-info;
+    * submitting the run;
+    * status and the run log;
+    * the run's tasks and a TES task;
+    * downloading the report and checking it against DRS;
+    * cancelling;
+    * the one-command script.
+
+    Added to the Interactive Demos index.
+  * **Local only:** every page says compute is available only when the reference cloud runs locally in native mode, not on https://refcloud.ga4gh.org yet, and uses `https://refcloud.ga4gh.localhost`.
+  * Sidebar: a "Compute" category (overview, access) between Getting Started and Interactive Demos.
+* **Static analysis, all passing:**
+  * core-api: 224 tests and `staticAnalysis`;
+  * admin CLI: ruff format, ruff check and pyright;
+  * researcher UI: format, lint and type check;
+  * docs: format, lint, type check, Semgrep, and `npm run build`, which throws on broken links;
+  * `./scripts/refcloud-static-analysis-deploy-local.sh` and `./scripts/refcloud-static-analysis-helm.sh`.
+
+  The user runs `./scripts/refcloud-static-analysis-secrets.sh staged` before committing.
+
 ## Future Directions
 
 * Stage 2: Nextflow + Funnel (Kubernetes) in helm mode with a `hostPath` volume, including discussion doc spike items 3 and 7 (D16).
@@ -1121,4 +1178,18 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 * **Compute errors raised before a controller is chosen** use Spring's default error body, not the WES `ErrorResponse` (Task 8). Examples: the request firewall's `400` for `..` in a path, and `415` for an unsupported content type. Render them as `ErrorResponse` for `/ga4gh/wes/**` and `/ga4gh/tes/**`, e.g. through an error controller.
 * **The run's engine command in `RunLog.run_log.cmd`**, with host paths shortened to run-directory-relative ones (Task 8 leaves it out).
 * **Stage 2 core-api image:** it needs `git` (WES fetches pinned commits), and the bundled workflows copied in, with `ga4gh.refcloud.compute.wes.bundled-workflows-base-dir` pointing at them (Task 8).
+* **Spring slice and repository tests for compute** (deferred from Task 12 to the refcloud-wide testing-framework spec). They need `spring-boot-starter-test` with TestNG, and Postgres via Testcontainers.
+  * **`@WebMvcTest`** for the WES, TES, service-info and service registry controllers, and `/compute-platforms`. Cover:
+    * auth (no token, invalid token, a run token outside TES);
+    * the visa check;
+    * the availability filter's `404`/`503` rules and option (b);
+    * allowlist and engine-setting rejections;
+    * the concurrent-run, quota and DRS input-size rejections;
+    * output path containment;
+    * the WES and TES error format.
+  * **`@DataJpaTest`** against the Liquibase schema for:
+    * the compute repositories (keyset paging, quota sums, connection-wide counts, `findByConnectionAndStates`);
+    * the migrated visa queries (`hasVisaAssertion`, the visa "exactly one" constraint).
+* **nf-ga4gh upstream links:** once the `.command.env` (D22) and transient-status-error (D23) issues and PRs are filed, link them, with their status, from the docs site's workflow compatibility section (`apps/docs/docs/compute/compute-overview.mdx`).
+* **Docs screenshots:** the compute docs have no screenshots yet. The datasets guides use images of the researcher UI (`apps/docs/static/img`).
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.

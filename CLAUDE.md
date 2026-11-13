@@ -13,6 +13,7 @@ High-level bash/zsh scripts are located in the `scripts/` directory. Scripts inc
 * set up baseline resources (safe to re-run): `./scripts/refcloud-setup.sh` (`--reset` to start fresh)
 * run all refcloud services from source: `./scripts/refcloud-run-native.sh`
 * run all refcloud services in minikube via helm: `./scripts/refcloud-run-helm.sh` (`--down` to uninstall)
+* run the compute demo end to end through WES (native mode, after setup with Nextflow installed): `./scripts/refcloud-compute-demo.sh <passport token>` (steps in `deploy/local/README.md`)
 * static analysis of `deploy/local` and the app Dockerfiles: `./scripts/refcloud-static-analysis-deploy-local.sh` (bash, needs only Docker; see `deploy/local/README.md`)
 * static analysis of the helm chart (`deploy/helm`): `./scripts/refcloud-static-analysis-helm.sh` (bash, needs only Docker; see `deploy/helm/README.md`)
 * static analysis of the GitHub Actions workflows: `./scripts/refcloud-static-analysis-workflows.sh` (bash, needs only Docker; conventions in `.github/workflows/README.md`)

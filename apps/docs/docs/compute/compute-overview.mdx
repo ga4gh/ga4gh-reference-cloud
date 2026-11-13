@@ -1,0 +1,96 @@
+# Compute Overview
+
+The reference cloud can run **workflows** for researchers, next to its data, through two GA4GH compute standards:
+
+* the **Workflow Execution Service (WES)**, where you submit workflow runs and follow them;
+* the **Task Execution Service (TES)**, where each step of a workflow runs as a containerized task.
+
+:::note Available when you run the reference cloud locally
+Compute is currently available when you run the reference cloud on your own machine in **native mode**: see `deploy/local/README.md` in the [repository](https://github.com/ga4gh/ga4gh-reference-cloud). The hosted instance at https://refcloud.ga4gh.org doesn't offer compute yet.
+:::
+
+## How It Works
+
+A **Compute Platform** is a place where workflows can run. Each one has its own WES and TES APIs, and its own limits and access control. You submit a run to a platform's WES API. The workflow engine reads the workflow and sends each of its steps to the platform's TES API as a task, and a task executor runs each task in a container:
+
+```
+you → refcloud WES → workflow engine (Nextflow) → refcloud TES → task executor (Funnel) → containers (Docker)
+```
+
+* **Access:** every compute platform is gated by a Passport visa, which you request the same way you request access to a dataset. See [Accessing Compute Platforms](./access).
+* **Workflows:** a platform runs only the workflows on its **allowlist**: pinned GitHub commits, versions on a TRS server such as Dockstore (pinned to their source commit), or demos bundled with the reference cloud. A run's `workflow_url` must match an allowlist entry exactly. Uploaded workflows (`workflow_attachment`) and `workflow_engine_parameters` are refused: the platform's admin decides how each workflow runs.
+* **Inputs:** put `drs://` URIs of the reference cloud's DRS objects anywhere in `workflow_params`. Before the run starts, the reference cloud checks that you can access each object, downloads it, and replaces its URI with the local file. DRS objects from other servers aren't supported yet.
+* **Limits:** each platform sets per-user limits: runs at a time, CPU, memory and disk per task, run duration, and a monthly quota in core-hours (CPU cores × hours). You can see them on the platform's card in the researcher UI.
+* **Outputs** stay with the run, and you download them through WES (see [Output Downloads](#output-downloads)).
+* **Tasks:** the workflow engine creates TES tasks with a credential that only works for its run. You can list, view and cancel your own tasks through TES, but you submit work only through WES.
+
+## Terminology
+
+A **Compute Platform** is the whole stack below, registered and access-controlled as one unit. The layers are listed in request order, top to bottom:
+
+| Layer | What it does | Examples | Where the term appears in the standards |
+|---|---|---|---|
+| **Refcloud WES API** | Accepts workflow runs from clients, checks auth and limits, and hands runs to the workflow engine | The reference cloud's core API | WES |
+| **Workflow engine** | Reads a workflow, works out the step order, and turns each step into a task | Nextflow, Cromwell, Toil, Snakemake | WES `workflow_engine`, and `workflow_engine_versions` in service-info |
+| ↳ *Workflow language* | The format a workflow is written in. It's a property of the engine: choosing the engine fixes which languages the platform supports | CWL, WDL, Nextflow DSL, Snakemake | WES `workflow_type` |
+| **Refcloud TES API** | Accepts tasks from the workflow engine, checks auth, and hands tasks to the task executor | The reference cloud's core API | TES |
+| **Task executor** | Runs one containerized task: stages its inputs, runs its command, collects its outputs | Funnel, TESK | The service behind a TES API |
+| **Compute infrastructure** | Where the containers physically run | Kubernetes, Slurm, AWS Batch, local Docker | Not in the standards |
+
+In these docs, **engine** means the workflow engine only, and **executor** means the task executor.
+
+## Supported Platform Types
+
+A platform type is a stack the reference cloud supports, named after its layers: engine + executor (infrastructure).
+
+| Platform type | Key | Versions | Status |
+|---|---|---|---|
+| **Nextflow + Funnel (Docker)** | `nextflow-funnel-docker` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin; Funnel 0.11.14 | Available in local native mode, on any single machine with Docker |
+| **Nextflow + Funnel (Kubernetes)** | `nextflow-funnel-kubernetes` | | Planned |
+
+## Non-Standard Extensions
+
+The reference cloud adds two things the WES and TES specifications don't define. Both are marked as extensions here, and will follow the specifications if they add equivalents.
+
+### Health in Service-Info
+
+Each platform's WES and TES `service-info` has a `health` property:
+
+```json
+"health": { "status": "healthy", "checkedAt": "2026-11-13T14:16:00Z" }
+```
+
+`status` is `healthy` or `unhealthy`, and `checkedAt` is when it was last checked. The service registry's `GET /services` lists each service's service-info, so health shows up there too. While a platform is unhealthy, every WES and TES request except `service-info` gets a `503` with a `Retry-After` header.
+
+### Output Downloads
+
+WES has no way to download a run's files, so the reference cloud adds a download endpoint:
+
+* `RunLog.outputs` lists each output file: `{"files": [{"path": "...", "size": 215, "url": "..."}]}`.
+* `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/outputs/{path}` downloads one of them. Only the researcher who submitted the run can download its outputs, and `{path}` can't reach outside the run's outputs.
+* `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/logs/{stdout|stderr}` returns the workflow engine's console output. The run log's `run_log.stdout` and `run_log.stderr` point here.
+
+## Workflow Compatibility
+
+Which workflows are known to work on each platform type. An admin should only allowlist workflows known to work.
+
+**Nextflow + Funnel (Docker):**
+
+| Workflow | Version | Works? | Notes |
+|---|---|---|---|
+| `drs-checksum` (bundled demo) | 1.0.0 | ✅ | See [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes) |
+| [nf-core/demo](https://github.com/nf-core/demo) | 1.0.2 (commit `db7f526`) | ✅ | The allowlist entry needs the `test` profile and `NXF_SYNTAX_PARSER=v1` (Nextflow 26 rejects its older config) |
+| [nf-core/demo](https://github.com/nf-core/demo) | 1.2.0 | ❌ until an nf-ga4gh fix is released | Uses Nextflow `eval` outputs (see below) |
+| Other workflows with Nextflow `env` or `eval` outputs | | ❌ until an nf-ga4gh fix is released | See below |
+
+Two fixes to the nf-ga4gh plugin (Nextflow's TES executor) are pending upstream:
+
+* **`env` and `eval` outputs:** nf-ga4gh 1.5.0 doesn't bring back the file Nextflow uses for them (`.command.env`), so workflows that use them fail. Current nf-core modules use `eval` to report tool versions. A patch has been verified with nf-core/demo 1.2.0 and is waiting to be submitted to nf-ga4gh.
+* **Brief TES outages:** nf-ga4gh 1.5.0 fails a workflow on the first failed task status request. So restarting the reference cloud's core API for more than a few seconds fails the workflows that are running. A patch that retries for a while (10 minutes by default) has been verified and is waiting to be submitted.
+
+## Additional Reading
+
+* [Accessing Compute Platforms](./access)
+* [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes)
+* [WES 1.1.0 specification](https://github.com/ga4gh/workflow-execution-service-schemas/tree/1.1.0)
+* [TES 1.1 specification](https://github.com/ga4gh/task-execution-schemas/tree/v1.1)

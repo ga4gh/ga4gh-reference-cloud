@@ -186,8 +186,8 @@ ga4gh:
         contact-url: mailto:info@ga4gh.org
         documentation-url: https://github.com/ga4gh/ga4gh-reference-cloud
         # WES auth_instructions_url: requesting access to a compute platform and minting a passport token (both in the
-        # researcher UI). the page is written in Task 12 of claude/specs/active/0008-add-compute-wes-tes.md
-        auth-instructions-url: https://docs.refcloud.ga4gh.localhost/compute/access
+        # researcher UI), on the docs site (apps/docs/docs/compute/access.mdx; docs pages are served under /docs/)
+        auth-instructions-url: https://docs.refcloud.ga4gh.localhost/docs/compute/access
         environment: dev
         version: v0.1.0
       # connection health checks (D10); unhealthy platforms get 503 on everything but service-info

@@ -28,7 +28,37 @@ Native mode can run workflows through the refcloud's WES and TES APIs: a researc
 
 **Setup:** `./scripts/refcloud-setup.sh` checks that `nextflow` can run the pinned version, downloading it the first time. If it can't, setup warns and skips compute. Otherwise it registers and enables the `nextflow-demo` compute platform on the `nextflow-funnel-docker-local` connection, with the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow on its allowlist and small per-user limits: 2 concurrent runs; 2 CPU cores, 2 GB of memory and 10 GB of disk per task; 30 minutes per run; 10 core-hours a month. An existing platform is left as it is; to recreate it, delete it with `uv run refcloud compute-platform delete -p nextflow-demo` (in `apps/admin-cli`) and run setup again.
 
-**Running the demo:** `./scripts/refcloud-run-native.sh` lists each enabled platform's WES and TES endpoints, and the demo's input. The researcher needs two approved visas: the platform's (`ga4gh_visa:compute_platform:nextflow-demo`) and the 1000 Genomes dataset's (`ga4gh_visa:aws_opendata_registry_1000_genomes`). They request access to each in the researcher UI (Browse Datasets and Browse Compute Platforms), and an admin approves each request with `uv run refcloud visa approve -u <user id> -v <visa id>` in `apps/admin-cli`. Then follow the [drs-checksum README](../../compute/workflows/nextflow/drs-checksum/README.md).
+**Running the demo end to end** (the spec's "Done when" check). On a fresh setup:
+
+1. Install Nextflow (`brew install nextflow`), then set up from scratch and start native mode. `--reset` deletes your local databases (including local accounts), and onboarding 1000 Genomes takes a while:
+
+   ```bash
+   ./scripts/refcloud-setup.sh --reset
+   ./scripts/refcloud-run-native.sh
+   ```
+
+   The run script lists `nextflow-demo`'s WES and TES endpoints. If it says no compute platforms are enabled, setup didn't find Nextflow.
+2. In the researcher UI (`https://refcloud.ga4gh.localhost`), register an account. Then request access to **1000 Genomes** (Browse Datasets) and to **Nextflow Demo** (Browse Compute Platforms).
+3. Approve both requests as the admin, in `apps/admin-cli`:
+
+   ```bash
+   uv run refcloud visa list-requests
+   uv run refcloud visa approve -u <user id> -v ga4gh_visa:aws_opendata_registry_1000_genomes
+   uv run refcloud visa approve -u <user id> -v ga4gh_visa:compute_platform:nextflow-demo
+   ```
+
+4. Copy a passport token from the researcher UI's **View Passport Token** page, and run the demo from the repo root:
+
+   ```bash
+   ./scripts/refcloud-compute-demo.sh <passport token>
+   ```
+
+   The script submits the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow through WES on the demo's DRS object (`drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`). Then it:
+   * follows the run (`QUEUED` → `RUNNING` → `COMPLETE`, about 20 seconds once Nextflow is cached);
+   * downloads `checksum-report.json` through the output download endpoint;
+   * checks that the report's MD5 matches the checksum DRS reports for the object.
+
+   It needs only `curl` and Node, and verifies HTTPS against Caddy's local CA. On a refusal it says why: `401` for an invalid or expired token, `403` for a visa that isn't approved. The same steps with `curl` are in the [drs-checksum README](../../compute/workflows/nextflow/drs-checksum/README.md) and on the docs site (Interactive Demos).
 
 **Running Docker Compose by hand:** `docker-compose.yml` needs the storage root's absolute path, which the scripts set. From the repo root:
 

@@ -33,10 +33,16 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Compute",
+      items: ["compute/compute-overview", "compute/access"],
+    },
+    {
+      type: "category",
       label: "Interactive Demos",
       items: [
         "interactive-demos/intro-to-interactive-demos",
         "interactive-demos/explore-1000-genomes-data-via-drs-api",
+        "interactive-demos/run-a-workflow-via-wes",
       ],
     },
     {
