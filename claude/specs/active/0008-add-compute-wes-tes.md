@@ -1201,4 +1201,11 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
     * the migrated visa queries (`hasVisaAssertion`, the visa "exactly one" constraint).
 * **nf-ga4gh upstream links:** once the `.command.env` (D22) and transient-status-error (D23) issues and PRs are filed, link them, with their status, from the docs site's workflow compatibility section (`apps/docs/docs/compute/compute-overview.mdx`).
 * **Docs screenshots:** the compute docs have no screenshots yet. The datasets guides use images of the researcher UI (`apps/docs/static/img`).
+* **Show who a user is in the admin CLI's visa commands** (asked 2026-11-13): admins see only user IDs today, which don't say who someone is. The user ID is the Kratos identity ID (the researcher UI sets the token's `sub` to it), and Kratos identities have `email`, `name.first` and `name.last`.
+  * `visa list-requests`: add Email, First name and Last name columns, looked up through Kratos's admin API (`GET /admin/identities/{id}`, once per distinct user).
+  * `approve`, `deny` and `revoke`: name the user in their confirmation.
+  * If Kratos can't be reached, or an identity no longer exists, show the user as unknown with a warning; the command still works.
+  * A new `KRATOS_ADMIN_URL` setting: `http://127.0.0.1:4434` in native mode, and the in-cluster Kratos admin Service on the chart's admin-cli Deployment (never through the ingress). If network policies restrict who can reach Kratos's admin API, allow the admin CLI.
+  * The details appear only in the admin's terminal, and aren't logged. Test with made-up identities on a throwaway Kratos, never real accounts.
+  * Update `apps/admin-cli/README.md` and `CLAUDE.md`. This reverses Task 2's "users are shown by user ID only".
 * All other Future Directions in the discussion doc: Cromwell, TESK, DRS write-back, inputs from other DRS servers, retention and storage caps, serving last-known run state while a platform is unhealthy, and cloud deployment on AWS.
