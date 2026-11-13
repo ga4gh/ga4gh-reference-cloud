@@ -51,4 +51,5 @@ All checks run through `./scripts/refcloud-static-analysis-deploy-local.sh` from
 * Caddyfile routes must be kept in sync with the Helm ingress (`deploy/helm/charts/app/templates/common/ingress.yaml`). Add any new path to both.
 * Docker containers reach host services through host.docker.internal, never the public hostname.
 * Funnel mounts the host's Docker socket (root-equivalent) and runs as root: local development only, never in a shared deployment. Its TES API has no auth, so it's published on `127.0.0.1` only.
+* Publish every port on `127.0.0.1` only (`"127.0.0.1:<port>:<port>"`), never on all interfaces. The Kratos (4434) and Hydra (4445) admin APIs and Funnel's TES API have no auth, and anyone on the same network could reach them. Host clients use `127.0.0.1`; containers reach each other by service name.
 * Funnel mounts the compute storage root at the **same absolute path** as on the host, because the task containers it starts mount host paths. That path is `REFCLOUD_COMPUTE_STORAGE_ROOT` (exported by `scripts/lib/common.sh`); it must be the same directory as the storage root in `compute/connections.yml`.

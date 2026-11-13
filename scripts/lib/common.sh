@@ -13,7 +13,7 @@ PSQL_PASSWORD="secret"
 PSQL_DATABASE="refcloudapi"
 
 ORY_HYDRA_RESEARCHER_CLIENT_ID="ga4gh-reference-cloud-researcher-client"
-ORY_HYDRA_ENDPOINT="http://localhost:4445"
+ORY_HYDRA_ENDPOINT="http://127.0.0.1:4445"
 
 # compute (native mode). the connections file is shared by core-api and the admin CLI; its storage root must be the
 # same directory as REFCLOUD_COMPUTE_STORAGE_ROOT, which docker-compose.yml mounts into Funnel at the same absolute path
@@ -93,21 +93,20 @@ print_service_urls() {
   log_info "To begin, visit the Researcher UI service and register a new researcher account."
 }
 
-# each enabled compute platform's WES and TES, and how to run the demo
+# each enabled compute platform's WES and TES endpoints
 print_compute_urls() {
   local platforms=$(psql -d "$PSQL_DATABASE" -tAc "SELECT id FROM compute_platform WHERE enabled ORDER BY id;" 2>/dev/null)
-  log_info " * Compute (WES and TES, one of each per compute platform):"
+  log_info " * Compute Platforms:"
   if [[ -z "$platforms" ]]; then
     log_info "   * no compute platforms are enabled. setup registers '$DEFAULT_COMPUTE_PLATFORM_ID' when Nextflow is installed (see deploy/local/README.md)"
     return 0
   fi
   local platform
   for platform in ${(f)platforms}; do
-    log_info "   * $platform: https://$REFCLOUD_BASE_URL/ga4gh/wes/$platform/v1 and https://$REFCLOUD_BASE_URL/ga4gh/tes/$platform/v1"
+    log_info "   * $platform:"
+    log_info "     * WES: https://$REFCLOUD_BASE_URL/ga4gh/wes/$platform/v1"
+    log_info "     * TES: https://$REFCLOUD_BASE_URL/ga4gh/tes/$platform/v1"
   done
-  log_info "   * demo: run the bundled drs-checksum workflow (refcloud:bundled/drs-checksum) on $DEMO_DRS_URI"
-  log_info "     it needs approved visas for the platform (ga4gh_visa:compute_platform:<platform>) and the 1000 Genomes dataset ($DEMO_DATASET_VISA)"
-  log_info "     see compute/workflows/nextflow/drs-checksum/README.md"
 }
 
 # ##############################
@@ -247,16 +246,24 @@ pinned_nextflow_version() {
 }
 
 # compute needs nextflow on the PATH, able to run the pinned version. the first check downloads that version into
-# ~/.nextflow (internet access needed), as core-api's own health check would
+# ~/.nextflow (internet access needed), as core-api's own health check would. that needs Nextflow's launcher, which
+# runs whichever version NXF_VER names; a self-contained build (e.g. Homebrew's nextflow) always runs its own version
 nextflow_installed() {
   if ! command -v nextflow > /dev/null 2>&1; then
-    log_warn "nextflow command not found, skipping compute setup. install Nextflow (see the requirements in README.md) to run workflows in native mode"
+    log_warn "nextflow command not found, skipping compute setup. install Nextflow's launcher (see the requirements in README.md) to run workflows in native mode"
     return 1
   fi
   local version=$(pinned_nextflow_version)
   log_info "checking that nextflow can run version $version (pinned in $COMPUTE_CONNECTIONS_FILE; the first run downloads it)"
-  if ! NXF_VER="$version" nextflow -version 2>&1 | grep -q "version $version "; then
-    log_warn "nextflow could not run version $version, skipping compute setup. run 'NXF_VER=$version nextflow -version' to see why"
+  local printed=$(NXF_VER="$version" nextflow -version 2>&1)
+  if [[ "$printed" != *"version $version "* ]]; then
+    # e.g. "version 26.10.6 build 0" from a build that ignored NXF_VER
+    local reported=$(printf '%s\n' "$printed" | sed -n -E 's/.*version ([^ ]+) build.*/\1/p' | head -1)
+    if [[ -n "$reported" ]]; then
+      log_warn "nextflow ran version $reported instead of the pinned $version: it ignores NXF_VER, as self-contained builds such as Homebrew's nextflow do. skipping compute setup. install Nextflow's launcher instead (see the requirements in README.md)"
+    else
+      log_warn "nextflow could not run version $version, skipping compute setup. run 'NXF_VER=$version nextflow -version' to see why"
+    fi
     return 1
   fi
   return 0

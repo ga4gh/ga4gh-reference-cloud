@@ -22,9 +22,11 @@ services:
     depends_on:
       kratos-migrate:
         condition: service_completed_successfully
+    # published on 127.0.0.1 only: the admin API has no auth. host clients (Caddy, core-api, the researcher UI) use
+    # 127.0.0.1, and containers reach Kratos by service name
     ports:
-      - "4433:4433" # public
-      - "4434:4434" # admin
+      - "127.0.0.1:4433:4433" # public
+      - "127.0.0.1:4434:4434" # admin
     environment:
       DSN: postgres://kratos:secret@host.docker.internal:5432/kratos?sslmode=disable
       LOG_LEVEL: trace
@@ -55,10 +57,12 @@ services:
     depends_on:
       hydra-migrate:
         condition: service_completed_successfully
+    # published on 127.0.0.1 only: the admin API (4445) has no auth. host clients (Caddy, core-api, the researcher UI,
+    # setup) use 127.0.0.1
     ports:
-      - "4444:4444"
-      - "4445:4445"
-      - "5555:5555"
+      - "127.0.0.1:4444:4444" # public
+      - "127.0.0.1:4445:4445" # admin
+      - "127.0.0.1:5555:5555"
     environment:
       DSN: postgres://hydra:secret@host.docker.internal:5432/hydra?sslmode=disable
       LOG_LEVEL: trace

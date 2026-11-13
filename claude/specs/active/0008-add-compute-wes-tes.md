@@ -1116,7 +1116,14 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
     * the Compose Funnel, core-api with released nf-ga4gh 1.5.0, and passport JWTs signed by a Node stand-in for Hydra's JWKS.
 
     Results: `COMPLETE` in about 20 s, with the expected report and its MD5 matching DRS. The `401`, `403` (after `visa revoke` on the dataset), `404` and connection-refused paths each gave their message.
-  * **The run on the user's machine (fresh `--reset`, real Kratos/Hydra/Caddy):** _to be recorded after the user runs it._
+  * **The run on the user's machine (fresh `--reset`, real Kratos/Hydra/Caddy), 2026-11-13: passed, meeting the spec's "Done when".** With Nextflow's launcher installed (see the Homebrew finding below), setup registered `nextflow-demo`. The user registered in the researcher UI, requested access to 1000 Genomes and Nextflow Demo, approved both with `visa approve`, and ran `./scripts/refcloud-compute-demo.sh <token>`:
+    * platform health `healthy`;
+    * run `QUEUED` → `RUNNING` → `COMPLETE` in about 20 s, with 1 TES task on Funnel;
+    * `checksum-report.json` downloaded through the output download endpoint, with the expected size (6,842,584 bytes), MD5 `a8a1f1ba420f7d75c7955b04b5972c54` (matching the DRS object's checksum) and SHA-256 `89d6677f9e8d54fd3d771177ab352fb5d7435cf4ad1fb5dec33e5a508612f5c0` (Task 9).
+* **Homebrew's `nextflow` can't run the pinned version (found 2026-11-13, during the user's run):** `brew install nextflow` now installs Nextflow 26.10.6 as a self-contained ("dist") build. It always runs its own version and ignores `NXF_VER`, so `NXF_VER=26.10.5 nextflow -version` reports 26.10.6. Setup correctly skipped compute, and core-api's health check would have reported the platform unhealthy. The pin stays (D9); the install method changed:
+  * the root `README.md` requirement is now Nextflow's launcher (`curl -s https://get.nextflow.io | bash`, moved onto the `PATH`), which honours `NXF_VER`. It's what every check in this spec used;
+  * `deploy/local/README.md` explains why Homebrew's build doesn't work;
+  * setup's warning and core-api's health reason now name the version that ran and say it ignores `NXF_VER` (two new `ConnectionCheckerTest` cases; 225 tests).
 * **`auth_instructions_url` fixed:** it pointed at `https://docs.refcloud.ga4gh.localhost/compute/access`, but docs pages are served under `/docs/`. It's now `.../docs/compute/access`, verified in service-info and as a route in the docs build.
 * **Docs site (decided 2026-11-13: a Compute section plus a demo):**
   * `docs/compute/compute-overview.mdx`:

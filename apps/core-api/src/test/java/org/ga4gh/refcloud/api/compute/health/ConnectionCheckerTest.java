@@ -113,11 +113,23 @@ public class ConnectionCheckerTest {
         assertEquals(checker.checkEngine(engine(nextflow, "26.10.5")), Optional.empty());
     }
 
+    // a self-contained build (e.g. Homebrew's nextflow) ignores NXF_VER and runs its own version
     @Test
-    public void otherNextflowVersionIsUnhealthy() throws IOException {
-        Path nextflow = fakeNextflow("echo '      version 25.10.0 build 1'");
+    public void nextflowIgnoringThePinnedVersionIsUnhealthy() throws IOException {
+        Path nextflow = fakeNextflow("echo '      version 26.10.6 build 0'");
         Optional<String> failure = checker.checkEngine(engine(nextflow, "26.10.5"));
-        assertTrue(failure.orElseThrow().contains("did not report version 26.10.5"), failure.toString());
+        assertTrue(
+                failure.orElseThrow().contains("ran version 26.10.6 instead of the pinned 26.10.5"),
+                failure.toString());
+        assertTrue(failure.orElseThrow().contains("ignores NXF_VER"), failure.toString());
+    }
+
+    @Test
+    public void nextflowWithoutAVersionLineIsUnhealthy() throws IOException {
+        Path nextflow = fakeNextflow("echo 'something else'");
+        Optional<String> failure = checker.checkEngine(engine(nextflow, "26.10.5"));
+        assertTrue(
+                failure.orElseThrow().contains("did not report version 26.10.5: something else"), failure.toString());
     }
 
     @Test

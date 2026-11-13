@@ -20,7 +20,7 @@ Native mode can run workflows through the refcloud's WES and TES APIs: a researc
 | Component | Runs | Notes |
 |-|-|-|
 | core-api (WES, TES) | natively | launches one `nextflow run` per WES run, as a subprocess |
-| Nextflow and its nf-ga4gh plugin (TES executor) | natively, on the host | needs `nextflow` on the `PATH` (see the requirements in the main [README](../../README.md)). core-api runs the Nextflow and nf-ga4gh versions pinned in `compute/connections.yml`; Nextflow downloads both into `~/.nextflow` the first time, so that needs internet access |
+| Nextflow and its nf-ga4gh plugin (TES executor) | natively, on the host | needs Nextflow's launcher as `nextflow` on the `PATH` (see the requirements in the main [README](../../README.md)). core-api runs the Nextflow and nf-ga4gh versions pinned in `compute/connections.yml`; the launcher downloads both into `~/.nextflow` the first time, so that needs internet access. Homebrew's `nextflow` doesn't work: it's a self-contained build that always runs its own version and ignores the pin (`NXF_VER`), so setup skips compute and core-api reports the platform unhealthy |
 | Funnel (TES server) | Docker Compose (`funnel`, built from `funnel/Dockerfile`) | TES API on `127.0.0.1:8000`, with no auth. Starts each task as a container on the host's Docker through the mounted Docker socket: **for local development only** |
 | task containers | the host's Docker | started by Funnel |
 
@@ -30,7 +30,7 @@ Native mode can run workflows through the refcloud's WES and TES APIs: a researc
 
 **Running the demo end to end** (the spec's "Done when" check). On a fresh setup:
 
-1. Install Nextflow (`brew install nextflow`), then set up from scratch and start native mode. `--reset` deletes your local databases (including local accounts), and onboarding 1000 Genomes takes a while:
+1. Install Nextflow's launcher (see the requirements in the main [README](../../README.md); not Homebrew's `nextflow`, see above), then set up from scratch and start native mode. `--reset` deletes your local databases (including local accounts), and onboarding 1000 Genomes takes a while:
 
    ```bash
    ./scripts/refcloud-setup.sh --reset

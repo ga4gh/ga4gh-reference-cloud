@@ -24,7 +24,8 @@ import tools.jackson.databind.ObjectMapper;
 
 // runs a workflow with Nextflow, sending every task to the refcloud TES through the nf-ga4gh plugin (D3, D12; the
 // details were settled in the Task 1 spike):
-//   NXF_VER pins the nextflow version whatever launcher is installed
+//   NXF_VER pins the nextflow version (Nextflow's launcher honours it; a self-contained build such as Homebrew's
+//   doesn't, and the health check reports that connection unhealthy)
 //   NXF_PLUGINS_DEFAULT adds nf-ga4gh without replacing the pipeline's own plugins (a -c plugins block would)
 //   refcloud.config selects the tes executor, our TES endpoint, and the run token, read from the environment
 //   -params-file passes the researcher's workflow_params; --outdir always points at the run's outputs/ directory

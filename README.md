@@ -43,7 +43,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | Node Version Manager (nvm) | visit [nodejs.org](https://nodejs.org/en/download) and follow instructions |
 | Node.js v24+ | Install through nvm using `nvm install v24.15.0` then activate with `nvm use v24.15.0` |
 | uv 0.11+ | `brew install uv` |
-| Nextflow 26.10+ (optional: compute) | `brew install nextflow` |
+| Nextflow launcher (optional: compute) | `curl -s https://get.nextflow.io \| bash`, followed by `chmod +x nextflow && mv nextflow ~/.local/bin/`, and finally `rehash`. **NOTE:** Do not use `brew install nextflow` as Homebrew's build cannot run the pinned version |
 | ory hydra client v26+ | `brew install ory-hydra` |
 | ory kratos client v26+ | `brew install ory/tap/kratos` |
 | kubectl v1.36+ | `brew install kubectl` |

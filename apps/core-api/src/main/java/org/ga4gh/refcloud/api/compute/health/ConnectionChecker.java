@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeHealthConfig;
 import org.springframework.stereotype.Component;
@@ -21,6 +23,9 @@ import org.springframework.stereotype.Component;
 // check adds a reason (logged by ComputeHealthService, never exposed in service-info)
 @Component
 public class ConnectionChecker {
+
+    // the version line of `nextflow -version`, e.g. "version 26.10.5 build 14654"
+    private static final Pattern NEXTFLOW_VERSION = Pattern.compile("version (\\S+) build");
 
     private final ComputeHealthConfig healthConfig;
 
@@ -72,8 +77,9 @@ public class ConnectionChecker {
         }
     }
 
-    // the launcher runs the pinned nextflow version: NXF_VER makes it fetch and run exactly that version (runs use
-    // the same NXF_VER, Task 7), so what's installed on the host can't drift from what's configured
+    // Nextflow's launcher runs the pinned nextflow version: NXF_VER makes it fetch and run exactly that version (runs
+    // use the same NXF_VER, Task 7), so what's installed on the host can't drift from what's configured. a
+    // self-contained build (e.g. Homebrew's nextflow) ignores NXF_VER and always runs its own version: unhealthy
     @SuppressFBWarnings(
             value = "COMMAND_INJECTION",
             justification = "the executable and version come from the deployer's connections file, never from a"
@@ -95,10 +101,15 @@ public class ConnectionChecker {
             if (process.exitValue() != 0) {
                 return Optional.of("nextflow -version exited with " + process.exitValue() + ": " + lastLine(printed));
             }
-            // e.g. "version 26.10.5 build 14654"
-            if (!printed.contains("version " + engine.nextflowVersion() + " ")) {
+            Matcher reported = NEXTFLOW_VERSION.matcher(printed);
+            if (!reported.find()) {
                 return Optional.of(
                         "nextflow did not report version " + engine.nextflowVersion() + ": " + lastLine(printed));
+            }
+            if (!reported.group(1).equals(engine.nextflowVersion())) {
+                return Optional.of("nextflow ran version " + reported.group(1) + " instead of the pinned "
+                        + engine.nextflowVersion() + ": it ignores NXF_VER, as self-contained builds such as"
+                        + " Homebrew's nextflow do. install Nextflow's launcher instead");
             }
             return Optional.empty();
         } catch (IOException exception) {
