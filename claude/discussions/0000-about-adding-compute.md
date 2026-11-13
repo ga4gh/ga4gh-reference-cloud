@@ -176,7 +176,7 @@ Usage rules:
 - Resolving `drs://` inputs from other DRS servers, and manifest DRS objects as inputs (D17).
 - Retention policies for kept outputs, and a storage cap on connections, so a laptop's disk doesn't fill up (D18).
 - A researcher UI page listing the user's runs, their states and output downloads. Stage 1 exposes these through WES only (D19).
-- Cloud deployment on AWS: whether a hosted refcloud offers compute, and which connection limits (D11) keep its costs bounded. Tabled 2026-11-11 until the fully local setup (D16 stages 1–3) works.
+- Cloud deployment on AWS: whether a hosted refcloud offers compute, and which connection limits (D11) keep its costs bounded. Tabled 2026-11-11 until the fully local setup (D16 stages 1–3) works. **Prioritized 2026-11-13** for the end of 2026, with stages 2 and 3, a My Runs UI page, docs and the production deployment: see [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md) (decided: Funnel's Kubernetes backend on EKS with S3 storage, a new connection rather than a new platform type; AWS Batch isn't pursued; the My Runs page monitors and cancels runs but doesn't submit them).
 
 ## To Verify (spike)
 
@@ -196,4 +196,4 @@ _None._
 
 ## Next Step
 
-Stage 1 (D16) is specified in [`claude/specs/active/0008-add-compute-wes-tes.md`](../specs/active/0008-add-compute-wes-tes.md).
+Stage 1 (D16) is specified in [`claude/specs/active/0008-add-compute-wes-tes.md`](../specs/active/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md).

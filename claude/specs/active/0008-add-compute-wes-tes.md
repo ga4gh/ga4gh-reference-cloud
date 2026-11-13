@@ -1151,6 +1151,8 @@ Researchers submit work **only through WES** and inspect it through WES and TES 
 
 ## Future Directions
 
+**Prioritized 2026-11-13** for the end of 2026 (see [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../../docs/milestones/2026-12-18-Compute-Milestones.md)): stage 2 with its helm wiring, stage 3, a compute platform on AWS, the My Runs UI page, a docs update, and the production deployment.
+
 * Stage 2: Nextflow + Funnel (Kubernetes) in helm mode with a `hostPath` volume, including discussion doc spike items 3 and 7 (D16).
   * **Helm chart wiring for connections:**
     * a `compute.connections` value (default empty);
