@@ -1,6 +1,6 @@
 # Compute Milestones for the End of 2026
 
-This document outlines the Reference Cloud compute (WES/TES) deliverables we aim to achieve before the Christmas break, building on stage 1 (local native mode, [spec 0008](../../claude/specs/archive/0008-add-compute-wes-tes.md)). Prioritized on November 13th, 2026, for the six weeks to the break. We aim to have compute in production by **December 18th, 2026** (proposed), leaving time to watch it before the break.
+This document outlines the Reference Cloud compute (WES/TES) deliverables we aim to achieve before the Christmas break, building on stage 1 (local native mode, [spec 0008](../../claude/specs/archive/0008-add-compute-wes-tes.md)). Prioritized on November 13th, 2026, for the six weeks to the break. We aim to have compute in production by **December 18th, 2026**, the last working day before the break. The production rollout ([spec 0010](../../claude/specs/active/0010-production-rollout.md)) aims a few days earlier, so there's time to watch it.
 
 The design source of truth is [`claude/discussions/0000-about-adding-compute.md`](../../claude/discussions/0000-about-adding-compute.md). Each item below gets its own spec.
 
@@ -16,7 +16,7 @@ In priority order:
 3. **A compute platform on AWS (EKS).** Run WES/TES jobs on the Kubernetes cluster on AWS that the refcloud is deployed to. See [Running on AWS](#running-on-aws).
 4. **My Runs page in the researcher UI, for monitoring.** List the user's runs and their states, follow each run's tasks, view logs, download outputs, and cancel runs. Researchers keep submitting runs through WES; the page doesn't submit runs (see below).
 5. **General docs update.** Docs-site pages for each item above as it lands, plus a general pass over the existing pages, including screenshots of the researcher UI (spec 0008, Future Directions).
-6. **Final deployment to production.** Compute on https://refcloud.ga4gh.org.
+6. **Final deployment to production.** Compute on https://refcloud.ga4gh.org, in one production update with everything else merged since the current release: [spec 0010](../../claude/specs/active/0010-production-rollout.md).
 
 ## Running on AWS
 
