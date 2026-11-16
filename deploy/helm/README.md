@@ -22,7 +22,7 @@ In addition to the native-mode requirements in the [root README](../../README.md
 
 Alongside the database, OAuth client and dataset setup, the setup script's Kubernetes section:
 
-* starts minikube (docker driver) if it isn't running and enables the `ingress` addon
+* starts minikube (docker driver) if it isn't running and enables the `ingress` addon. A new cluster gets the **Calico** network plugin, which enforces the chart's [NetworkPolicies](#network-policies). A cluster created before Calico was added makes setup and the run script stop with instructions: recreate it with `minikube delete`, then run setup again. Your databases are in host Postgres, so they're unaffected
 * switches your `kubectl` context to `minikube` (every script command also passes `--context minikube --namespace default` explicitly, so it never touches another cluster)
 * installs the mkcert local CA and generates a TLS certificate for `refcloud.ga4gh.localhost` and `*.refcloud.ga4gh.localhost` in `deploy/helm/.certs/` (git-ignored)
 * creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode
@@ -49,6 +49,17 @@ The run script:
 The refcloud is then available at `https://refcloud.ga4gh.localhost` and `https://docs.refcloud.ga4gh.localhost`.
 
 Ctrl+C stops the tunnel only; the release keeps running, so the next run is fast. Run the script again to reconnect.
+
+### Network Policies
+
+The chart's NetworkPolicies (`charts/app/templates/common/network-policies.yaml`) let each pod accept only the traffic it needs. The researcher UI, docs, core-api and the Kratos and Hydra public APIs accept traffic from the ingress and from the pods that call them. Hydra's admin API accepts only the researcher UI, and Kratos's admin API nothing but health probes. The template's header has the full table. A new in-cluster caller (a new internal URL) needs a rule there, or its requests time out.
+
+In minikube, Calico enforces them. To check that a pod can't reach an admin API:
+
+```sh
+kubectl run np-check --rm -it --restart=Never --image=busybox:1.37 -- wget -T 5 -qO- http://hydra:4445/health/ready
+# times out: blocked (from the researcher UI's pod it would answer)
+```
 
 ### Teardown
 
@@ -110,6 +121,9 @@ The chart's defaults target local minikube. For AWS, supply overrides at deploy 
 | `ga4gh.referenceCloud.baseURL` | `refcloud.ga4gh.localhost` | public hostname |
 | `ga4gh.referenceCloud.cloudEnvironment` | `local` | `aws` |
 | `ga4gh.referenceCloud.aws.certificateARN` | n/a | ACM certificate ARN for the ALB |
+| `networkPolicy.ingressFrom` | `[]` (the `ingress-nginx` namespace) | **required**: where the ALB connects from. It targets pod IPs from its subnets, e.g. `[{ipBlock: {cidr: <VPC CIDR>}}]` |
+
+**NetworkPolicies on AWS:** the chart's policies only take effect if the cluster enforces them. On EKS Auto Mode, turn on its Network Policy Controller once, with the ConfigMap from [AWS's guide](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html) (`amazon-vpc-cni` in `kube-system`, `enable-network-policy-controller: "true"`). Deploy the chart (with `networkPolicy.ingressFrom`) before or after; then check that the site still works and the pods stay ready. If something breaks, `--set networkPolicy.enabled=false` removes the policies.
 
 Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`. The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
 
@@ -122,7 +136,8 @@ helm upgrade --install refcloud charts/app \
   --set image.pullPolicy=IfNotPresent \
   --set ga4gh.referenceCloud.baseURL=<host> \
   --set ga4gh.referenceCloud.cloudEnvironment=aws \
-  --set ga4gh.referenceCloud.aws.certificateARN=<arn>
+  --set ga4gh.referenceCloud.aws.certificateARN=<arn> \
+  --set-json 'networkPolicy.ingressFrom=[{"ipBlock":{"cidr":"<VPC CIDR>"}}]'
 ```
 
 If the cluster needs an image pull secret for ECR, create it and add `--set 'image.pullSecrets={ecr-registry-key}'`:

@@ -3,15 +3,7 @@
 import AppLayout from "@/components/layout/AppLayout";
 import DatasetCard from "@/components/pages/datasets/DatasetCard";
 import { useState, useEffect } from "react";
-
-export enum PassportVisaAssertionStatus {
-  NotRequested = "NotRequested",
-  Requested = "Requested",
-  Approved = "Approved",
-  Denied = "Denied",
-  Revoked = "Revoked",
-  Expired = "Expired",
-}
+import { PassportVisa, assertionStatus } from "@/utils/passportVisa";
 
 // a Data Connect table belonging to a dataset. type is the table type id (e.g. drs_object)
 export type DatasetTable = {
@@ -28,17 +20,7 @@ export type Dataset = {
   tables?: DatasetTable[];
   hasManifests?: boolean;
   // null for open datasets, which require no visa
-  visa: {
-    id: string;
-    name: string;
-    description: string;
-    // null until the user requests access
-    assertion: {
-      userId: string;
-      currentStatus: PassportVisaAssertionStatus;
-      currentStatusAt: string;
-    } | null;
-  } | null;
+  visa: PassportVisa | null;
 };
 
 interface DatasetsClientProps {
@@ -49,13 +31,6 @@ export default function DatasetsClient({ initialDatasets }: DatasetsClientProps)
   const [datasetMap, setDatasetMap] = useState<Record<string, Dataset>>(() =>
     Object.fromEntries(initialDatasets.map((dataset) => [dataset.id, dataset])),
   );
-
-  const getValidAssertionStatus = (dataset: Dataset): PassportVisaAssertionStatus => {
-    if (dataset.visa === null || dataset.visa.assertion === null) {
-      return PassportVisaAssertionStatus.NotRequested;
-    }
-    return dataset.visa.assertion.currentStatus;
-  };
 
   useEffect(() => {
     const fetchDatasets = async () => {
@@ -91,7 +66,7 @@ export default function DatasetsClient({ initialDatasets }: DatasetsClientProps)
             description={datasetMap[key].description}
             tags={datasetMap[key].tags}
             isOpen={datasetMap[key].visa === null}
-            currentStatus={getValidAssertionStatus(datasetMap[key])}
+            currentStatus={assertionStatus(datasetMap[key].visa)}
             datasetMap={datasetMap}
             setDatasetMap={setDatasetMap}
           />

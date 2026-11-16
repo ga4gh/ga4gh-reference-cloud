@@ -1,6 +1,6 @@
 package org.ga4gh.refcloud.api.exception;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDetails> handleHttpMessageNotReadableException(Exception exception, WebRequest request) {
 
         ErrorDetails errorDetails =
-                new ErrorDetails(exception.getMessage(), HttpStatus.BAD_REQUEST.value(), LocalDateTime.now());
+                new ErrorDetails(exception.getMessage(), HttpStatus.BAD_REQUEST.value(), Instant.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
     }
@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDetails> handleHttpMessageForbiddenException(Exception exception, WebRequest request) {
 
         ErrorDetails errorDetails =
-                new ErrorDetails(exception.getMessage(), HttpStatus.FORBIDDEN.value(), LocalDateTime.now());
+                new ErrorDetails(exception.getMessage(), HttpStatus.FORBIDDEN.value(), Instant.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
     }
@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
             ResourceNotFoundException exception, WebRequest request) {
 
         ErrorDetails errorDetails =
-                new ErrorDetails(exception.getMessage(), HttpStatus.NOT_FOUND.value(), LocalDateTime.now());
+                new ErrorDetails(exception.getMessage(), HttpStatus.NOT_FOUND.value(), Instant.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
     }
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
             Exception exception, WebRequest request) {
 
         ErrorDetails errorDetails =
-                new ErrorDetails(exception.getMessage(), HttpStatus.CONTENT_TOO_LARGE.value(), LocalDateTime.now());
+                new ErrorDetails(exception.getMessage(), HttpStatus.CONTENT_TOO_LARGE.value(), Instant.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.CONTENT_TOO_LARGE);
     }
@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
             RangeNotSatisfiableException exception, WebRequest request) {
 
         ErrorDetails errorDetails = new ErrorDetails(
-                exception.getMessage(), HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value(), LocalDateTime.now());
+                exception.getMessage(), HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value(), Instant.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE);
     }
@@ -79,7 +79,7 @@ public class GlobalExceptionHandler {
             NotImplementedException exception, WebRequest request) {
 
         ErrorDetails errorDetails =
-                new ErrorDetails(exception.getMessage(), HttpStatus.NOT_IMPLEMENTED.value(), LocalDateTime.now());
+                new ErrorDetails(exception.getMessage(), HttpStatus.NOT_IMPLEMENTED.value(), Instant.now());
 
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_IMPLEMENTED);
     }

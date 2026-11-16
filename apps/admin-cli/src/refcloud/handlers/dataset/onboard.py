@@ -85,7 +85,7 @@ def dataset_onboard(dataset_id):
                             database_engine.insert_refget_sequence_alias(**refget_sequence_alias)
 
     # register dataset data connect tables only after all drs objects are loaded, so tables never point at partial data
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(datetime.UTC)
     tables = [
         {
             "table_name": data_connect_table_name(dataset_id, table["table_type"]),

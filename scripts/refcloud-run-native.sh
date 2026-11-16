@@ -47,7 +47,7 @@ cd deploy/local && caddy run --config Caddyfile > /dev/null 2>&1 &
 CADDY_PID=$!
 cd ../..
 
-print_service_urls
+print_service_urls compute
 log_info "press Ctrl+C to stop all services and exit"
 
 while true; do

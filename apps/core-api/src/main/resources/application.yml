@@ -1,4 +1,15 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        # the compute schedulers (health checks, the TES reconciler, the run poller, run preparation sweeps) each run
+        # long checks; with the default single thread they'd wait on one another
+        size: 4
+  config:
+    # compute connections (deploy/local/compute/connections.yml locally; a mounted ConfigMap in helm). optional:
+    # a missing file means no connections, so compute is off. keep the path in sync with
+    # ga4gh.refcloud.compute.connections-file below
+    import: optional:file:${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}
   servlet:
     multipart:
       max-file-size: 256MB
@@ -160,3 +171,51 @@ ga4gh:
         updated-at: 2026-11-09T12:00:00Z
         environment: dev
         version: v0.1.0
+    compute:
+      # the file imported by spring.config.import above, also read by the admin CLI. its connections bind to
+      # ga4gh.refcloud.compute.connections; relative paths in it (e.g. a storage root) resolve from its directory
+      connections-file: ${REFCLOUD_COMPUTE_CONNECTIONS_FILE:../../deploy/local/compute/connections.yml}
+      # shared by every compute platform's WES and TES service-info. ids are {id-prefix}.{wes|tes}.{platformId}.{id-suffix};
+      # name, description and timestamps come from the platform
+      service-info:
+        id-prefix: org.ga4gh.refcloud
+        id-suffix: local
+        organization:
+          name: Global Alliance for Genomics and Health (GA4GH)
+          url: https://ga4gh.org
+        contact-url: mailto:info@ga4gh.org
+        documentation-url: https://github.com/ga4gh/ga4gh-reference-cloud
+        # WES auth_instructions_url: requesting access to a compute platform and minting a passport token (both in the
+        # researcher UI), on the docs site (apps/docs/docs/compute/access.mdx; docs pages are served under /docs/)
+        auth-instructions-url: https://docs.refcloud.ga4gh.localhost/docs/compute/access
+        environment: dev
+        version: v0.1.0
+      # connection health checks (D10); unhealthy platforms get 503 on everything but service-info
+      health:
+        check-interval: 60s
+        executor-timeout: 5s
+        # the first `nextflow -version` downloads the pinned nextflow version
+        engine-timeout: 5m
+      # tes tasks (Task 6): reads are served from compute_task, kept current by a reconciler
+      tasks:
+        reconcile-interval: 10s
+        executor-timeout: 30s
+        default-page-size: 256
+        max-page-size: 2048
+      # workflow runs (Task 7)
+      runs:
+        # core-api's own internal base url, which engines call back on for TES: service to service, not through caddy
+        # (helm: http://refcloud-api:8080)
+        engine-callback-url: http://localhost:8080
+        poll-interval: 5s
+        cancel-grace-period: 2m
+        launch-timeout: 30s
+      # WES (Task 8)
+      wes:
+        # bundled workflow paths (compute/workflows/nextflow/<name>) resolve from here: the repo root locally
+        bundled-workflows-base-dir: ../..
+        preparation-sweep-interval: 30s
+        git-timeout: 5m
+        download-timeout: 30m
+        default-page-size: 256
+        max-page-size: 2048

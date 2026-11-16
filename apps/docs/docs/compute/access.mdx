@@ -1,0 +1,51 @@
+# Accessing Compute Platforms
+
+Every compute platform's WES and TES APIs need two things from you: an **approved visa** for the platform, and a **passport token** to send with each request. This page shows how to get both. Each platform's WES `service-info` points here (`auth_instructions_url`).
+
+:::note Available when you run the reference cloud locally
+Compute is currently available when you run the reference cloud on your own machine in native mode. The steps below use the local researcher UI at https://refcloud.ga4gh.localhost. See the [Compute Overview](./compute-overview).
+:::
+
+## 1. Request Access to a Compute Platform
+
+Log in to the researcher UI (see [Registration and Login](../getting-started/registration-and-login)) and open the **Browse Compute Platforms** page, under **Compute** in the sidebar. Each compute platform's card shows:
+
+* its **health**: you can only submit runs while it's healthy;
+* its **platform type**, e.g. `nextflow-funnel-docker`;
+* its **WES** and **TES** base URLs, with copy buttons;
+* the **workflows you can run**, each with the exact `workflow_url` to submit;
+* **your limits**: runs at a time, CPU, memory and disk per task, run duration, and your monthly quota in core-hours;
+* your **access status**.
+
+Click **Request Access** on the platform you want to use. Your access status becomes **Requested** until an admin approves it, and then **Approved**. This works the same way as [requesting access to a dataset](../getting-started/requesting-access-to-datasets): approval gives you the platform's visa, `ga4gh_visa:compute_platform:<platform id>`.
+
+When you run the reference cloud locally, you're the admin. Approve requests with the admin CLI, in `apps/admin-cli`:
+
+```bash
+uv run refcloud visa list-requests
+uv run refcloud visa approve -u <user id> -v ga4gh_visa:compute_platform:<platform id>
+```
+
+## 2. Request Access to Your Input Data
+
+A workflow's inputs are DRS objects, and you need access to each one's dataset too. For example, the demo's input is in the **1000 Genomes** dataset, so you also need that dataset's visa (`ga4gh_visa:aws_opendata_registry_1000_genomes`). Request it on the **Browse Datasets** page. A run whose inputs you can't access is refused with `403`, naming the object.
+
+## 3. Get a Passport Token
+
+Open the **View Passport Token** page and copy your token, as described in [Obtaining a Passport Token](../getting-started/obtaining-a-passport-token). Tokens expire: if a request gets `401`, copy a new one.
+
+## 4. Use the Token
+
+Send the token as a bearer token on every WES and TES request except `service-info`, which is public:
+
+```bash
+TOKEN=<your passport token>
+curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/<platform id>/v1/runs
+```
+
+* **WES:** you submit runs, and list, follow and cancel your own runs. You download their outputs and logs.
+* **TES:** you list, view and cancel the tasks your runs created. You can't submit tasks directly; workflows create them.
+
+You only ever see your own runs and tasks. Anyone else's are reported as not found.
+
+Next, try [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes).
