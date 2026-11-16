@@ -75,7 +75,7 @@ services:
     networks:
       - intranet
 
-  # TES executor for native-mode compute (claude/specs/active/0008-add-compute-wes-tes.md, Task 10). LOCAL DEVELOPMENT
+  # TES executor for native-mode compute (claude/specs/archive/0008-add-compute-wes-tes.md, Task 10). LOCAL DEVELOPMENT
   # ONLY: its local backend starts each task as a sibling container on the host's Docker, through the mounted socket.
   # the storage root is mounted at the same absolute path as on the host, because those sibling containers mount host
   # paths. the refcloud scripts export REFCLOUD_COMPUTE_STORAGE_ROOT (scripts/lib/common.sh); set it yourself to run

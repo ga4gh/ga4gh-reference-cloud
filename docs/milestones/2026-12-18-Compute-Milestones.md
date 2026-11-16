@@ -1,6 +1,6 @@
 # Compute Milestones for the End of 2026
 
-This document outlines the Reference Cloud compute (WES/TES) deliverables we aim to achieve before the Christmas break, building on stage 1 (local native mode, [spec 0008](../../claude/specs/active/0008-add-compute-wes-tes.md)). Prioritized on November 13th, 2026, for the six weeks to the break. We aim to have compute in production by **December 18th, 2026** (proposed), leaving time to watch it before the break.
+This document outlines the Reference Cloud compute (WES/TES) deliverables we aim to achieve before the Christmas break, building on stage 1 (local native mode, [spec 0008](../../claude/specs/archive/0008-add-compute-wes-tes.md)). Prioritized on November 13th, 2026, for the six weeks to the break. We aim to have compute in production by **December 18th, 2026** (proposed), leaving time to watch it before the break.
 
 The design source of truth is [`claude/discussions/0000-about-adding-compute.md`](../../claude/discussions/0000-about-adding-compute.md). Each item below gets its own spec.
 

@@ -1,4 +1,4 @@
-// drs-checksum: the refcloud's bundled demo workflow (claude/specs/active/0008-add-compute-wes-tes.md, Task 9).
+// drs-checksum: the refcloud's bundled demo workflow (claude/specs/archive/0008-add-compute-wes-tes.md, Task 9).
 // takes one file and writes checksum-report.json with its name, size, MD5 and SHA-256. through WES, the input is a
 // drs:// URI in workflow_params.input, which the refcloud downloads and replaces with the local file before the run
 

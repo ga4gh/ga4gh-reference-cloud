@@ -430,7 +430,7 @@
         </rollback>
     </changeSet>
     <!--
-        compute platforms (claude/specs/active/0008-add-compute-wes-tes.md, Task 3): an admin-registered,
+        compute platforms (claude/specs/archive/0008-add-compute-wes-tes.md, Task 3): an admin-registered,
         visa-gated catalog record that points at a connection (engine + executor + infrastructure) defined in
         connections.yml. the per-user limits are nullable: null means no per-user cap, so only the connection's
         pooled ceiling applies
@@ -582,7 +582,7 @@
         </rollback>
     </changeSet>
     <!--
-        tes tasks the refcloud has accepted (claude/specs/active/0008-add-compute-wes-tes.md, Task 6). reads are served
+        tes tasks the refcloud has accepted (claude/specs/archive/0008-add-compute-wes-tes.md, Task 6). reads are served
         from here: executor_task holds the latest task document from the executor (funnel), kept current by a
         reconciler; request holds the task as accepted, so a queued task can be forwarded later. executor_task_id is
         null until the task is forwarded. run_id gets its foreign key when compute_run arrives (Task 7)
@@ -636,7 +636,7 @@
         </rollback>
     </changeSet>
     <!--
-        workflow runs (claude/specs/active/0008-add-compute-wes-tes.md, Task 7). a run is tracked through files in its
+        workflow runs (claude/specs/archive/0008-add-compute-wes-tes.md, Task 7). a run is tracked through files in its
         run directory (the engine's pid and, once it exits, its exit code) so core-api can reattach after a restart;
         engine_pid and engine_started_at identify the process. token_hash is the sha-256 of the run-scoped TES token,
         set while the run is active and cleared when it ends. max_duration_seconds is the effective limit (the lower of
@@ -697,7 +697,7 @@
         </rollback>
     </changeSet>
     <!--
-        WES (claude/specs/active/0008-add-compute-wes-tes.md, Task 8). POST /runs records a run and returns at once; the
+        WES (claude/specs/archive/0008-add-compute-wes-tes.md, Task 8). POST /runs records a run and returns at once; the
         workflow and DRS inputs are prepared in the background, and only prepared runs are launched. workflow_source is
         a snapshot of the allowlist entry the run was accepted with (so later allowlist changes don't affect it);
         drs_inputs the inputs to stage; main_script the entry's main script when it isn't main.nf

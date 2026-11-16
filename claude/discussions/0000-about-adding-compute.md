@@ -196,4 +196,4 @@ _None._
 
 ## Next Step
 
-Stage 1 (D16) is specified in [`claude/specs/active/0008-add-compute-wes-tes.md`](../specs/active/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md).
+Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md).

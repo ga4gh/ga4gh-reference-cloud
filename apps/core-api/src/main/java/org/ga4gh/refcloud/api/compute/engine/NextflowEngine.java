@@ -150,7 +150,7 @@ public class NextflowEngine implements WorkflowEngine {
         String endpoint = tesEndpoint.replace("\\", "\\\\").replace("'", "\\'");
         return String.join(
                 "\n",
-                "// written by core-api for this run (claude/specs/active/0008-add-compute-wes-tes.md, Task 7); do not edit",
+                "// written by core-api for this run (claude/specs/archive/0008-add-compute-wes-tes.md, Task 7); do not edit",
                 "process.executor = 'tes'",
                 "tes.endpoint = '" + endpoint + "'",
                 "tes.oauthToken = System.getenv('" + TOKEN_ENVIRONMENT_VARIABLE + "')",

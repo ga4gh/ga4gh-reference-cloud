@@ -13,7 +13,7 @@ Configuration for running the reference cloud's dependency services and ingress 
 
 ## Compute (native mode)
 
-Native mode can run workflows through the refcloud's WES and TES APIs: a researcher submits an allowlisted workflow to a compute platform's WES, with refcloud DRS objects as inputs, and downloads its outputs from WES. The design is in [`claude/discussions/0000-about-adding-compute.md`](../../claude/discussions/0000-about-adding-compute.md) and [`claude/specs/active/0008-add-compute-wes-tes.md`](../../claude/specs/active/0008-add-compute-wes-tes.md).
+Native mode can run workflows through the refcloud's WES and TES APIs: a researcher submits an allowlisted workflow to a compute platform's WES, with refcloud DRS objects as inputs, and downloads its outputs from WES. The design is in [`claude/discussions/0000-about-adding-compute.md`](../../claude/discussions/0000-about-adding-compute.md) and [`claude/specs/archive/0008-add-compute-wes-tes.md`](../../claude/specs/archive/0008-add-compute-wes-tes.md).
 
 **What runs where:**
 
