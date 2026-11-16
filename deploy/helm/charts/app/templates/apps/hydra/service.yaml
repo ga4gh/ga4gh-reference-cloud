@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: hydra
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app.kubernetes.io/name: hydra
   ports:
@@ -14,8 +14,4 @@ spec:
     - name: admin
       port: 4445
       targetPort: 4445
-      protocol: TCP
-    - name: token
-      port: 5555
-      targetPort: 5555
       protocol: TCP
