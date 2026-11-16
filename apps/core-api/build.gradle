@@ -59,6 +59,8 @@ dependencies {
     implementation 'com.github.jsqlparser:jsqlparser:5.4' // Data Connect query parsing/rewriting, no Spring-managed alternative
     compileOnly 'org.projectlombok:lombok'
     compileOnly 'com.github.spotbugs:spotbugs-annotations:4.10.5' // @SuppressFBWarnings(justification = ...)
+    // tests that load classes carrying @SuppressFBWarnings need the annotation on the classpath, or -Werror fails
+    testCompileOnly 'com.github.spotbugs:spotbugs-annotations:4.10.5'
     annotationProcessor 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
 

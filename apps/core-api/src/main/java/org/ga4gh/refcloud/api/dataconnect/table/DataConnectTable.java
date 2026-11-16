@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.ga4gh.refcloud.api.core.dataset.Dataset;
@@ -42,8 +42,8 @@ public class DataConnectTable {
 
     // set by database default and update trigger
     @Column(insertable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(insertable = false, updatable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 }
