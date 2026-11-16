@@ -115,6 +115,7 @@ log_info "starting refcloud in helm mode (minikube)"
 
 check_port_443_free
 start_minikube
+require_minikube_calico
 use_minikube_context
 check_k8s_secrets_exist
 

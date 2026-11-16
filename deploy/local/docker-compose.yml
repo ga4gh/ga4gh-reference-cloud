@@ -5,7 +5,7 @@ networks:
 # deploy/helm/charts/app/templates/_helpers.tpl (refcloud.kratosImage / refcloud.hydraImage).
 services:
   kratos-migrate:
-    image: oryd/kratos:v0.9.0-alpha.2
+    image: oryd/kratos:v26.2.0
     restart: no
     environment:
       DSN: postgres://kratos:secret@host.docker.internal:5432/kratos?sslmode=disable
@@ -18,7 +18,7 @@ services:
       - intranet
 
   kratos:
-    image: oryd/kratos:v0.9.0-alpha.2
+    image: oryd/kratos:v26.2.0
     depends_on:
       kratos-migrate:
         condition: service_completed_successfully
@@ -30,7 +30,7 @@ services:
     environment:
       DSN: postgres://kratos:secret@host.docker.internal:5432/kratos?sslmode=disable
       LOG_LEVEL: trace
-    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier
+    command: serve -c /etc/config/kratos/kratos.yml --dev --watch-courier --sqa-opt-out
     volumes:
       - type: bind
         source: ./ory/kratos
@@ -62,11 +62,10 @@ services:
     ports:
       - "127.0.0.1:4444:4444" # public
       - "127.0.0.1:4445:4445" # admin
-      - "127.0.0.1:5555:5555"
     environment:
       DSN: postgres://hydra:secret@host.docker.internal:5432/hydra?sslmode=disable
       LOG_LEVEL: trace
-    command: -c /etc/config/hydra/hydra.yml serve all --dev
+    command: -c /etc/config/hydra/hydra.yml serve all --dev --sqa-opt-out
     volumes:
       - type: bind
         source: ./ory/hydra

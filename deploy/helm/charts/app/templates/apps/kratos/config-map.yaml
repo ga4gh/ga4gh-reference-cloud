@@ -4,7 +4,7 @@ metadata:
   name: kratos-config-map
 data:
   kratos.yaml: |
-    version: v0.7.1-alpha.1
+    version: v26.2.0
 
     dsn: memory
 
@@ -70,6 +70,8 @@ data:
 
         registration:
           lifespan: 10m
+          # one screen for email, name and password (Kratos defaults to profile_first, two screens, since v1.2)
+          style: unified
           ui_url: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/registration
           after:
             password:
@@ -86,10 +88,10 @@ data:
                         password: <SECRET>
                 - hook: session
 
+    # info, and sensitive values redacted (the default): this config is also production's
     log:
-      level: debug
+      level: info
       format: text
-      leak_sensitive_values: true
 
     secrets:
       cookie:
@@ -100,10 +102,11 @@ data:
     ciphers:
       algorithm: xchacha20-poly1305
 
+    # without --dev, Kratos raises a lower cost to 12 anyway; native mode (--dev) keeps 8 for speed
     hashers:
       algorithm: bcrypt
       bcrypt:
-        cost: 8
+        cost: 12
 
     identity:
       default_schema_id: default

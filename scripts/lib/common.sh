@@ -394,16 +394,31 @@ minikube_running() {
   minikube status > /dev/null 2>&1
 }
 
+# new clusters get the Calico network plugin, which enforces the helm chart's NetworkPolicies (minikube's default plugin
+# ignores them). a cluster's plugin is fixed when it's created: see require_minikube_calico
 start_minikube() {
   if minikube_running; then
     log_info "minikube is already running"
   else
-    log_info "starting minikube"
-    minikube start --driver=docker > /dev/null 2>&1 || { log_error "failed to start minikube, check 'minikube logs'. if the cluster is broken, run 'minikube delete' and try again"; exit 1; }
+    log_info "starting minikube (a new cluster gets the Calico network plugin; this can take a few minutes)"
+    minikube start --driver=docker --cni=calico > /dev/null 2>&1 || { log_error "failed to start minikube, check 'minikube logs'. if the cluster is broken, run 'minikube delete' and try again"; exit 1; }
   fi
 
   log_info "enabling minikube ingress addon"
   minikube addons enable ingress > /dev/null 2>&1 || { log_error "failed to enable minikube ingress addon"; exit 1; }
+}
+
+# helm mode needs a cluster that enforces the chart's NetworkPolicies, so one created before Calico was added has to be
+# recreated (a cluster's network plugin can't be changed). waits until Calico is ready. not used when uninstalling,
+# which works on any cluster
+require_minikube_calico() {
+  if ! kubectl --context "$KUBE_CONTEXT" --namespace kube-system get daemonset calico-node > /dev/null 2>&1; then
+    log_error "this minikube cluster was created without the Calico network plugin, so it would ignore the helm chart's NetworkPolicies, and a cluster's plugin can't be changed. recreate it: run 'minikube delete', then ./scripts/refcloud-setup.sh (your databases are in host Postgres and aren't affected)"
+    exit 1
+  fi
+  log_info "waiting for the Calico network plugin to be ready"
+  kubectl --context "$KUBE_CONTEXT" --namespace kube-system rollout status daemonset calico-node --timeout=5m > /dev/null 2>&1 \
+    || { log_error "Calico did not become ready, check 'kubectl --context $KUBE_CONTEXT -n kube-system get pods'"; exit 1; }
 }
 
 use_minikube_context() {

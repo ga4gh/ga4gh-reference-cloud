@@ -102,6 +102,7 @@ stop_docker_compose
 if [[ "$KUBERNETES_ENABLED" == true ]]; then
   log_info "setting up kubernetes (minikube) for helm mode"
   start_minikube
+  require_minikube_calico
   use_minikube_context
   create_tls_cert
   apply_k8s_secrets
