@@ -19,6 +19,7 @@ DEFAULT_CONNECTIONS_FILE = "../../deploy/local/compute/connections.yml"
 # platform types (D14) and the WES workflow type/version their engine runs
 PLATFORM_TYPES = {
     "nextflow-funnel-docker": {"workflow_type": "NFL", "workflow_type_version": "DSL2"},
+    "nextflow-funnel-kubernetes": {"workflow_type": "NFL", "workflow_type_version": "DSL2"},
 }
 
 

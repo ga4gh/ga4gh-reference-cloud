@@ -33,6 +33,11 @@ KUBE_CONTEXT="minikube"
 K8S_NAMESPACE="default"
 HELM_RELEASE="refcloud"
 TLS_CERT_DIR="./deploy/helm/.certs"
+# compute run storage on the minikube node (a hostPath), one directory per release. keep in sync with
+# refcloud.computeStorageRoot in deploy/helm/charts/app/templates/_helpers.tpl
+MINIKUBE_COMPUTE_STORAGE_ROOT="/data/refcloud-compute/$HELM_RELEASE"
+# the user every compute pod and core-api run as, which must own that directory
+COMPUTE_USER_ID=10001
 # secrets the helm chart expects, deleted on --reset
 K8S_SECRETS=(
   common-db-info
@@ -46,13 +51,16 @@ K8S_SECRETS=(
   refcloud-api-kratos-webhook
   refcloud-tls
 )
-# refcloud app images built for helm mode, as "<repository>:<docker build context>"
+# refcloud images built for helm mode (the apps, and the Nextflow image compute Jobs run), as "<repository>:<docker build context>:<Dockerfile, relative to the
+# context>". core-api and the admin CLI build from the repo root, so they can include compute/workflows/; /.dockerignore
+# limits what those builds see. keep in sync with each image's CI workflow (.github/workflows/push-docker-image-*.yml)
 REFCLOUD_IMAGES=(
-  "refcloud-core-api:apps/core-api"
-  "refcloud-core-api-liquibase:apps/core-api/liquibase"
-  "refcloud-researcher-ui:apps/researcher-ui"
-  "refcloud-docs:apps/docs"
-  "refcloud-admin-cli:apps/admin-cli"
+  "refcloud-core-api:.:apps/core-api/Dockerfile"
+  "refcloud-core-api-liquibase:apps/core-api/liquibase:Dockerfile"
+  "refcloud-researcher-ui:apps/researcher-ui:Dockerfile"
+  "refcloud-docs:apps/docs:Dockerfile"
+  "refcloud-admin-cli:.:apps/admin-cli/Dockerfile"
+  "refcloud-nextflow:compute/images/nextflow:Dockerfile"
 )
 # deployments running refcloud app images (restarted after each build)
 REFCLOUD_APP_DEPLOYMENTS=(refcloud-api refcloud-ui refcloud-docs refcloud-admin-cli)

@@ -18,18 +18,19 @@ public interface WorkflowEngine {
     Set<String> reservedEnvironment();
 
     // starts the run's engine. tesEndpoint is the refcloud TES the engine sends its tasks to, and tesToken the
-    // run-scoped
-    // token it authenticates with (only ever passed to the engine process, never stored)
+    // run-scoped token it authenticates with (only ever passed to the engine, never stored in the database)
     EngineProcess launch(ComputeRun run, ComputeConfig.Connection connection, String tesEndpoint, String tesToken)
             throws IOException;
 
-    EngineStatus status(ComputeRun run);
+    // connection is the run's (its platform's connection), as for launch
+    EngineStatus status(ComputeRun run, ComputeConfig.Connection connection);
 
-    // SIGTERM, or SIGKILL if force
-    void terminate(ComputeRun run, boolean force);
+    // asks the engine to stop (SIGTERM: it cancels its own tasks), or stops it at once if force
+    void terminate(ComputeRun run, ComputeConfig.Connection connection, boolean force);
 
-    // removes what the run no longer needs once it has ended, keeping its outputs and logs
-    void cleanUp(ComputeRun run);
+    // removes what the run no longer needs once it has ended, keeping its outputs and logs. also called for runs that
+    // never launched (cancelled while queued, or failed preparation)
+    void cleanUp(ComputeRun run, ComputeConfig.Connection connection);
 
     // after the engine exited with a failure: the reason, if the cause was losing contact with the refcloud's own TES
     // (e.g. core-api was down) rather than the workflow failing. such runs end SYSTEM_ERROR, not EXECUTOR_ERROR

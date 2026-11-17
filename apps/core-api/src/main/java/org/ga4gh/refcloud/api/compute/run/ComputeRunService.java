@@ -154,7 +154,7 @@ public class ComputeRunService {
         withLock(platform.getConnectionKey(), () -> {
             ComputeRun run = computeRunRepository.findById(runId).orElseThrow();
             if (!ComputeRunStates.QUEUED.equals(run.getState()) || run.getPreparedAt() != null) {
-                engine(connection).cleanUp(run);
+                engine(connection).cleanUp(run, connection);
                 return;
             }
             run.setWorkflowParams(workflowParams);
@@ -178,7 +178,7 @@ public class ComputeRunService {
                 return;
             }
             run.setStateReason(reason);
-            finish(run, engine(connection), ComputeRunStates.SYSTEM_ERROR, null);
+            finish(run, connection, ComputeRunStates.SYSTEM_ERROR, null);
         });
     }
 
@@ -197,7 +197,7 @@ public class ComputeRunService {
             }
             if (ComputeRunStates.QUEUED.equals(run.getState())) {
                 run.setStateReason(reason);
-                finish(run, engine(connection(platform)), ComputeRunStates.CANCELED, null);
+                finish(run, connection(platform), ComputeRunStates.CANCELED, null);
                 return;
             }
             requestCancel(run, connection(platform), reason);
@@ -229,31 +229,34 @@ public class ComputeRunService {
 
     private void poll(ComputeRun run, ComputeConfig.Connection connection) {
         WorkflowEngine engine = engine(connection);
-        if (run.getEnginePid() == null) {
+        if (run.getEnginePid() == null && run.getEngineJobUid() == null) {
             // core-api stopped partway through a launch
             Instant since = run.getStartedAt() != null ? run.getStartedAt() : run.getCreatedAt();
             if (Instant.now().isAfter(since.plus(runConfig.launchTimeout().multipliedBy(2)))) {
                 run.setStateReason("the engine did not finish launching");
-                finish(run, engine, ComputeRunStates.SYSTEM_ERROR, null);
+                finish(run, connection, ComputeRunStates.SYSTEM_ERROR, null);
             }
             return;
         }
 
-        EngineStatus status = engine.status(run);
+        EngineStatus status = engine.status(run, connection);
         switch (status) {
             case EngineStatus.Exited exited -> {
                 // only a failure needs its cause looked at
                 Optional<String> refcloudFailure =
                         exited.exitCode() == 0 ? Optional.empty() : engine.refcloudFailure(run);
-                finish(run, engine, outcome(run, exited.exitCode(), refcloudFailure), exited.exitCode());
+                finish(run, connection, outcome(run, exited.exitCode(), refcloudFailure), exited.exitCode());
             }
             case EngineStatus.Lost lost -> {
                 if (run.getCancelRequestedAt() == null) {
-                    run.setStateReason("the engine process was lost (it was killed, or stopped along with core-api)");
+                    run.setStateReason(
+                            lost.reason() != null
+                                    ? lost.reason()
+                                    : "the engine process was lost (it was killed, or stopped along with core-api)");
                 }
                 finish(
                         run,
-                        engine,
+                        connection,
                         run.getCancelRequestedAt() != null ? ComputeRunStates.CANCELED : ComputeRunStates.SYSTEM_ERROR,
                         null);
             }
@@ -265,7 +268,7 @@ public class ComputeRunService {
                                 "run {} did not stop within {} of a cancel; killing it",
                                 run.getId(),
                                 runConfig.cancelGracePeriod());
-                        engine.terminate(run, true);
+                        engine.terminate(run, connection, true);
                     }
                 } else if (run.getStartedAt() != null
                         && now.isAfter(run.getStartedAt().plusSeconds(run.getMaxDurationSeconds()))) {
@@ -331,15 +334,16 @@ public class ComputeRunService {
         try {
             EngineProcess process = engine.launch(run, connection, tesEndpoint, token);
             run.setEnginePid(process.pid());
+            run.setEngineJobUid(process.jobUid());
             run.setEngineStartedAt(process.startedAt());
             run.setState(ComputeRunStates.RUNNING);
             run.setStartedAt(Instant.now());
             computeRunRepository.save(run);
-            log.info("run {} started (pid {})", run.getId(), process.pid());
+            log.info("run {} started ({})", run.getId(), process.describe());
         } catch (IOException | RuntimeException exception) {
             log.error("could not launch run {}", run.getId(), exception);
             run.setStateReason("the engine could not be launched: " + exception.getMessage());
-            finish(run, engine, ComputeRunStates.SYSTEM_ERROR, null);
+            finish(run, connection, ComputeRunStates.SYSTEM_ERROR, null);
         }
     }
 
@@ -348,13 +352,13 @@ public class ComputeRunService {
         run.setStateReason(reason);
         run.setState(ComputeRunStates.CANCELING);
         computeRunRepository.save(run);
-        engine(connection).terminate(run, false);
+        engine(connection).terminate(run, connection, false);
         log.info("run {} canceling: {}", run.getId(), reason);
     }
 
     // the run's final state: its token stops working, any task it left behind is cancelled, and the run directory keeps
     // only outputs and logs
-    private void finish(ComputeRun run, WorkflowEngine engine, String state, Integer exitCode) {
+    private void finish(ComputeRun run, ComputeConfig.Connection connection, String state, Integer exitCode) {
         run.setState(state);
         run.setExitCode(exitCode);
         run.setTokenHash(null);
@@ -367,7 +371,7 @@ public class ComputeRunService {
                 run.getStateReason() == null ? "" : ": " + run.getStateReason());
 
         tesTaskService.cancelRunTasks(run.getId());
-        engine.cleanUp(run);
+        engine(connection).cleanUp(run, connection);
     }
 
     private int maxDurationSeconds(ComputePlatform platform, ComputeConfig.Connection connection) {

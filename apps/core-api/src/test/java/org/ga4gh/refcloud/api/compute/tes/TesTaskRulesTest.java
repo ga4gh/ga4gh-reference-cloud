@@ -60,6 +60,8 @@ public class TesTaskRulesTest {
             {"{\"executors\":[{\"command\":[\"x\"]}]}", "needs an image"},
             {"{\"executors\":[{\"image\":\"ubuntu\"}]}", "needs a command"},
             {withExecutor(",\"tags\":{\"refcloud_user\":\"x\"}"), "reserved"},
+            // funnel acts on its "_" tags (e.g. deleting the service account _WORKER_SA names)
+            {withExecutor(",\"tags\":{\"_WORKER_SA\":\"funnel-worker\"}"), "reserved for the executor"},
             {withExecutor(",\"tags\":[\"x\"]"), "tags must be an object"},
             {withExecutor(",\"inputs\":[{\"path\":\"/in\"}]"), "needs a url"},
         };

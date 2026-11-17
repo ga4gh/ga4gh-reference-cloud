@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Static analysis for the local deployment context (deploy/local, including its Dockerfiles) and the app Dockerfiles
-# (apps/**/Dockerfile).
+# Static analysis for the local deployment context (deploy/local, including its Dockerfiles), the app Dockerfiles
+# (apps/**/Dockerfile) and the compute images (compute/images/**/Dockerfile, e.g. the Nextflow image).
 # Every tool runs from a pinned docker image (version + digest), so the only requirement is Docker, and
 # local runs match CI (.github/workflows/static-analysis-deploy-local.yml), which calls this script.
 #
@@ -54,9 +54,9 @@ log_error() {
   echo "[ERROR] $1" >&2
 }
 
-# app and deploy/local Dockerfiles, relative to the repo root (dependency directories excluded)
+# app, compute image and deploy/local Dockerfiles, relative to the repo root (dependency directories excluded)
 list_dockerfiles() {
-  find apps deploy/local -name Dockerfile -not -path '*/node_modules/*' -not -path '*/.venv/*' | sort
+  find apps compute/images deploy/local -name Dockerfile -not -path '*/node_modules/*' -not -path '*/.venv/*' | sort
 }
 
 # trivy, with the repo mounted read-only at /repo and a persistent cache
@@ -100,6 +100,10 @@ check_trivy_config() {
     --misconfig-scanners dockerfile --ignorefile /repo/.trivyignore \
     --skip-dirs '**/node_modules' --skip-dirs '**/.venv' --skip-dirs '**/build' \
     /repo/apps || status=1
+  # the compute images ship like the apps, under the same rules
+  trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL \
+    --misconfig-scanners dockerfile --ignorefile /repo/.trivyignore \
+    /repo/compute/images || status=1
   # deploy/local has its own ignores (local development only), so the apps' rules stay as strict as they are
   trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL \
     --misconfig-scanners dockerfile --ignorefile /repo/deploy/local/.trivyignore \

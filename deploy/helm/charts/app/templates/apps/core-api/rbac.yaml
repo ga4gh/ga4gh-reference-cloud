@@ -1,0 +1,41 @@
+# core-api's own ServiceAccount (it used the namespace's default one before compute needed kubernetes access)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: refcloud-api
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+---
+# what the Kubernetes engine (NextflowKubernetesEngine) does in the compute namespace: one Job per run, with the run's
+# TES token in a Secret; following the Job's pod; deleting the pod to stop a run at once. Nothing else, and nowhere
+# else: no pod logs (the launcher writes them into the run directory), no exec
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: refcloud-api
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: refcloud-api
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: refcloud-api
+subjects:
+  - kind: ServiceAccount
+    name: refcloud-api
+    namespace: {{ .Release.Namespace }}
+{{- end }}

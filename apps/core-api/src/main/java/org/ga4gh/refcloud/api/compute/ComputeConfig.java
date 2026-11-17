@@ -33,13 +33,67 @@ public record ComputeConfig(
             @NotNull @Valid Engine engine,
             @NotNull @Valid Executor executor,
             @NotNull @Valid Storage storage,
-            @NotNull @Valid Limits limits) {}
+            @NotNull @Valid Limits limits) {
 
-    // stage 1 has only nextflow engines
+        // each platform type needs its own engine settings (see Engine)
+        @AssertTrue(
+                message = "engine settings don't match the type: nextflow-funnel-docker needs nextflow-executable;"
+                        + " nextflow-funnel-kubernetes needs image and namespace (and no nextflow-executable)")
+        public boolean isEngineValidForType() {
+            if (type == null || engine == null) {
+                return true; // reported by @NotNull
+            }
+            return switch (type) {
+                case NEXTFLOW_FUNNEL_DOCKER -> isSet(engine.nextflowExecutable());
+                case NEXTFLOW_FUNNEL_KUBERNETES ->
+                    !isSet(engine.nextflowExecutable()) && isSet(engine.image()) && isSet(engine.namespace());
+            };
+        }
+
+        private static boolean isSet(String value) {
+            return value != null && !value.isBlank();
+        }
+    }
+
+    // nextflow engines. the versions are pinned for every type. nextflow-funnel-docker runs nextflowExecutable on the
+    // host; nextflow-funnel-kubernetes runs a Job per run from image, in namespace (where the connection's task Jobs
+    // run too), sized by cpuCores and memoryGb (defaults: 1 core, 1 GB)
     public record Engine(
-            @NotBlank String nextflowExecutable,
+            String nextflowExecutable,
             @NotBlank String nextflowVersion,
-            @NotBlank String nfGa4ghVersion) {}
+            @NotBlank String nfGa4ghVersion,
+            String image,
+            ImagePullPolicy imagePullPolicy,
+            @Pattern(regexp = KUBERNETES_NAME_PATTERN) String namespace,
+            @Positive Integer cpuCores,
+            @Positive BigDecimal memoryGb) {
+
+        public Engine {
+            imagePullPolicy = imagePullPolicy == null ? ImagePullPolicy.IF_NOT_PRESENT : imagePullPolicy;
+            cpuCores = cpuCores == null ? Integer.valueOf(1) : cpuCores;
+            memoryGb = memoryGb == null ? BigDecimal.ONE : memoryGb;
+        }
+    }
+
+    // a kubernetes namespace name (DNS label)
+    public static final String KUBERNETES_NAME_PATTERN = "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$";
+
+    // kubernetes imagePullPolicy values, written in kebab-case in the connections file (if-not-present, always, never)
+    public enum ImagePullPolicy {
+        IF_NOT_PRESENT("IfNotPresent"),
+        ALWAYS("Always"),
+        NEVER("Never");
+
+        private final String kubernetesValue;
+
+        ImagePullPolicy(String kubernetesValue) {
+            this.kubernetesValue = kubernetesValue;
+        }
+
+        public String kubernetesValue() {
+            return kubernetesValue;
+        }
+    }
 
     // credentialEnv names the environment variable holding the executor's credential; the credential itself is
     // never in the connections file. null when the executor has no auth (e.g. local funnel)

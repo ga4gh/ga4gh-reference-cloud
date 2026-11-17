@@ -44,23 +44,33 @@ check_k8s_secrets_exist() {
 
 build_images() {
   local tag=$1
-  local entry repository context log_file
+  local entry repository context dockerfile log_file
 
   mkdir -p "$BUILD_LOG_DIR"
 
   for entry in "${REFCLOUD_IMAGES[@]}"; do
+    # "<repository>:<context>:<Dockerfile, relative to the context>"
     repository=${entry%%:*}
-    context=${entry#*:}
+    context=${${entry#*:}%%:*}
+    dockerfile=${entry##*:}
     log_file="$BUILD_LOG_DIR/$repository.log"
 
-    log_info "building image '$repository:$tag' from '$context' into minikube"
-    minikube image build -t "$repository:$tag" "$context" > "$log_file" 2>&1 \
+    log_info "building image '$repository:$tag' from '$context/$dockerfile' into minikube"
+    minikube image build -t "$repository:$tag" -f "$dockerfile" "$context" > "$log_file" 2>&1 \
       || { log_error "failed to build image '$repository:$tag', see '$log_file'"; exit 1; }
 
     # 'minikube image build' can exit 0 when the build fails, so confirm the image exists
     minikube image ls 2>/dev/null | grep -qx "docker.io/library/$repository:$tag" \
       || { log_error "image '$repository:$tag' was not built, see '$log_file'"; exit 1; }
   done
+}
+
+# compute run storage on the minikube node, owned by the user core-api and the compute pods run as. the chart mounts it
+# as a hostPath that must already exist: a directory kubernetes created would be root's, and unwritable by them
+prepare_compute_storage() {
+  log_info "preparing compute storage '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
+  minikube ssh -- sudo install -d -o "$COMPUTE_USER_ID" -g "$COMPUTE_USER_ID" -m 0750 "$MINIKUBE_COMPUTE_STORAGE_ROOT" > /dev/null \
+    || { log_error "failed to create '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"; exit 1; }
 }
 
 deploy_release() {
@@ -123,6 +133,7 @@ IMAGE_TAG=$(refcloud_image_tag)
 log_info "using lockstep image tag '$IMAGE_TAG'"
 
 build_images "$IMAGE_TAG"
+prepare_compute_storage
 deploy_release "$IMAGE_TAG"
 
 print_service_urls

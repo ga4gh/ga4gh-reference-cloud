@@ -17,6 +17,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeHealthConfig;
+import org.ga4gh.refcloud.api.compute.engine.NextflowKubernetesEngine;
+import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesClient;
+import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesPermission;
 import org.springframework.stereotype.Component;
 
 // the checks behind a connection's health (D10). a connection is healthy only if every check passes; each failed
@@ -29,10 +32,13 @@ public class ConnectionChecker {
 
     private final ComputeHealthConfig healthConfig;
 
+    private final KubernetesClient kubernetes;
+
     private final HttpClient httpClient;
 
-    public ConnectionChecker(ComputeHealthConfig healthConfig) {
+    public ConnectionChecker(ComputeHealthConfig healthConfig, KubernetesClient kubernetes) {
         this.healthConfig = healthConfig;
+        this.kubernetes = kubernetes;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(healthConfig.executorTimeout())
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -43,7 +49,11 @@ public class ConnectionChecker {
     public List<String> check(ComputeConfig.Connection connection, Path storageRoot) {
         List<String> failures = new ArrayList<>();
         checkExecutor(connection.executor()).ifPresent(failures::add);
-        checkEngine(connection.engine()).ifPresent(failures::add);
+        Optional<String> engineFailure = switch (connection.type()) {
+            case NEXTFLOW_FUNNEL_DOCKER -> checkEngine(connection.engine());
+            case NEXTFLOW_FUNNEL_KUBERNETES -> checkKubernetesEngine(connection.engine());
+        };
+        engineFailure.ifPresent(failures::add);
         checkStorage(storageRoot).ifPresent(failures::add);
         return failures;
     }
@@ -121,6 +131,27 @@ public class ConnectionChecker {
         } finally {
             deleteQuietly(output);
         }
+    }
+
+    // core-api may do everything the kubernetes engine does in the connection's namespace. a missing namespace, Role
+    // or RoleBinding shows here (as permissions denied), instead of failing the first run. the image itself can't be
+    // checked without the registry: a run whose image can't be pulled ends SYSTEM_ERROR with that reason
+    Optional<String> checkKubernetesEngine(ComputeConfig.Engine engine) {
+        List<String> denied = new ArrayList<>();
+        try {
+            for (KubernetesPermission permission : NextflowKubernetesEngine.REQUIRED_PERMISSIONS) {
+                if (!kubernetes.isAllowed(engine.namespace(), permission)) {
+                    denied.add(permission.describe());
+                }
+            }
+        } catch (IOException exception) {
+            return Optional.of("the kubernetes API could not be asked about namespace " + engine.namespace() + ": "
+                    + describe(exception));
+        }
+        return denied.isEmpty()
+                ? Optional.empty()
+                : Optional.of("core-api may not " + String.join(", ", denied) + " in namespace " + engine.namespace()
+                        + " (does the namespace exist, with core-api's Role and RoleBinding?)");
     }
 
     // a file can be created in the storage root. a missing root is unhealthy, not created: setup creates it

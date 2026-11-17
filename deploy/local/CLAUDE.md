@@ -33,8 +33,8 @@ All checks run through `./scripts/refcloud-static-analysis-deploy-local.sh` from
 * Run all blocking checks: `./scripts/refcloud-static-analysis-deploy-local.sh`
 * Validate the compose file: `./scripts/refcloud-static-analysis-deploy-local.sh compose`
 * Validate and format-check the Caddyfile: `./scripts/refcloud-static-analysis-deploy-local.sh caddy` (fix formatting with `caddy fmt --overwrite deploy/local/Caddyfile`)
-* Lint all app and `deploy/local` Dockerfiles (hadolint, config `.hadolint.yaml`): `./scripts/refcloud-static-analysis-deploy-local.sh hadolint`
-* Scan all app and `deploy/local` Dockerfiles for security misconfigurations (Trivy, HIGH/CRITICAL, ignores in `/.trivyignore` for the apps and `deploy/local/.trivyignore` for this directory): `./scripts/refcloud-static-analysis-deploy-local.sh trivy-config`
+* Lint all app, compute image (`compute/images/`) and `deploy/local` Dockerfiles (hadolint, config `.hadolint.yaml`): `./scripts/refcloud-static-analysis-deploy-local.sh hadolint`
+* Scan all app, compute image and `deploy/local` Dockerfiles for security misconfigurations (Trivy, HIGH/CRITICAL, ignores in `/.trivyignore` for the apps and compute images, and `deploy/local/.trivyignore` for this directory): `./scripts/refcloud-static-analysis-deploy-local.sh trivy-config`
 * Scan images for CVEs (non-blocking report: compose images plus each Dockerfile's final base image): `./scripts/refcloud-static-analysis-deploy-local.sh images`
 * The CVE scan runs weekly in CI and uploads results to the GitHub Security tab (code scanning); it never fails a build, since findings come from upstream images.
 * Every ignored hadolint rule (`.hadolint.yaml`) or Trivy finding (`.trivyignore`) needs a reason. Bump a tool by changing its version and digest together in the script.

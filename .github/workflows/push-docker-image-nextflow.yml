@@ -1,0 +1,23 @@
+name: Push Docker Image - Nextflow (compute)
+on:
+  push:
+    branches:
+      - develop
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-push:
+    uses: ./.github/workflows/push-docker-image.yml
+    with:
+      # the Nextflow image for nextflow-funnel-kubernetes platforms (spec 0011). its ECR repository is created with
+      # the production infrastructure (Terraform)
+      app-path: compute/images/nextflow
+      docker-repo: refcloud-nextflow
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}

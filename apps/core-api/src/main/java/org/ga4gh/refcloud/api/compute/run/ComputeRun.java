@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -70,9 +71,13 @@ public class ComputeRun {
     // sha-256 of the run-scoped TES token, set while the run is active
     private String tokenHash;
 
+    // a host engine's pid (nextflow-funnel-docker)
     private Long enginePid;
 
-    // the engine process's start time, so a reused pid is never mistaken for the run's engine
+    // a kubernetes engine's Job uid (nextflow-funnel-kubernetes); its name derives from the run id
+    private UUID engineJobUid;
+
+    // the engine process's start time (a reused pid is never mistaken for the run's engine), or its Job's creation time
     private Instant engineStartedAt;
 
     private Integer exitCode;
