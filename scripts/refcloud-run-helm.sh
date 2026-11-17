@@ -73,6 +73,20 @@ prepare_compute_storage() {
     || { log_error "failed to create '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"; exit 1; }
 }
 
+# core-api's Deployment now uses the Recreate strategy (spec 0011, Task 8). A Deployment created with rolling updates
+# keeps the default rollingUpdate settings Kubernetes filled in, which nothing owns, so Helm's server-side apply can't
+# remove them and the change is refused as invalid. Replace the whole strategy once; it doesn't restart anything, and
+# does nothing once the Deployment is switched
+switch_core_api_to_recreate() {
+  local strategy=$(kubectl_local get deployment refcloud-api -o jsonpath='{.spec.strategy.type}' 2>/dev/null)
+  if [[ -n "$strategy" && "$strategy" != "Recreate" ]]; then
+    log_info "switching deployment 'refcloud-api' to the Recreate strategy (once)"
+    kubectl_local patch deployment refcloud-api --type=json \
+      -p '[{"op":"replace","path":"/spec/strategy","value":{"type":"Recreate"}}]' > /dev/null \
+      || { log_error "failed to switch deployment 'refcloud-api' to the Recreate strategy"; exit 1; }
+  fi
+}
+
 deploy_release() {
   local tag=$1
 
@@ -135,6 +149,7 @@ log_info "using lockstep image tag '$IMAGE_TAG'"
 
 build_images "$IMAGE_TAG"
 prepare_compute_storage
+switch_core_api_to_recreate
 deploy_release "$IMAGE_TAG"
 init_kubernetes_compute_platform
 

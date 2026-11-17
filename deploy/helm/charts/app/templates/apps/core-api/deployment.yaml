@@ -7,6 +7,11 @@ spec:
     matchLabels:
       app.kubernetes.io/name: refcloud-api
   replicas: 1
+  # never two core-apis at once, even during a deploy or restart: compute serializes its work (launching runs,
+  # preparing their inputs, admitting tasks against pooled limits) with in-process locks, which two instances would
+  # each hold separately (spec 0011, Task 8). the cost is a short gap with no API while the new pod starts
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
