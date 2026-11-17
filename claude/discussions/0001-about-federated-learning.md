@@ -174,7 +174,7 @@ Each refcloud is its own Passport broker today (its own Kratos and Hydra):
 
 * NVFlare's site-side authorization: refusing code sent by the server, and restricting who may submit jobs. Flower's equivalent.
 * Running a framework client as one long TES task (via a one-process workflow), within a platform's limits.
-* Outgoing-traffic allowlists in minikube (Calico, `ipBlock`) and on EKS Auto Mode (domain-name filtering).
+* Outgoing-traffic allowlists in minikube (Calico, `ipBlock`): ✅ verified 2026-11-17 (spec 0011, Task 6: `ga4gh.referenceCloud.compute.outgoingAllowlist`). On EKS Auto Mode (domain-name filtering): still to verify.
 
 ## Next Step
 

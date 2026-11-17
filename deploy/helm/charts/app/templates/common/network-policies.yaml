@@ -15,7 +15,8 @@ isn't restricted.
   refcloud-admin-cli          nothing
 
 A new in-cluster caller (e.g. a new internal URL in a deployment or config map) needs a rule here, or its requests
-time out.
+time out. The compute namespace's policies, which deny all traffic in and out by default, are in
+compute-network-policies.yaml.
 */ -}}
 {{- if .Values.networkPolicy.enabled }}
 {{- $ingressFrom := .Values.networkPolicy.ingressFrom }}

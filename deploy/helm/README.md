@@ -62,6 +62,29 @@ kubectl run np-check --rm -it --restart=Never --image=busybox:1.37 -- wget -T 5 
 # times out: blocked (from the researcher UI's pod it would answer)
 ```
 
+**The compute namespace** (`refcloud-compute`, `charts/app/templates/common/compute-network-policies.yaml`) denies everything, in and out, then allows only what the compute stack needs:
+
+* Funnel's TES API accepts core-api only; its RPC port accepts its workers only;
+* Funnel and its workers reach the Kubernetes API and DNS; workers also reach Funnel;
+* each run's Nextflow Job reaches core-api's port 8080 and nothing else, not even DNS (core-api gives it its own address rather than its name);
+* the task containers (Funnel's executors) reach nothing.
+
+So workflow code can't send data out of the cluster, including through DNS lookups. To let a platform's workflows reach specific destinations (e.g. a federated-learning server), list them in `ga4gh.referenceCloud.compute.outgoingAllowlist`, as NetworkPolicy egress rules:
+
+```yaml
+# charts/app/values.yaml, then ./scripts/refcloud-run-helm.sh
+ga4gh:
+  referenceCloud:
+    compute:
+      outgoingAllowlist:
+        - to: [{ipBlock: {cidr: 203.0.113.10/32}}]
+          ports: [{protocol: TCP, port: 443}]
+```
+
+The Nextflow Jobs and task containers then reach those destinations, and DNS. Locally, destinations are IP ranges (Calico doesn't filter by name).
+
+The namespace also has a ResourceQuota and a LimitRange, computed from the local connection's limits. Every pod there must set CPU and memory requests and limits (the LimitRange gives defaults to pods that don't).
+
 ### Teardown
 
 ```sh

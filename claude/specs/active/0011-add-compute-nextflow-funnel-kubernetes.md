@@ -335,6 +335,29 @@ Done 2026-11-17:
 
 **Decisions (Task 6):**
 
+Agreed before starting (2026-11-17): workflow pods get no DNS unless their connection's allowlist is non-empty, with core-api giving Nextflow its own address; the allowlist covers workflow pods only; the Kubernetes API by its looked-up endpoint; a LimitRange with defaults and a per-container maximum.
+
+Done 2026-11-17:
+* **Already in place from Tasks 3–5:** the per-release namespace with its Pod Security labels; no service account tokens on the Nextflow and executor pods; the ResourceQuota; core-api's policy accepting the Nextflow Jobs.
+* **No DNS for workflow pods:** DNS lookups of made-up names can carry data out through kube-dns, which forwards them to the internet. `NextflowKubernetesEngine` resolves core-api's name itself (its Service address) and gives the Job `http://<address>:8080/ga4gh/tes/...`; Funnel's executors need no names.
+* **NetworkPolicies** (`templates/common/compute-network-policies.yaml`, local only, with a table in its header): `default-deny` (every pod, in and out), then by `app.kubernetes.io/name`:
+  * `funnel`: in on 8000 from core-api's pods (release namespace) and on 9090 from workers; out to the Kubernetes API and DNS;
+  * `funnel-worker`: out to Funnel's 9090, the Kubernetes API and DNS;
+  * `refcloud-nextflow`: out to core-api's pods on 8080;
+  * `funnel-executor`, and anything else: nothing.
+* **The Kubernetes API** in policies is the API server's own address and port (policies see traffic after the Service's translation): the chart looks up the `kubernetes` Service's EndpointSlices when deployed (`192.168.49.2:8443` in minikube). `helm template` can't look anything up, so it renders no API rule; a deploy that reaches a cluster but finds no endpoints fails.
+* **The outbound allowlist:** `ga4gh.referenceCloud.compute.outgoingAllowlist`, a list of NetworkPolicy egress rules, empty by default. When set, a `workflow-outgoing-allowlist` policy gives the Nextflow Jobs and executors those destinations and DNS. It's per installation, which is per connection here (one compute namespace each).
+* **LimitRange** (`templates/common/compute-limit-range.yaml`): defaults (requests 50m and 64Mi, limits 250m and 128Mi) for containers that set none, and a maximum per container of the largest the local connection allows (1 CPU, 1 GB today).
+* **Path-level access to core-api** isn't a network matter: policies stop at ports, and core-api serves every API on 8080. The run token is what limits a Nextflow Job to its own run's TES endpoints.
+* **Verified in minikube** with stand-in pods labelled as each component (busybox, `nc` and `nslookup`), against core-api, Kratos and Hydra (public and admin), Postgres on the host, Funnel (TES and RPC), the Kubernetes API, the internet (1.1.1.1:443) and DNS:
+  * Nextflow: core-api only; executor and unlabelled pods: nothing; worker: Funnel's RPC, the Kubernetes API and DNS only;
+  * Funnel's TES API: core-api yes, a pod in the release namespace no;
+  * controls: an unrestricted pod reached the internet and Postgres, and the researcher UI reached Kratos, so the blocks are real;
+  * with 1.1.1.1:443 allowlisted, the Nextflow and executor stand-ins reached it and DNS, but not 8.8.8.8:443, and the worker didn't change; removing it closed both again;
+  * a real Funnel task (as in Task 3) ran under the policies and cleaned up, with no new errors;
+  * rendered as `org-a` and `org-b`, the cluster-scoped names (namespace, ClusterRole, ClusterRoleBinding) and storage paths are all per release. Funnel's per-task volumes are named by its task IDs and deleted by namespace label. Two installations in one minikube would still each need their own `baseURL` (ingress host).
+* Tests: 253.
+
 ### Task 7: Setup, the run script and the demo platform
 
 * **Minikube's size,** if Task 1 says to change it: `start_minikube` sets it, and older clusters get recreate instructions, as for Calico.

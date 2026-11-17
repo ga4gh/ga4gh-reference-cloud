@@ -38,3 +38,34 @@ Funnel worker plus an executor with the task's resources.
         "max-run-inputs-gb" 10) }}
 {{- toYaml $local }}
 {{- end -}}
+
+{{/*
+Egress rules for the compute namespace's NetworkPolicies (templates/common/compute-network-policies.yaml), as YAML
+list items. The Kubernetes API rule renders nothing without peers (helm template).
+Usage: {{- include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPeers "ports" $apiPorts) | nindent 4 }}
+*/}}
+{{- define "refcloud.computeEgressToKubernetesApi" -}}
+{{- if .peers }}
+# the Kubernetes API server
+- to:
+    {{- toYaml .peers | nindent 4 }}
+  ports:
+    {{- toYaml .ports | nindent 4 }}
+{{- end }}
+{{- end -}}
+
+{{- define "refcloud.computeEgressToDns" -}}
+# DNS (kube-dns)
+- to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+{{- end -}}
