@@ -6,7 +6,12 @@ The reference cloud can run **workflows** for researchers, next to its data, thr
 * the **Task Execution Service (TES)**, where each step of a workflow runs as a containerized task.
 
 :::note Available when you run the reference cloud locally
-Compute is currently available when you run the reference cloud on your own machine in **native mode**: see `deploy/local/README.md` in the [repository](https://github.com/ga4gh/ga4gh-reference-cloud). The hosted instance at https://refcloud.ga4gh.org doesn't offer compute yet.
+Compute is currently available when you run the reference cloud on your own machine, in either local mode (see the [repository](https://github.com/ga4gh/ga4gh-reference-cloud)):
+
+* **native mode** (`deploy/local/README.md`), with the `nextflow-demo` platform;
+* **helm mode**, in a local Kubernetes cluster (`deploy/helm/README.md`), with the `nextflow-demo-kubernetes` platform.
+
+The hosted instance at https://refcloud.ga4gh.org doesn't offer compute yet.
 :::
 
 ## How It Works
@@ -14,7 +19,7 @@ Compute is currently available when you run the reference cloud on your own mach
 A **Compute Platform** is a place where workflows can run. Each one has its own WES and TES APIs, and its own limits and access control. You submit a run to a platform's WES API. The workflow engine reads the workflow and sends each of its steps to the platform's TES API as a task, and a task executor runs each task in a container:
 
 ```
-you → refcloud WES → workflow engine (Nextflow) → refcloud TES → task executor (Funnel) → containers (Docker)
+you → refcloud WES → workflow engine (Nextflow) → refcloud TES → task executor (Funnel) → containers (Docker, or Kubernetes)
 ```
 
 * **Access:** every compute platform is gated by a Passport visa, which you request the same way you request access to a dataset. See [Accessing Compute Platforms](./access).
@@ -46,7 +51,9 @@ A platform type is a stack the reference cloud supports, named after its layers:
 | Platform type | Key | Versions | Status |
 |---|---|---|---|
 | **Nextflow + Funnel (Docker)** | `nextflow-funnel-docker` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin; Funnel 0.11.14 | Available in local native mode, on any single machine with Docker |
-| **Nextflow + Funnel (Kubernetes)** | `nextflow-funnel-kubernetes` | | Planned |
+| **Nextflow + Funnel (Kubernetes)** | `nextflow-funnel-kubernetes` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin; Funnel 0.11.14 | Available in local helm mode (a local Kubernetes cluster). Each run's Nextflow and each task run as Kubernetes Jobs, isolated from the internet |
+
+On the Kubernetes platform type, workflows run **without internet access**: neither Nextflow nor the tasks can reach anything outside the cluster, so data a run reads can't be sent out. Inputs come from the reference cloud's DRS objects, as on every platform, and container images still load. Workflows that download Nextflow plugins or files while they run don't work there (see [Workflow Compatibility](#workflow-compatibility)).
 
 ## Non-Standard Extensions
 
@@ -73,6 +80,13 @@ WES has no way to download a run's files, so the reference cloud adds a download
 ## Workflow Compatibility
 
 Which workflows are known to work on each platform type. An admin should only allowlist workflows known to work.
+
+**Nextflow + Funnel (Kubernetes):**
+
+| Workflow | Version | Works? | Notes |
+|---|---|---|---|
+| `drs-checksum` (bundled demo) | 1.0.0 | ✅ | See [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes) |
+| [nf-core/demo](https://github.com/nf-core/demo) | 1.0.2 | ❌ | Its `test` profile downloads a Nextflow plugin and its test data while it runs, and this platform type has no internet access |
 
 **Nextflow + Funnel (Docker):**
 

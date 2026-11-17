@@ -3,7 +3,7 @@
 Every compute platform's WES and TES APIs need two things from you: an **approved visa** for the platform, and a **passport token** to send with each request. This page shows how to get both. Each platform's WES `service-info` points here (`auth_instructions_url`).
 
 :::note Available when you run the reference cloud locally
-Compute is currently available when you run the reference cloud on your own machine in native mode. The steps below use the local researcher UI at https://refcloud.ga4gh.localhost. See the [Compute Overview](./compute-overview).
+Compute is currently available when you run the reference cloud on your own machine, in either local mode: native mode has the **Nextflow Demo** platform (`nextflow-demo`), and helm mode **Nextflow Demo (Kubernetes)** (`nextflow-demo-kubernetes`). Both modes share their databases, so both platforms are listed, and the other mode's shows as unavailable. Each has its own visa. The steps below use the local researcher UI at https://refcloud.ga4gh.localhost. See the [Compute Overview](./compute-overview).
 :::
 
 ## 1. Request Access to a Compute Platform
@@ -19,12 +19,14 @@ Log in to the researcher UI (see [Registration and Login](../getting-started/reg
 
 Click **Request Access** on the platform you want to use. Your access status becomes **Requested** until an admin approves it, and then **Approved**. This works the same way as [requesting access to a dataset](../getting-started/requesting-access-to-datasets): approval gives you the platform's visa, `ga4gh_visa:compute_platform:<platform id>`.
 
-When you run the reference cloud locally, you're the admin. Approve requests with the admin CLI, in `apps/admin-cli`:
+When you run the reference cloud locally, you're the admin. Approve requests with the admin CLI. In native mode, run it in `apps/admin-cli`:
 
 ```bash
 uv run refcloud visa list-requests
 uv run refcloud visa approve -u <user id> -v ga4gh_visa:compute_platform:<platform id>
 ```
+
+In helm mode, run it in its pod: `kubectl exec deploy/refcloud-admin-cli -- refcloud visa list-requests`, and the same for `approve`.
 
 ## 2. Request Access to Your Input Data
 

@@ -29,7 +29,13 @@ Bring production (https://refcloud.ga4gh.org, on EKS Auto Mode) up to date in **
   * **Kratos upgraded to `v26.2.0`**, in step with Hydra, with one-step registration;
   * Kratos logs at `info`.
 * **The year-end compute work, as it lands** ([milestones](../../../docs/milestones/2026-12-18-Compute-Milestones.md)):
-  * stage 2 (Nextflow + Funnel on Kubernetes);
+  * stage 2 (Nextflow + Funnel on Kubernetes, [spec 0011](0011-add-compute-nextflow-funnel-kubernetes.md)). Its compute namespace, Funnel and demo platform are **local only** (their storage is a `hostPath` on the minikube node), so production gets none of them; the AWS platform adds its own. What does reach production:
+    * core-api runs as its own ServiceAccount (`refcloud-api`) instead of the namespace's default, and with the **`Recreate` strategy**: every deploy or restart has a short gap (about 40 seconds) with no API, never two core-apis at once;
+    * a Liquibase migration adds `compute_run.engine_job_uid` (nullable, with a check that a run has at most one engine identity; it has a rollback);
+    * the compute connections file is mounted into core-api and the admin CLI; production's is empty (compute off) unless the AWS platform ships;
+    * the core-api and admin CLI images build from the repo root (they bundle `compute/workflows/`), and core-api's includes `git`. CI's image workflow takes a Dockerfile path for them;
+    * a new image, `refcloud-nextflow`, pushed by `push-docker-image-nextflow.yml` to an ECR repository of the same name (Task 2);
+    * core-api's TES API refuses tag keys starting with `_` (Funnel acts on them);
   * stage 3 (MinIO/S3 storage);
   * the compute platform on AWS (EKS);
   * the researcher UI's My Runs page;
@@ -68,6 +74,7 @@ Cluster-wide changes, in the Terraform repo, prepared ahead and applied as part 
   * an Auto Mode NodePool for task pods, with limits on instance types and total capacity;
   * a budget with alarms.
 * **Logs:** check where the cluster's pod logs go and how long they're kept, and set a retention period.
+* **The `refcloud-nextflow` ECR repository** (spec 0011), like the other images' repositories. Until it exists, CI's `push-docker-image-nextflow.yml` fails on `develop`. Production runs no Nextflow Jobs until the AWS platform ships, but the release tag's images should all be in ECR.
 
 **Decisions (Task 2):**
 
@@ -100,7 +107,16 @@ In the private values repo:
 ### Task 5: Deploy
 
 * Apply Task 2's Terraform changes. Policy enforcement has no effect on the refcloud until its policies exist.
-* `helm upgrade` with the release tag and the production values. The pre-upgrade hooks run the migrations first (Liquibase, Kratos `v26.2.0`, Hydra); watch them finish.
+* `helm upgrade` with the release tag and the production values. The pre-upgrade hooks run the migrations first (Liquibase, Kratos `v26.2.0`, Hydra); watch them finish. core-api's old pod stops before its new one starts (`Recreate`), so the API is down until the new pod is ready.
+* **Before `helm upgrade`, switch core-api's Deployment to `Recreate` once** (spec 0011, Task 8). Production's Deployment was created with rolling updates, and Kubernetes filled in their default settings, which Helm's server-side apply can't remove, so the upgrade would be refused as invalid. Replacing the whole strategy restarts nothing:
+
+  ```bash
+  kubectl -n <namespace> patch deployment refcloud-api --type=json \
+    -p '[{"op":"replace","path":"/spec/strategy","value":{"type":"Recreate"}}]'
+  ```
+
+  (`scripts/refcloud-run-helm.sh` does the same locally.)
+* Helm 4 applies changes server-side: if anything in the release was changed by hand with `kubectl`, the upgrade refuses to overwrite it (a conflict). Check what changed and why before using `--force-conflicts`.
 * Wait for every deployment to be ready.
 
 **Decisions (Task 5):**

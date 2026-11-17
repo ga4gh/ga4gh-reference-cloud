@@ -401,6 +401,29 @@ Done 2026-11-17:
 
 **Decisions (Task 8):**
 
+Agreed before starting (2026-11-17): core-api uses the `Recreate` strategy; the restart test records the outcome against D23 (released nf-ga4gh 1.5.0); the user's end-to-end test starts from `./scripts/refcloud-setup.sh --reset`.
+
+Done 2026-11-17:
+* **core-api never runs twice at once:** `strategy: Recreate`, since compute's in-process locks (spec 0008: "several replicas would need a database lock") would let two instances launch a run twice, prepare its inputs twice, or admit tasks past the pooled limits during a rolling update. Database locks are a Future Direction.
+  * **Switching an existing Deployment** fails under Helm's server-side apply: Kubernetes filled in default `rollingUpdate` settings when it created the Deployment, nothing owns them, so the apply can't remove them (an explicit `rollingUpdate: null` doesn't help either, verified with a server-side dry run). `refcloud-run-helm.sh` replaces the whole strategy once with `kubectl patch` (`switch_core_api_to_recreate`; no restart, a no-op afterwards), and spec 0010's Task 5 has the same one-time step for production.
+  * Verified: a restart had one core-api pod at every moment (the old one terminating alone, then the new one), with about 6 seconds without the API.
+* **Docs site:** the platform types table lists Nextflow + Funnel (Kubernetes) as available in local helm mode, with a note on running without internet access; a compatibility table for it (`drs-checksum` ✅, nf-core/demo ❌); both local modes in the overview, access and WES demo pages (the demo's URLs use `nextflow-demo`, with a note to use `nextflow-demo-kubernetes` in helm mode); helm mode's admin CLI command. The site's format, lint, type checks and build pass.
+* **Production notes** in [spec 0010](0010-production-rollout.md): what stage 2 changes in production (core-api's ServiceAccount and `Recreate`, the `engine_job_uid` migration, the mounted connections file, the images built from the repo root, the `refcloud-nextflow` image and its ECR repository, TES refusing `_` tags), the one-time strategy switch, and Helm's server-side conflicts.
+* **Checks:** core-api (253 tests, `staticAnalysis`), the admin CLI, the chart, `deploy/local` and the Dockerfiles, the workflows, and the docs site all pass; Task 6's isolation checks passed again against this deploy.
+
+**The user's end-to-end tests** (saved for the end of the spec; record results below):
+1. **Fresh setup:** `./scripts/refcloud-setup.sh --reset`. Expect it to also delete `/data/refcloud-compute/refcloud` on the minikube node and any leftover Funnel volumes. (The spike's `/data/refcloud-spike` isn't touched: `minikube ssh -- sudo rm -rf /data/refcloud-spike`.)
+2. **Run helm mode:** `./scripts/refcloud-run-helm.sh`. Expect six images (including `refcloud-nextflow`), the registration of `nextflow-demo-kubernetes`, and only its WES and TES endpoints under Compute Platforms.
+3. **Access:** in the researcher UI, register; request **1000 Genomes** and **Nextflow Demo (Kubernetes)**; approve both with `kubectl exec deploy/refcloud-admin-cli -- refcloud visa ...` (`deploy/helm/README.md`, Compute).
+4. **The demo:** `./scripts/refcloud-compute-demo.sh <token>` (no `-p`, no CA variable). Expect it to pick `nextflow-demo-kubernetes`, the run to go `QUEUED` → `RUNNING` → `COMPLETE`, the report to download, and its MD5 to match DRS. Meanwhile, `kubectl -n refcloud-compute get jobs,pods -w` shows the run's `nextflow-<run id>` Job and its task's Funnel worker and executor Jobs.
+5. **Cancel:** submit a run (the WES demo page's `POST /runs`), cancel it while `RUNNING` (`POST /runs/<run id>/cancel`). Expect `CANCELED`, its Job and token Secret gone (`kubectl -n refcloud-compute get jobs,secrets`), and its task cancelled.
+6. **Restart (D23):** submit a run, and while it's `RUNNING`, `kubectl rollout restart deployment/refcloud-api`. Expect the new core-api to follow the run to its end. With nf-ga4gh 1.5.0 the likely end is `SYSTEM_ERROR`, "the workflow engine lost contact with the refcloud TES", rather than `EXECUTOR_ERROR`; if Nextflow didn't poll during the few seconds without the API, `COMPLETE`. Either shows reattachment; record which.
+7. **Native mode still works:** stop the tunnel, `./scripts/refcloud-run-native.sh` (expect only `nextflow-demo` listed), request and approve **Nextflow Demo** (`uv run refcloud visa approve ...` in `apps/admin-cli`), and run `./scripts/refcloud-compute-demo.sh <token>` (it picks `nextflow-demo`).
+8. **Optional:** the docs site's compute pages (`npm run start` in `apps/docs`), and an isolation spot check from a throwaway pod: `kubectl -n refcloud-compute run np-check --rm -it --restart=Never --image=busybox:1.37 -- nc -z -w 3 1.1.1.1 443` should fail.
+9. Before committing: `./scripts/refcloud-static-analysis-secrets.sh staged`.
+
+**Results:**
+
 ## Future Directions
 
 * **Narrow Funnel's cluster-wide volume permission before production** (Task 1), in the AWS compute platform spec:
@@ -410,6 +433,7 @@ Done 2026-11-17:
   * pre-install common Nextflow plugins (nf-schema, nf-validation) in the Nextflow image. Each pipeline pins its plugin versions, so the image would follow the allowlist;
   * let WES stage allowlisted remote inputs (e.g. HTTPS URLs in `workflow_params`) before the run, as it stages DRS URIs. URLs inside samplesheets would still be out of reach, as DRS URIs are there today;
   * open specific destinations per connection through Task 6's outgoing-traffic allowlist. Locally Calico filters by IP range only (GitHub's ranges include its API, which could receive data); EKS Auto Mode can filter by domain name.
+* **Database locks for compute, so core-api can run several replicas and deploy without downtime** (Task 8). Compute serializes launching runs, preparing their inputs and admitting tasks against pooled limits with in-process locks (enough for one instance, as spec 0008 noted), so core-api's Deployment uses `Recreate`. Locks in Postgres (e.g. advisory locks per connection) would make overlapping instances safe.
 * **Count the engine's own core-hours** (Task 5) in the monthly quota and pooled budget, e.g. for the AWS platform, where a Nextflow Job's CPU costs money for the run's whole duration: a run's core-hours (its Job's CPUs × running time) added to its tasks'.
 * TESK as a second executor for Kubernetes (discussion doc, Future Directions).
 * **Federated analysis and learning across several refclouds** ([`claude/discussions/0001-about-federated-learning.md`](../../discussions/0001-about-federated-learning.md)), discussed 2026-11-16. Each refcloud simulates an organization that independently governs its data (dataset visas), its compute (platform visas, limits) and what runs (the allowlist). Two approaches:
