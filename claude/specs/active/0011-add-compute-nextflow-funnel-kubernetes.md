@@ -370,6 +370,21 @@ Done 2026-11-17:
 
 **Decisions (Task 7):**
 
+Agreed before starting (2026-11-17): keep minikube as it is and size the local connection to fit; the demo platform's per-user limits match the connection's.
+
+Done 2026-11-17:
+* **Minikube's size, measured with the full release deployed:** Docker Desktop has 10 CPUs and 7.75 GiB; minikube's container is capped at 2 CPUs and 6 GiB, while Kubernetes sees 10 CPUs and 7.75 GiB (so it would overcommit); the release used 3.3 GiB at rest, leaving about 2.7. The old local limits allowed about 4.5 GB at full load.
+* **So the local connection fits instead** (`_compute.tpl`): 1 concurrent run, up to 2 tasks and 1 GB of tasks in flight, 1 CPU and 1 GB per task (about 2.5 GB at full load). `start_minikube` is unchanged, so no cluster needs recreating. The quota and LimitRange followed (quota: 4725m CPU and 3.3 GB requested, 8250m and 4.2 GB in limits, 9 pods).
+* **`nextflow-demo-kubernetes`** is registered by `refcloud-run-helm.sh` after deploying (`init_kubernetes_compute_platform`), through the admin CLI pod, skipping an existing platform (checked in the shared database). **It sets no per-user limits**, so the connection's apply and it follows them: researchers see 1 CPU, 1 GB and 10 GB of disk per task and 1 hour per run; concurrent runs show no per-user limit, though the connection's 1 applies to everyone. It keeps native mode's 10 core-hours a month (the connection has no monthly budget). The platform registered by hand in Task 4 was deleted (no access requests) and re-registered this way.
+* **Each run script lists only its own mode's platforms** (`print_compute_urls` filters by connection key), since both modes share the database.
+* **Reset and teardown:** `--reset` deletes the node's compute storage (`reset_minikube_compute_storage`, guarded like native mode's) and Funnel's leftover volumes (`delete_funnel_volumes`, by the release's namespace label); `--down` deletes the leftover volumes.
+* **The demo script works in both modes:**
+  * without `-p`, it uses whichever of `nextflow-demo` and `nextflow-demo-kubernetes` is healthy;
+  * for `.localhost` URLs it trusts both local CAs (Caddy's and mkcert's, combined into a temporary bundle), and other URLs use the system's trust store. Before, a machine with Caddy's CA trusted only it, so the production check in spec 0010 (`REFCLOUD_DEMO_BASE_URL=https://refcloud.ga4gh.org`) would have failed TLS verification;
+  * its hints name both modes.
+* **Verified:** the registration (twice: registered, then skipped), both modes' listings, and the demo script through a temporary port-forward to minikube's ingress with a made-up token: it chose `nextflow-demo-kubernetes`, verified TLS through the bundle and stopped at 401; with `-p nextflow-demo`, it stopped at the new unhealthy hint. The leftover-volume clean-up ran (nothing to delete). **For Task 8:** `--reset` itself (it drops the databases), and the run script end to end with the tunnel.
+* **Docs:** `deploy/helm/README.md` (a Compute section, and the run steps), `deploy/helm/CLAUDE.md`, the root `CLAUDE.md`, and native mode's README (the second platform).
+
 ### Task 8: Tests, docs and the end-to-end check
 
 * **Static analysis and tests:** core-api (unit tests and `staticAnalysis`), the admin CLI, the helm chart, `deploy/local`, and the secrets scan before committing.

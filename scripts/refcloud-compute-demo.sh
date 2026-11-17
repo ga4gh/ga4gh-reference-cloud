@@ -7,15 +7,19 @@
 #   ./scripts/refcloud-compute-demo.sh [-p <platform id>] <passport token>
 #
 # The passport token comes from the researcher UI's "View Passport Token" page (or REFCLOUD_PASSPORT_TOKEN). The
-# researcher needs approved visas for the compute platform and the 1000 Genomes dataset. Native mode must be running
-# (./scripts/refcloud-run-native.sh), with compute set up (see deploy/local/README.md). Needs only curl and node.
-# REFCLOUD_DEMO_BASE_URL points it at another deployment (default https://refcloud.ga4gh.localhost).
+# researcher needs approved visas for the compute platform and the 1000 Genomes dataset. Either local mode works:
+#   * native mode (./scripts/refcloud-run-native.sh): nextflow-demo, which setup registers when Nextflow is installed
+#     (deploy/local/README.md);
+#   * helm mode (./scripts/refcloud-run-helm.sh): nextflow-demo-kubernetes, which the run script registers
+#     (deploy/helm/README.md).
+# Without -p, it uses whichever of the two is healthy (both modes share the database, so both platforms exist, but only
+# the running mode's is healthy). Needs only curl and node. REFCLOUD_DEMO_BASE_URL points it at another deployment
+# (default https://refcloud.ga4gh.localhost); pass -p there.
 
 source ./scripts/lib/common.sh
 
 typeset -A opts
 zparseopts -D -A opts p:
-PLATFORM_ID=${opts[-p]:-$DEFAULT_COMPUTE_PLATFORM_ID}
 TOKEN=${1:-$REFCLOUD_PASSPORT_TOKEN}
 
 if [[ -z "$TOKEN" ]]; then
@@ -24,17 +28,31 @@ if [[ -z "$TOKEN" ]]; then
 fi
 
 BASE=${REFCLOUD_DEMO_BASE_URL:-"https://$REFCLOUD_BASE_URL"}
-WES="$BASE/ga4gh/wes/$PLATFORM_ID/v1"
 DEMO_OBJECT_ID=${DEMO_DRS_URI##*/}
 POLL_SECONDS=5
 TIMEOUT_SECONDS=900
 
-# Caddy serves https://refcloud.ga4gh.localhost with its own local CA: verify against it when it's in the default
-# place (or REFCLOUD_CA_CERT), otherwise rely on the system's trust store
-CA_CERT=${REFCLOUD_CA_CERT:-"$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt"}
+# the local modes serve https://refcloud.ga4gh.localhost with local CAs: Caddy's (native mode) and mkcert's (helm
+# mode). curl takes one CA file and then trusts only it, so for a .localhost URL both are combined into a temporary
+# bundle; any other deployment uses the system's trust store. REFCLOUD_CA_CERT names a CA file to use instead
 CURL_OPTS=(-sS)
-if [[ -f "$CA_CERT" ]]; then
-  CURL_OPTS+=(--cacert "$CA_CERT")
+CA_FILES=()
+if [[ -n "$REFCLOUD_CA_CERT" ]]; then
+  CA_FILES=("$REFCLOUD_CA_CERT")
+elif [[ "${${BASE#*://}%%[:/]*}" == *.localhost ]]; then
+  caddy_ca="$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt"
+  [[ -f "$caddy_ca" ]] && CA_FILES+=("$caddy_ca")
+  if command -v mkcert > /dev/null 2>&1 && [[ -f "$(mkcert -CAROOT)/rootCA.pem" ]]; then
+    CA_FILES+=("$(mkcert -CAROOT)/rootCA.pem")
+  fi
+fi
+if (( ${#CA_FILES} == 1 )); then
+  CURL_OPTS+=(--cacert "$CA_FILES[1]")
+elif (( ${#CA_FILES} > 1 )); then
+  CA_BUNDLE=$(mktemp "${TMPDIR:-/tmp}/refcloud-demo-ca.XXXXXX")
+  trap 'rm -f "$CA_BUNDLE"' EXIT
+  cat "${CA_FILES[@]}" > "$CA_BUNDLE"
+  CURL_OPTS+=(--cacert "$CA_BUNDLE")
 fi
 
 # a field of the JSON on stdin, by dotted path (array elements by index, e.g. outputs.files.0.url); objects and arrays
@@ -52,25 +70,46 @@ json() {
 # so a failure is reported on stderr and callers stop with "|| exit 1"
 api() {
   curl "${CURL_OPTS[@]}" -w '\n%{http_code}' -H "Authorization: Bearer $TOKEN" "$@" \
-    || { log_error "could not reach $BASE: is native mode running (./scripts/refcloud-run-native.sh)?" >&2; return 1; }
+    || { log_error "could not reach $BASE: $NOT_RUNNING_HINT" >&2; return 1; }
 }
 
 body_of() { print -r -- "${1%$'\n'*}"; }
 status_of() { print -r -- "${1##*$'\n'}"; }
 
+NOT_RUNNING_HINT="is the refcloud running (./scripts/refcloud-run-native.sh or ./scripts/refcloud-run-helm.sh)?"
+
+# a platform's health from its (public) WES service-info, or nothing if it doesn't answer
+platform_health() {
+  curl "${CURL_OPTS[@]}" "$BASE/ga4gh/wes/$1/v1/service-info" 2> /dev/null | json health.status
+}
+
+# without -p: the running mode's demo platform, the one that's healthy
+if [[ -n "${opts[-p]}" ]]; then
+  PLATFORM_ID=${opts[-p]}
+else
+  PLATFORM_ID=$DEFAULT_COMPUTE_PLATFORM_ID
+  for candidate in "$DEFAULT_COMPUTE_PLATFORM_ID" "$KUBERNETES_COMPUTE_PLATFORM_ID"; do
+    if [[ "$(platform_health "$candidate")" == "healthy" ]]; then
+      PLATFORM_ID=$candidate
+      break
+    fi
+  done
+fi
+WES="$BASE/ga4gh/wes/$PLATFORM_ID/v1"
+
 log_info "compute demo on platform '$PLATFORM_ID' ($WES)"
 
 # 1. the platform is up (service-info is public and reports its health)
 response=$(curl "${CURL_OPTS[@]}" -w '\n%{http_code}' "$WES/service-info") \
-  || { log_error "could not reach $BASE: is native mode running (./scripts/refcloud-run-native.sh)?"; exit 1; }
+  || { log_error "could not reach $BASE: $NOT_RUNNING_HINT"; exit 1; }
 if [[ "$(status_of "$response")" != 200 ]]; then
-  log_error "no compute platform '$PLATFORM_ID' ($(status_of "$response")): run setup with Nextflow installed, or pass -p <platform id>"
+  log_error "no compute platform '$PLATFORM_ID' ($(status_of "$response")): pass -p <platform id>. locally, native mode's setup registers '$DEFAULT_COMPUTE_PLATFORM_ID' when Nextflow is installed, and helm mode's run script registers '$KUBERNETES_COMPUTE_PLATFORM_ID'"
   exit 1
 fi
 health=$(body_of "$response" | json health.status)
 log_info "platform health: $health"
 if [[ "$health" != "healthy" ]]; then
-  log_error "the platform is unhealthy: is Nextflow installed and Funnel running? (see deploy/local/README.md)"
+  log_error "the platform is unhealthy: core-api's log says why. native mode: is Nextflow installed and Funnel running (deploy/local/README.md)? helm mode: kubectl logs deploy/refcloud-api (deploy/helm/README.md)"
   exit 1
 fi
 
