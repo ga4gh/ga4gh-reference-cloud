@@ -9,3 +9,9 @@ misconfigurations:
       - "templates/apps/hydra/config-map.yaml"
       - "templates/apps/kratos/config-map.yaml"
     statement: ConfigMaps contain only <SECRET> placeholders; real secrets come from Kubernetes Secrets via env vars
+  # funnel.yml holds no secrets: the check matches the word "Token" in automountServiceAccountToken, inside Funnel's
+  # executor Job template (files/funnel/executor-job.yaml), which turns token mounting off
+  - id: KSV-0109
+    paths:
+      - "templates/apps/funnel/config-map.yaml"
+    statement: Funnel's config holds no secrets; the match is the automountServiceAccountToken field in its executor Job template

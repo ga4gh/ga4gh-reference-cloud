@@ -53,6 +53,7 @@ Researchers can only run allowlisted workflows, and a WES submission's `workflow
 
 * `--ref` is a tag or a full 40-character commit sha. Tags (and TRS versions) are resolved to their commit when the entry is added, using `git ls-remote`, so **git must be installed**. Branches are refused because they move.
 * `--main-script` (default `main.nf`) sets the main script for git and TRS sources.
+* `--bundled` must name a directory in `compute/workflows/nextflow/`, or it's refused. The CLI looks under the repo root when run from `apps/admin-cli`, and under `/app` in its Docker image, which bundles the workflows like core-api's (`REFCLOUD_BUNDLED_WORKFLOWS_BASE_DIR` sets the directory that holds `compute/workflows/`).
 * Engine settings are fixed by the admin, not the researcher: repeat `--profile test` for engine profiles, and `--engine-env NXF_SYNTAX_PARSER=v1` for engine environment variables.
 * Only GitHub-hosted repositories are currently supported; other repository systems (e.g. GitLab, Bitbucket) are refused with an error.
 

@@ -1,0 +1,58 @@
+{{- /*
+Funnel's config (funnel.yml), read by its server and by every worker.
+
+The job and volume templates are Go templates that Funnel renders for each task, kept verbatim in files/funnel/ so
+Helm never interprets their braces. The chart only replaces their capitalized placeholders.
+*/}}
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $storageRoot := include "refcloud.computeStorageRoot" . }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+{{- $image := include "refcloud.funnelImage" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: funnel-config
+  namespace: {{ $namespace }}
+data:
+  funnel.yml: |
+    Server:
+      HostName: funnel
+      HTTPPort: "8000"
+      RPCPort: "9090"
+    # workers fetch their task and report its events over RPC (templates/apps/funnel/service.yaml)
+    RPCClient:
+      ServerAddress: funnel:9090
+    Logger:
+      Level: info
+    # one file on the compute storage, so tasks survive a restart of the server (which runs one replica)
+    Database: boltdb
+    BoltDB:
+      Path: {{ $storageRoot }}/funnel/db/funnel.db
+    EventWriters:
+      - boltdb
+      - log
+    Compute: kubernetes
+    Worker:
+      # each task's working directory, which its executors mount
+      WorkDir: {{ $storageRoot }}/funnel/work
+      LeaveWorkDir: false
+    # tasks may only read inputs from and write outputs to run directories, never Funnel's own files
+    LocalStorage:
+      AllowedDirs:
+        - {{ $storageRoot }}/runs
+    # placeholders: the Kubernetes backend refuses a task with inputs or outputs unless an S3 bucket and region are
+    # set, even though these tasks only use local files
+    GenericS3:
+      - Disabled: true
+        Bucket: not-used
+        Region: not-used
+    Kubernetes:
+      Executor: kubernetes
+      Namespace: {{ $namespace }}
+      JobsNamespace: {{ $namespace }}
+      ReconcileRate: 10s
+      {{- range $key, $file := dict "WorkerTemplate" "worker-job.yaml" "ExecutorTemplate" "executor-job.yaml" "PVTemplate" "pv.yaml" "PVCTemplate" "pvc.yaml" }}
+      {{ $key }}: |
+        {{- $.Files.Get (printf "files/funnel/%s" $file) | replace "REFCLOUD_STORAGE_ROOT" $storageRoot | replace "REFCLOUD_FUNNEL_IMAGE" $image | nindent 8 }}
+      {{- end }}
+{{- end }}

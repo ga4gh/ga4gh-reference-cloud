@@ -16,20 +16,72 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeHealthConfig;
 import org.ga4gh.refcloud.api.compute.ComputePlatformType;
+import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesClient;
+import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesPermission;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 // the three connection checks against a local http server (the executor), fake nextflow launcher scripts (the
 // engine) and temporary directories (storage)
 public class ConnectionCheckerTest {
 
-    private final ConnectionChecker checker = new ConnectionChecker(
-            new ComputeHealthConfig(Duration.ofSeconds(60), Duration.ofSeconds(2), Duration.ofSeconds(10)));
+    private static final ComputeHealthConfig HEALTH_CONFIG =
+            new ComputeHealthConfig(Duration.ofSeconds(60), Duration.ofSeconds(2), Duration.ofSeconds(10));
+
+    // nextflow-funnel-docker checks never call kubernetes
+    private final ConnectionChecker checker = new ConnectionChecker(HEALTH_CONFIG, null);
+
+    // a kubernetes API that allows everything except the denied permissions, or fails every call
+    private static KubernetesClient kubernetes(Set<KubernetesPermission> denied, boolean unreachable) {
+        return new KubernetesClient(JsonMapper.builder().build()) {
+            @Override
+            public boolean isAllowed(String namespace, KubernetesPermission permission) throws IOException {
+                if (unreachable) {
+                    throw new IOException("connection refused");
+                }
+                return namespace.equals("refcloud-compute") && !denied.contains(permission);
+            }
+        };
+    }
+
+    private static final ComputeConfig.Engine KUBERNETES_ENGINE = new ComputeConfig.Engine(
+            null, "26.10.5", "1.5.0", "refcloud-nextflow:v1", null, "refcloud-compute", null, null);
+
+    @Test
+    public void kubernetesEngineIsHealthyWhenEverythingTheEngineDoesIsAllowed() {
+        ConnectionChecker kubernetesChecker = new ConnectionChecker(HEALTH_CONFIG, kubernetes(Set.of(), false));
+
+        assertEquals(kubernetesChecker.checkKubernetesEngine(KUBERNETES_ENGINE), Optional.empty());
+    }
+
+    @Test
+    public void kubernetesEngineNamesWhatIsDenied() {
+        Set<KubernetesPermission> denied = Set.of(
+                new KubernetesPermission("batch", "jobs", "create"), new KubernetesPermission("", "secrets", "create"));
+        ConnectionChecker kubernetesChecker = new ConnectionChecker(HEALTH_CONFIG, kubernetes(denied, false));
+
+        String failure =
+                kubernetesChecker.checkKubernetesEngine(KUBERNETES_ENGINE).orElseThrow();
+        assertTrue(failure.contains("create jobs.batch"), failure);
+        assertTrue(failure.contains("create secrets"), failure);
+        assertTrue(failure.contains("refcloud-compute"), failure);
+    }
+
+    @Test
+    public void kubernetesEngineIsUnhealthyWhenTheApiCantBeReached() {
+        ConnectionChecker kubernetesChecker = new ConnectionChecker(HEALTH_CONFIG, kubernetes(Set.of(), true));
+
+        String failure =
+                kubernetesChecker.checkKubernetesEngine(KUBERNETES_ENGINE).orElseThrow();
+        assertTrue(failure.contains("connection refused"), failure);
+    }
 
     private HttpServer executor;
 
@@ -71,7 +123,7 @@ public class ConnectionCheckerTest {
     }
 
     private static ComputeConfig.Engine engine(Path executable, String version) {
-        return new ComputeConfig.Engine(executable.toString(), version, "1.5.0");
+        return new ComputeConfig.Engine(executable.toString(), version, "1.5.0", null, null, null, null, null);
     }
 
     @Test

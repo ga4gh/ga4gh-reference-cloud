@@ -41,10 +41,11 @@ The run script:
 
 1. fails fast if port 443 is in use (e.g. native mode's Caddy, or another `minikube tunnel`)
 2. computes the lockstep image tag: `git describe --tags --match 'v[0-9]*' --always`, plus `-uncommitted` if the working tree has any changes (including untracked files)
-3. builds all app images into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`
-4. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks
-5. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
-6. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
+3. builds all app images, and the Nextflow image compute runs, into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`. core-api and the admin CLI build from the repo root, so they can bundle `compute/workflows/`
+4. creates the compute run storage directory on the minikube node (`/data/refcloud-compute/refcloud`, owned by user 10001), which core-api mounts
+5. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks
+6. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
+7. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
 
 The refcloud is then available at `https://refcloud.ga4gh.localhost` and `https://docs.refcloud.ga4gh.localhost`.
 
@@ -84,6 +85,8 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
 ### Troubleshooting
 
 * **minikube won't start / `kubelet: Stopped`, `apiserver: Stopped`:** the cluster state is broken (e.g. after a Docker Desktop restart or upgrade). Recreate it with `minikube delete && minikube start --driver=docker`, then re-run `./scripts/refcloud-setup.sh`.
+* **`helm upgrade` warns `would violate PodSecurity "restricted:latest": ... hostPath`:** expected. Funnel's Deployment in the compute namespace (`refcloud-compute`) uses the compute storage on the minikube node, which the strictest Pod Security level doesn't allow, so that namespace warns rather than enforces.
+* **New pods stay in `ContainerCreating`, and `kubectl describe pod` shows `plugin type="calico" failed ... connection is unauthorized: Unauthorized`** (e.g. the deploy times out in a migration Job): Calico's network plugin token expired without being renewed, which can happen after the laptop sleeps. Running pods are unaffected. Restart Calico's node agent, which writes a new token: `kubectl --context minikube -n kube-system rollout restart daemonset calico-node`.
 * **An image build fails:** see the log path printed by the run script in `$TMPDIR/refcloud-build-logs/`.
 * **The deploy fails:** check `kubectl get pods`, `kubectl get jobs` and `kubectl logs <pod>`. A failed migration Job is kept for inspection and replaced on the next deploy.
 * **Liquibase migration fails with `relation "..." already exists`:** your local database recorded migrations under the old changelog path. Run this once (or `./scripts/refcloud-setup.sh --reset`):
@@ -121,11 +124,14 @@ The chart's defaults target local minikube. For AWS, supply overrides at deploy 
 | `ga4gh.referenceCloud.baseURL` | `refcloud.ga4gh.localhost` | public hostname |
 | `ga4gh.referenceCloud.cloudEnvironment` | `local` | `aws` |
 | `ga4gh.referenceCloud.aws.certificateARN` | n/a | ACM certificate ARN for the ALB |
+| `ga4gh.referenceCloud.compute.connections` | `{}` (compute is off) | the deployment's compute connections, written as in `deploy/local/compute/connections.yml` (credentials named by environment variable, never inline) |
+| `ga4gh.referenceCloud.compute.serviceInfo.idSuffix` | `local.helm` | the deployment's own, so WES and TES service-info IDs differ from local ones |
+| `ga4gh.referenceCloud.compute.serviceInfo.environment` | `local` | e.g. `prod` |
 | `networkPolicy.ingressFrom` | `[]` (the `ingress-nginx` namespace) | **required**: where the ALB connects from. It targets pod IPs from its subnets, e.g. `[{ipBlock: {cidr: <VPC CIDR>}}]` |
 
 **NetworkPolicies on AWS:** the chart's policies only take effect if the cluster enforces them. On EKS Auto Mode, turn on its Network Policy Controller once, with the ConfigMap from [AWS's guide](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html) (`amazon-vpc-cni` in `kube-system`, `enable-network-policy-controller: "true"`). Deploy the chart (with `networkPolicy.ingressFrom`) before or after; then check that the site still works and the pods stay ready. If something breaks, `--set networkPolicy.enabled=false` removes the policies.
 
-Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`. The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
+Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`, and `refcloud-nextflow` (the Nextflow image compute Jobs run; `compute/images/nextflow/`). The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
 
 Example:
 

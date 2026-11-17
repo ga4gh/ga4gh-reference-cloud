@@ -90,9 +90,9 @@ public class HostProcessRunnerTest {
     @Test
     public void processGoneWithoutAnExitCodeIsLost() {
         // a pid that isn't running, and no exit code file
-        EngineProcess gone = new EngineProcess(Integer.MAX_VALUE - 7, Instant.now());
+        EngineProcess gone = EngineProcess.hostProcess(Integer.MAX_VALUE - 7, Instant.now());
 
-        assertEquals(runner.status(runDirectory, gone), new EngineStatus.Lost());
+        assertEquals(runner.status(runDirectory, gone), new EngineStatus.Lost(null));
     }
 
     @Test
@@ -101,7 +101,7 @@ public class HostProcessRunnerTest {
         try {
             // the same pid, but a different recorded start time: some other process now has it
             EngineProcess stale =
-                    new EngineProcess(process.pid(), process.startedAt().minusSeconds(3600));
+                    EngineProcess.hostProcess(process.pid(), process.startedAt().minusSeconds(3600));
             assertFalse(runner.find(runDirectory, stale).isPresent());
             // and a signal for it is never sent
             runner.signal(runDirectory, stale, true);

@@ -72,7 +72,7 @@ REFCLOUD_COMPUTE_STORAGE_ROOT=$PWD/compute/nextflow-funnel-docker docker compose
 
 ## Static Analysis
 
-Static analysis of this directory (including `funnel/Dockerfile`) and of every app Dockerfile (`apps/**/Dockerfile`) runs in CI on every pull request that changes them. Run it locally from the repo root (requires only Docker; each tool runs from a pinned image, so local runs match CI):
+Static analysis of this directory (including `funnel/Dockerfile`), of every app Dockerfile (`apps/**/Dockerfile`) and of the compute images (`compute/images/**/Dockerfile`) runs in CI on every pull request that changes them. Run it locally from the repo root (requires only Docker; each tool runs from a pinned image, so local runs match CI):
 
 | Check | Command |
 |-|-|

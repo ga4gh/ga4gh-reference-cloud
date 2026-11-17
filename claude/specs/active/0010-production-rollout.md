@@ -78,8 +78,8 @@ In the private values repo:
 * `image.tag`: the release tag.
 * **`networkPolicy.ingressFrom`: required on AWS.** Without it the chart fails to render. Set it to where the ALB connects from: the VPC CIDR, `[{ipBlock: {cidr: <VPC CIDR>}}]`.
 * **Compute** (if it ships), using stage 2's chart wiring:
-  * the production compute connection (`compute.connections`);
-  * the compute service-info settings: a non-`local` ID suffix, and the public auth instructions URL on https://docs.refcloud.ga4gh.org.
+  * the production compute connection (`ga4gh.referenceCloud.compute.connections`);
+  * the compute service-info settings (`ga4gh.referenceCloud.compute.serviceInfo`): a non-`local` ID suffix and the environment. The auth instructions URL follows from `baseURL` (the docs site's `/docs/compute/access`).
 * Any value or Secret the year-end specs add. Check each spec's production notes, and `deploy/helm/README.md` (Remote Deployment).
 
 **Decisions (Task 3):**
