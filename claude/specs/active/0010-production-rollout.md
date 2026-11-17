@@ -29,7 +29,7 @@ Bring production (https://refcloud.ga4gh.org, on EKS Auto Mode) up to date in **
   * **Kratos upgraded to `v26.2.0`**, in step with Hydra, with one-step registration;
   * Kratos logs at `info`.
 * **The year-end compute work, as it lands** ([milestones](../../../docs/milestones/2026-12-18-Compute-Milestones.md)):
-  * stage 2 (Nextflow + Funnel on Kubernetes, [spec 0011](0011-add-compute-nextflow-funnel-kubernetes.md)). Its compute namespace, Funnel and demo platform are **local only** (their storage is a `hostPath` on the minikube node), so production gets none of them; the AWS platform adds its own. What does reach production:
+  * stage 2 (Nextflow + Funnel on Kubernetes, [spec 0011](../archive/0011-add-compute-nextflow-funnel-kubernetes.md)). Its compute namespace, Funnel and demo platform are **local only** (their storage is a `hostPath` on the minikube node), so production gets none of them; the AWS platform adds its own. What does reach production:
     * core-api runs as its own ServiceAccount (`refcloud-api`) instead of the namespace's default, and with the **`Recreate` strategy**: every deploy or restart has a short gap (about 40 seconds) with no API, never two core-apis at once;
     * a Liquibase migration adds `compute_run.engine_job_uid` (nullable, with a check that a run has at most one engine identity; it has a rollback);
     * the compute connections file is mounted into core-api and the admin CLI; production's is empty (compute off) unless the AWS platform ships;

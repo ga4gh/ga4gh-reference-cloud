@@ -727,7 +727,7 @@
         </rollback>
     </changeSet>
     <!--
-        compute stage 2 (claude/specs/active/0011-add-compute-nextflow-funnel-kubernetes.md, Task 4): a run on a
+        compute stage 2 (claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md, Task 4): a run on a
         nextflow-funnel-kubernetes platform runs as a kubernetes Job, whose name derives from the run id. engine_job_uid
         records that Job's uid (engine_started_at its creation time), as engine_pid records a host process. a run has
         at most one of them
