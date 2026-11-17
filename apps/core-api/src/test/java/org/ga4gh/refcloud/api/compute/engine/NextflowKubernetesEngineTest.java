@@ -3,8 +3,11 @@ package org.ga4gh.refcloud.api.compute.engine;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.expectThrows;
 
 import java.math.BigDecimal;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -245,6 +248,29 @@ public class NextflowKubernetesEngineTest {
         assertTrue(name.matches(ComputeConfig.KUBERNETES_NAME_PATTERN), name);
         assertTrue(NextflowKubernetesEngine.jobName(run()).matches(ComputeConfig.KUBERNETES_NAME_PATTERN));
         assertTrue(name.length() <= 63);
+    }
+
+    @Test
+    public void tesEndpointUsesCoreApisAddressSoTheJobNeedsNoDns() throws Exception {
+        String endpoint = "http://refcloud-api.default.svc:8080/ga4gh/tes/nextflow-demo-kubernetes";
+
+        assertEquals(
+                NextflowKubernetesEngine.withResolvedHost(
+                        endpoint, host -> InetAddress.getByAddress(host, new byte[] {10, 96, 1, 2})),
+                "http://10.96.1.2:8080/ga4gh/tes/nextflow-demo-kubernetes");
+        // an IPv6 cluster
+        assertEquals(
+                NextflowKubernetesEngine.withResolvedHost(endpoint, host -> InetAddress.getByName("fd00::1")),
+                "http://[fd00:0:0:0:0:0:0:1]:8080/ga4gh/tes/nextflow-demo-kubernetes");
+    }
+
+    @Test
+    public void unresolvableCoreApiFailsTheLaunch() {
+        expectThrows(
+                UnknownHostException.class,
+                () -> NextflowKubernetesEngine.withResolvedHost("http://nowhere:8080/x", host -> {
+                    throw new UnknownHostException(host);
+                }));
     }
 
     @Test

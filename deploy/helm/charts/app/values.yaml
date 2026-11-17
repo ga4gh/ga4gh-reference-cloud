@@ -54,6 +54,12 @@ ga4gh:
       # environment variable, never inline). rendered into the connections.yml that core-api and the admin CLI read
       # (templates/common/compute-connections.yaml). empty: compute is off
       connections: {}
+      # outgoing traffic the workflow pods (each run's Nextflow Job and its task containers) may send, beyond core-api's
+      # TES: a list of NetworkPolicy egress rules, e.g.
+      #   [{to: [{ipBlock: {cidr: 203.0.113.10/32}}], ports: [{protocol: TCP, port: 443}]}]
+      # empty: nothing, not even DNS. when it isn't empty they get DNS too, to reach destinations by name. it applies to
+      # the local connection's compute namespace (templates/common/compute-network-policies.yaml)
+      outgoingAllowlist: []
       # shared by every compute platform's WES and TES service-info
       serviceInfo:
         # ids are org.ga4gh.refcloud.{wes|tes}.{platform id}.{idSuffix}: give each deployment its own

@@ -3,6 +3,10 @@ package org.ga4gh.refcloud.api.compute.engine;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -127,7 +131,7 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
             ComputeRun run, ComputeConfig.Connection connection, String tesEndpoint, String tesToken)
             throws IOException {
         Path runDirectory = Path.of(run.getRunDirectory());
-        NextflowEngine.writeRunFiles(run, tesEndpoint, objectMapper);
+        NextflowEngine.writeRunFiles(run, withResolvedHost(tesEndpoint, InetAddress::getByName), objectMapper);
         HostProcessRunner.writeLauncher(runDirectory);
 
         String namespace = connection.engine().namespace();
@@ -260,6 +264,32 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
     @Override
     public Optional<String> refcloudFailure(ComputeRun run) {
         return NextflowEngine.refcloudFailureOf(run);
+    }
+
+    // looks up a host name's address (InetAddress::getByName; a stand-in in tests)
+    interface Resolver {
+        InetAddress resolve(String host) throws UnknownHostException;
+    }
+
+    // the TES endpoint with core-api's host name replaced by its address (its Service's, through core-api's own DNS),
+    // so the Nextflow Job needs no DNS: the compute namespace gives workflow pods none (spec 0011, Task 6), since DNS
+    // lookups can carry data out of the cluster
+    static String withResolvedHost(String url, Resolver resolver) throws IOException {
+        URI uri = URI.create(url);
+        String address = resolver.resolve(uri.getHost()).getHostAddress();
+        try {
+            return new URI(
+                            uri.getScheme(),
+                            uri.getUserInfo(),
+                            address,
+                            uri.getPort(),
+                            uri.getPath(),
+                            uri.getQuery(),
+                            uri.getFragment())
+                    .toString();
+        } catch (URISyntaxException exception) {
+            throw new IOException("could not build the TES endpoint for " + url, exception);
+        }
     }
 
     // the run's Job
