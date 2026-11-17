@@ -45,11 +45,43 @@ The run script:
 4. creates the compute run storage directory on the minikube node (`/data/refcloud-compute/refcloud`, owned by user 10001), which core-api mounts
 5. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks
 6. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
-7. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
+7. registers the `nextflow-demo-kubernetes` compute platform, if it doesn't exist yet (see Compute below)
+8. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
 
 The refcloud is then available at `https://refcloud.ga4gh.localhost` and `https://docs.refcloud.ga4gh.localhost`.
 
 Ctrl+C stops the tunnel only; the release keeps running, so the next run is fast. Run the script again to reconnect.
+
+### Compute
+
+Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/specs/active/0011-add-compute-nextflow-funnel-kubernetes.md)):
+
+* core-api runs each workflow run as a Kubernetes Job with Nextflow (the `refcloud-nextflow` image, from `compute/images/nextflow/`), in the release's compute namespace, `refcloud-compute`;
+* Nextflow sends each task to core-api's TES API, which passes it to Funnel; Funnel runs it as Jobs in the same namespace;
+* the chart's connection, `nextflow-funnel-kubernetes-local`, is sized for minikube's default container (2 CPUs, about 6 GB): **one run at a time**, up to 1 GB of tasks in flight, and 1 CPU and 1 GB per task.
+
+**The demo platform:** the run script registers `nextflow-demo-kubernetes` on that connection, with the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow on its allowlist. It sets no per-user limits of its own, so the connection's apply, except 10 core-hours a month. An existing platform is left as it is; to recreate it, `kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform delete -p nextflow-demo-kubernetes`, then run the script again. Native mode has its own platform, `nextflow-demo`; both modes share the databases, so each shows the other's as unavailable.
+
+**Running the demo:**
+
+1. `./scripts/refcloud-run-helm.sh` (it lists `nextflow-demo-kubernetes`'s WES and TES endpoints).
+2. In the researcher UI, request access to **1000 Genomes** and to **Nextflow Demo (Kubernetes)**, then approve both:
+
+   ```bash
+   kubectl exec deploy/refcloud-admin-cli -- refcloud visa list-requests
+   kubectl exec deploy/refcloud-admin-cli -- refcloud visa approve -u <user id> -v ga4gh_visa:aws_opendata_registry_1000_genomes
+   kubectl exec deploy/refcloud-admin-cli -- refcloud visa approve -u <user id> -v ga4gh_visa:compute_platform:nextflow-demo-kubernetes
+   ```
+
+3. Copy a passport token from **View Passport Token**, and run `./scripts/refcloud-compute-demo.sh <passport token>` from the repo root. Without `-p`, it uses the healthy demo platform, `nextflow-demo-kubernetes` in helm mode, and trusts both local certificate authorities (Caddy's and mkcert's).
+
+**No internet:** the Nextflow Jobs and task containers can't reach anything outside the cluster (see Network Policies). Workflows that download plugins or files at run time fail here, nf-core/demo's `test` profile among them; `drs-checksum` works. Container images still load, since the node pulls them.
+
+**Run files** live on the minikube node, in `/data/refcloud-compute/refcloud/` (`runs/<run_id>/`, and Funnel's database and work directory), which the run script creates. Outputs download through WES; to look around, `minikube ssh -- sudo ls /data/refcloud-compute/refcloud/runs`. `./scripts/refcloud-setup.sh --reset` deletes it.
+
+**Following a run:** `kubectl -n refcloud-compute get jobs,pods` shows each run's Nextflow Job (`nextflow-<run id>`) and its tasks' Funnel worker and executor Jobs. The run's own logs are in its run directory (`nextflow.log`, `engine.stdout.log`, `engine.stderr.log`), and through WES.
+
+**Health:** each compute platform's WES service-info reports its health. When it's unhealthy, `kubectl logs deploy/refcloud-api` says why: Funnel unreachable, the storage not writable, or core-api missing a permission in the compute namespace.
 
 ### Network Policies
 

@@ -104,6 +104,7 @@ uninstall_release() {
   if helm_local status "$HELM_RELEASE" > /dev/null 2>&1; then
     log_info "uninstalling helm release '$HELM_RELEASE'"
     helm_local uninstall "$HELM_RELEASE" --wait > /dev/null || { log_error "failed to uninstall helm release '$HELM_RELEASE'"; exit 1; }
+    delete_funnel_volumes
   else
     log_info "helm release '$HELM_RELEASE' is not installed"
   fi
@@ -135,8 +136,9 @@ log_info "using lockstep image tag '$IMAGE_TAG'"
 build_images "$IMAGE_TAG"
 prepare_compute_storage
 deploy_release "$IMAGE_TAG"
+init_kubernetes_compute_platform
 
-print_service_urls
+print_service_urls compute "$KUBERNETES_COMPUTE_CONNECTION_KEY"
 log_info "starting 'minikube tunnel' to expose the ingress on port 443 (may prompt for your password)"
 log_info "press Ctrl+C to stop the tunnel. the release keeps running; use --down to uninstall it"
 

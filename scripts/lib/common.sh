@@ -36,6 +36,11 @@ TLS_CERT_DIR="./deploy/helm/.certs"
 # compute run storage on the minikube node (a hostPath), one directory per release. keep in sync with
 # refcloud.computeStorageRoot in deploy/helm/charts/app/templates/_helpers.tpl
 MINIKUBE_COMPUTE_STORAGE_ROOT="/data/refcloud-compute/$HELM_RELEASE"
+# helm mode's compute: the release's compute namespace (refcloud.computeNamespace), the chart's local connection
+# (refcloud.localComputeConnection), and the demo platform the run script registers on it
+KUBERNETES_COMPUTE_NAMESPACE="$HELM_RELEASE-compute"
+KUBERNETES_COMPUTE_CONNECTION_KEY="nextflow-funnel-kubernetes-local"
+KUBERNETES_COMPUTE_PLATFORM_ID="nextflow-demo-kubernetes"
 # the user every compute pod and core-api run as, which must own that directory
 COMPUTE_USER_ID=10001
 # secrets the helm chart expects, deleted on --reset
@@ -95,18 +100,24 @@ print_service_urls() {
   log_info "   * RefGet: https://$REFCLOUD_BASE_URL/ga4gh/refget/v2"
   log_info "   * Service Registry: https://$REFCLOUD_BASE_URL/ga4gh/service-registry/v1"
   if [[ "$1" == "compute" ]]; then
-    print_compute_urls
+    print_compute_urls "$2"
   fi
   log_info ""
   log_info "To begin, visit the Researcher UI service and register a new researcher account."
 }
 
-# each enabled compute platform's WES and TES endpoints
+# the WES and TES endpoints of each enabled compute platform on this mode's connection (both modes share the
+# database, and each shows the other's platforms as unavailable)
 print_compute_urls() {
-  local platforms=$(psql -d "$PSQL_DATABASE" -tAc "SELECT id FROM compute_platform WHERE enabled ORDER BY id;" 2>/dev/null)
+  local connection_key=$1
+  local platforms=$(psql -d "$PSQL_DATABASE" -tAc "SELECT id FROM compute_platform WHERE enabled AND connection_key = '$connection_key' ORDER BY id;" 2>/dev/null)
   log_info " * Compute Platforms:"
   if [[ -z "$platforms" ]]; then
-    log_info "   * no compute platforms are enabled. setup registers '$DEFAULT_COMPUTE_PLATFORM_ID' when Nextflow is installed (see deploy/local/README.md)"
+    if [[ "$connection_key" == "$KUBERNETES_COMPUTE_CONNECTION_KEY" ]]; then
+      log_info "   * no compute platforms are enabled on '$connection_key'. the run script registers '$KUBERNETES_COMPUTE_PLATFORM_ID' (see deploy/helm/README.md)"
+    else
+      log_info "   * no compute platforms are enabled on '$connection_key'. setup registers '$DEFAULT_COMPUTE_PLATFORM_ID' when Nextflow is installed (see deploy/local/README.md)"
+    fi
     return 0
   fi
   local platform
@@ -312,6 +323,37 @@ init_default_compute_platform() {
 
   log_info "enabling compute platform '$platform_id'"
   uv run refcloud compute-platform enable -p "$platform_id" > /dev/null 2>&1 \
+    || { log_error "failed to enable compute platform '$platform_id'"; exit 1; }
+}
+
+# registers helm mode's demo platform on the chart's local connection, through the admin CLI pod: only the cluster sees
+# the chart's connections. it sets no per-user limits, so the connection's apply (sized for minikube; the platform
+# follows them if they change), except a monthly quota like the native demo's. an existing platform is left as is
+init_kubernetes_compute_platform() {
+  local platform_id=$KUBERNETES_COMPUTE_PLATFORM_ID
+  local admin_cli=(kubectl_local exec deploy/refcloud-admin-cli -- refcloud)
+
+  if compute_platform_exists "$platform_id"; then
+    log_info "compute platform '$platform_id' already exists, skipping. to recreate it, run 'kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform delete -p $platform_id', then this script"
+    return 0
+  fi
+
+  log_info "registering compute platform '$platform_id' on connection '$KUBERNETES_COMPUTE_CONNECTION_KEY'"
+  $admin_cli compute-platform init -p "$platform_id" \
+    --name "Nextflow Demo (Kubernetes)" \
+    --description "Run allowlisted Nextflow workflows in this cluster (Nextflow and Funnel on Kubernetes, with no internet access), with refcloud DRS objects as inputs" \
+    --connection "$KUBERNETES_COMPUTE_CONNECTION_KEY" \
+    --monthly-core-hours 10 \
+  > /dev/null 2>&1 || { log_error "failed to register compute platform '$platform_id'"; exit 1; }
+
+  log_info "adding the bundled drs-checksum workflow to the allowlist of '$platform_id'"
+  $admin_cli compute-platform allowlist add -p "$platform_id" --bundled drs-checksum \
+    --name "DRS checksum" \
+    --description "Report a DRS object's name, size, MD5 and SHA-256" \
+  > /dev/null 2>&1 || { log_error "failed to allowlist drs-checksum on '$platform_id'"; exit 1; }
+
+  log_info "enabling compute platform '$platform_id'"
+  $admin_cli compute-platform enable -p "$platform_id" > /dev/null 2>&1 \
     || { log_error "failed to enable compute platform '$platform_id'"; exit 1; }
 }
 
@@ -525,4 +567,26 @@ reset_kubernetes() {
 
   log_info "deleting refcloud kubernetes secrets"
   kubectl_local delete secret "${K8S_SECRETS[@]}" --ignore-not-found > /dev/null 2>&1 || { log_error "failed to delete kubernetes secrets"; exit 1; }
+
+  delete_funnel_volumes
+  reset_minikube_compute_storage
+}
+
+# Funnel creates a (cluster-scoped) volume per task and deletes it when the task ends; uninstalling the release while
+# tasks run leaves theirs behind. only volumes labelled with this release's compute namespace
+delete_funnel_volumes() {
+  kubectl_local delete persistentvolume -l "app=funnel,namespace=$KUBERNETES_COMPUTE_NAMESPACE" --ignore-not-found > /dev/null 2>&1 \
+    || log_warn "could not delete Funnel's leftover volumes (kubectl get pv -l namespace=$KUBERNETES_COMPUTE_NAMESPACE)"
+}
+
+# helm mode's compute storage on the minikube node (run directories, Funnel's database and work directory), as
+# reset_compute_storage clears native mode's
+reset_minikube_compute_storage() {
+  if [[ "$MINIKUBE_COMPUTE_STORAGE_ROOT" != /data/refcloud-compute/?* ]]; then
+    log_error "refusing to delete unexpected compute storage root '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
+    exit 1
+  fi
+  log_info "deleting compute storage '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
+  minikube ssh -- sudo rm -rf "$MINIKUBE_COMPUTE_STORAGE_ROOT" > /dev/null 2>&1 \
+    || { log_error "failed to delete '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"; exit 1; }
 }

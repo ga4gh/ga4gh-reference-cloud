@@ -7,8 +7,10 @@ templates/common/compute-connections.yaml (the connections file) and templates/c
 Its Nextflow and nf-ga4gh versions must match the Nextflow image's (compute/images/nextflow/Dockerfile): the image
 refuses to run otherwise. Native mode pins the same versions (deploy/local/compute/connections.yml).
 
-Its limits are sized for minikube. Each run is a Nextflow Job (cpu-cores, memory-gb), and each task in flight is a
-Funnel worker plus an executor with the task's resources.
+Its limits fit minikube's default container (2 CPUs, about 6 GB) beside the rest of the release, which used 3.3 GB at
+rest (spec 0011, Task 7): at most about 2.5 GB more at full load, as one run's Nextflow Job (cpu-cores, memory-gb),
+1 GB of tasks in flight (each an executor with its resources) and their Funnel workers (up to 256Mi each). The demo
+platform registered on it (scripts/refcloud-run-helm.sh) sets no per-user limits, so it follows these.
 */}}
 {{- define "refcloud.localComputeConnection" -}}
 {{- $namespace := include "refcloud.computeNamespace" . }}
@@ -25,10 +27,10 @@ Funnel worker plus an executor with the task's resources.
       "executor" (dict "tes-url" (printf "http://funnel.%s.svc:8000" $namespace))
       "storage" (dict "type" "shared-filesystem" "root" (include "refcloud.computeStorageRoot" .))
       "limits" (dict
-        "max-concurrent-runs" 2
+        "max-concurrent-runs" 1
         "max-tasks-in-flight" 2
         "max-cpu-cores-in-flight" 2
-        "max-memory-gb-in-flight" 2
+        "max-memory-gb-in-flight" 1
         "max-task-cpu-cores" 1
         "max-task-memory-gb" 1
         "max-task-disk-gb" 10
