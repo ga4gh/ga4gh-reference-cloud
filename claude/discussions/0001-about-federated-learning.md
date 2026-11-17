@@ -6,7 +6,7 @@ This discussion started on 2026-11-16. The idea being explored: deploy **several
 
 Two federated-learning frameworks came up: [Flower](https://flower.ai) and [NVIDIA FLARE (NVFlare)](https://github.com/NVIDIA/NVFlare). One suggestion was to put one of them "behind TES" as an executor. This doc records how they would actually fit, and two ways to build the federation.
 
-It builds on the compute design in [`0000-about-adding-compute.md`](0000-about-adding-compute.md) (WES, TES, Compute Platforms, visas, allowlists) and on stage 2 ([spec 0011](../specs/active/0011-add-compute-nextflow-funnel-kubernetes.md)), which keeps both approaches below possible.
+It builds on the compute design in [`0000-about-adding-compute.md`](0000-about-adding-compute.md) (WES, TES, Compute Platforms, visas, allowlists) and on stage 2 ([spec 0011](../specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md)), which keeps both approaches below possible.
 
 ## Goals
 

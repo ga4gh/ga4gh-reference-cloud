@@ -54,7 +54,7 @@ Ctrl+C stops the tunnel only; the release keeps running, so the next run is fast
 
 ### Compute
 
-Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/specs/active/0011-add-compute-nextflow-funnel-kubernetes.md)):
+Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md)):
 
 * core-api runs each workflow run as a Kubernetes Job with Nextflow (the `refcloud-nextflow` image, from `compute/images/nextflow/`), in the release's compute namespace, `refcloud-compute`;
 * Nextflow sends each task to core-api's TES API, which passes it to Funnel; Funnel runs it as Jobs in the same namespace;

@@ -64,7 +64,7 @@ researcher → refcloud WES (core-api) → Nextflow (Kubernetes Job, compute nam
 
 **Storage:** a `hostPath` directory on the minikube node, mounted at the **same absolute path** in every pod that touches runs: core-api, Funnel, the Nextflow Jobs and the task pods. This is the helm-mode version of native mode's same-path mount. It only works on a single-node cluster; real clusters, including production on AWS, need stage 3's S3 storage.
 
-**Production:** stage 2 itself isn't deployed to production (`hostPath`). Anything it adds that production will need goes into the rollout spec ([spec 0010](0010-production-rollout.md)): the Nextflow image in ECR, the compute namespace, RBAC, and Funnel in the chart.
+**Production:** stage 2 itself isn't deployed to production (`hostPath`). Anything it adds that production will need goes into the rollout spec ([spec 0010](../active/0010-production-rollout.md)): the Nextflow image in ECR, the compute namespace, RBAC, and Funnel in the chart.
 
 ## Engineering Tasks
 
@@ -397,7 +397,7 @@ Done 2026-11-17:
   * the platform types table lists `nextflow-funnel-kubernetes` as available in local helm mode;
   * the access page mentions both demo platforms;
   * the interactive demo works with either.
-* **Production notes:** add what stage 2 means for production to [spec 0010](0010-production-rollout.md).
+* **Production notes:** add what stage 2 means for production to [spec 0010](../active/0010-production-rollout.md).
 
 **Decisions (Task 8):**
 
@@ -408,7 +408,7 @@ Done 2026-11-17:
   * **Switching an existing Deployment** fails under Helm's server-side apply: Kubernetes filled in default `rollingUpdate` settings when it created the Deployment, nothing owns them, so the apply can't remove them (an explicit `rollingUpdate: null` doesn't help either, verified with a server-side dry run). `refcloud-run-helm.sh` replaces the whole strategy once with `kubectl patch` (`switch_core_api_to_recreate`; no restart, a no-op afterwards), and spec 0010's Task 5 has the same one-time step for production.
   * Verified: a restart had one core-api pod at every moment (the old one terminating alone, then the new one), with about 6 seconds without the API.
 * **Docs site:** the platform types table lists Nextflow + Funnel (Kubernetes) as available in local helm mode, with a note on running without internet access; a compatibility table for it (`drs-checksum` ✅, nf-core/demo ❌); both local modes in the overview, access and WES demo pages (the demo's URLs use `nextflow-demo`, with a note to use `nextflow-demo-kubernetes` in helm mode); helm mode's admin CLI command. The site's format, lint, type checks and build pass.
-* **Production notes** in [spec 0010](0010-production-rollout.md): what stage 2 changes in production (core-api's ServiceAccount and `Recreate`, the `engine_job_uid` migration, the mounted connections file, the images built from the repo root, the `refcloud-nextflow` image and its ECR repository, TES refusing `_` tags), the one-time strategy switch, and Helm's server-side conflicts.
+* **Production notes** in [spec 0010](../active/0010-production-rollout.md): what stage 2 changes in production (core-api's ServiceAccount and `Recreate`, the `engine_job_uid` migration, the mounted connections file, the images built from the repo root, the `refcloud-nextflow` image and its ECR repository, TES refusing `_` tags), the one-time strategy switch, and Helm's server-side conflicts.
 * **Checks:** core-api (253 tests, `staticAnalysis`), the admin CLI, the chart, `deploy/local` and the Dockerfiles, the workflows, and the docs site all pass; Task 6's isolation checks passed again against this deploy.
 
 **The user's end-to-end tests** (saved for the end of the spec; record results below):
@@ -422,7 +422,7 @@ Done 2026-11-17:
 8. **Optional:** the docs site's compute pages (`npm run start` in `apps/docs`), and an isolation spot check from a throwaway pod: `kubectl -n refcloud-compute run np-check --rm -it --restart=Never --image=busybox:1.37 -- nc -z -w 3 1.1.1.1 443` should fail.
 9. Before committing: `./scripts/refcloud-static-analysis-secrets.sh staged`.
 
-**Results:**
+**Results:** the user ran steps 1–7 on 2026-11-17 from a fresh `--reset` setup, and everything passed.
 
 ## Future Directions
 

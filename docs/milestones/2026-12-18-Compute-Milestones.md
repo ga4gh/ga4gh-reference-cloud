@@ -8,7 +8,7 @@ The design source of truth is [`claude/discussions/0000-about-adding-compute.md`
 
 In priority order:
 
-1. **Stage 2: helm-based setup.** The `nextflow-funnel-kubernetes` platform type in helm mode (minikube), with a `hostPath` volume for storage (D16):
+1. **Stage 2: helm-based setup.** ✅ **Done 2026-11-17** ([spec 0011](../../claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md)). The `nextflow-funnel-kubernetes` platform type in helm mode (minikube), with a `hostPath` volume for storage (D16):
    * Funnel in the chart, using its Kubernetes compute backend (one Kubernetes Job per task);
    * Nextflow as one Kubernetes Job per WES run, created by core-api (discussion doc, Future Directions);
    * the chart's compute connection wiring (`compute.connections` value, ConfigMap, Secrets; spec 0008, Future Directions).
@@ -31,19 +31,26 @@ In priority order:
 * **The UI monitors and cancels runs; it doesn't submit them.** Submission stays with WES (the API, the demo script and the docs' interactive demo). A submit form would need each workflow's parameter schema (e.g. nf-core's `nextflow_schema.json`).
 * **The nf-ga4gh fixes don't block production.** The bundled demo works on released nf-ga4gh 1.5.0. Until the transient-error fix (D23) is released, deploying or restarting core-api fails the workflows that are running. Bump the pinned version when the fixes are released.
 
-## Proposed Schedule
+## Schedule
+
+**Revised 2026-11-17.** Stage 2 took two days (its spike on November 16th, the rest on the 17th) instead of the two weeks planned: the spike settled Funnel's Kubernetes backend early, stage 1's structure carried over, and stage 2 stayed local. That puts the plan about two weeks ahead. The time goes:
+
+1. to stage 3 straight away, since the AWS platform builds on it;
+2. to the AWS side of item 3 early, in parallel: with code moving fast, it's now the longest pole, since access, Terraform and approvals have lead times of their own;
+3. the rest stays buffer until stage 3 lands. Then, if there's room: the My Runs page (item 4), database locks so core-api can run several replicas (spec 0011, Future Directions), the CI testing framework, or the WES-coordinated federation demo ([`claude/discussions/0001-about-federated-learning.md`](../../claude/discussions/0001-about-federated-learning.md)).
 
 | Week | Dates | Work |
 |-|-|-|
-| 1 | Nov 16–20 | Close stage 1 (PR review and merge). Harden the deployment ([issue 58](https://github.com/ga4gh/ga4gh-reference-cloud/issues/58)). Start the AWS conversations (see Dependencies). |
-| 2–3 | Nov 23–Dec 4 | Spike the stage 2–3 unknowns: Funnel's Kubernetes backend in minikube, Nextflow as a Kubernetes Job, and nf-ga4gh with an `s3://` work directory against MinIO and Funnel's S3 storage. Then stage 2 (item 1). Start the My Runs page (item 4). |
-| 3–4 | Nov 30–Dec 11 | Stage 3 (item 2). |
-| 4–5 | Dec 7–18 | AWS connection and production hardening (item 3), then production deployment (item 6). Docs (item 5) throughout. |
+| 1 | Nov 16–20 | ✅ Stage 1 closed. ✅ Deployment hardened ([issue 58](https://github.com/ga4gh/ga4gh-reference-cloud/issues/58)). ✅ Stage 2 (item 1), done November 17th. Then: stage 2's PR review and merge; start stage 3 (item 2) with its spike: nf-ga4gh with an `s3://` work directory against MinIO, and Funnel's S3 storage. Start the AWS conversations (see Dependencies). |
+| 2 | Nov 23–27 | Stage 3 (item 2). AWS prerequisites in Terraform: the `refcloud-nextflow` ECR repository, an S3 bucket, an IAM role for the compute pods, a node pool for task Jobs, a budget with alarms. |
+| 3 | Nov 30–Dec 4 | The AWS compute platform (item 3), on stage 2's chart and stage 3's S3 storage. The My Runs page (item 4) if there's room. |
+| 4 | Dec 7–11 | Finish item 3, rehearse the release in minikube. Docs (item 5) throughout. **December 11th: go/no-go on what ships** ([spec 0010](../../claude/specs/active/0010-production-rollout.md), Task 1). |
+| 5 | Dec 14–18 | Production deployment (item 6) on December 14th–16th, then watch it. |
 | 6 | Dec 21–24 | Buffer. No new deployments. |
 
 ## Dependencies and Risks
 
-* **Unverified stack pieces.** Funnel's Kubernetes backend (discussion doc, To Verify item 3), Nextflow as a Kubernetes Job, and nf-ga4gh with S3 work directories haven't been tried yet. The spike at the start of week 2 covers them, so surprises surface early.
+* **Unverified stack pieces.** Funnel's Kubernetes backend and Nextflow as a Kubernetes Job are verified (spec 0011). nf-ga4gh with S3 work directories hasn't been tried yet: stage 3's spike covers it first, so surprises surface early. Stage 1 needed two nf-ga4gh patches, so S3 may need more.
 * **AWS access and approvals**, outside the code:
   * who pays for compute, and a budget with alarms;
   * IAM roles, an S3 bucket for work and outputs, and capacity on the cluster (a separate node group for task Jobs).
@@ -51,5 +58,5 @@ In priority order:
   * their own namespace, with no service account token;
   * network policies and a resource quota on that namespace.
 
-  The admin CLI's platform disable is the kill switch.
+  Stage 2 built these for minikube (spec 0011, Tasks 3–6: a per-release compute namespace that denies all traffic by default, no DNS for workflow pods, an outbound allowlist, a quota and a LimitRange), so the AWS platform reuses them. One stage 2 permission needs narrowing before production: Funnel's cluster-wide permission on PersistentVolumes (spec 0011, Future Directions). The admin CLI's platform disable is the kill switch.
 * **Holiday timing.** Deploy by December 18th so there's time to watch costs and usage before the break. Consider keeping platform access approval-only over the break.
