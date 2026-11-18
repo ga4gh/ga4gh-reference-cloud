@@ -12,7 +12,7 @@ In priority order:
    * Funnel in the chart, using its Kubernetes compute backend (one Kubernetes Job per task);
    * Nextflow as one Kubernetes Job per WES run, created by core-api (discussion doc, Future Directions);
    * the chart's compute connection wiring (`compute.connections` value, ConfigMap, Secrets; spec 0008, Future Directions).
-2. **Stage 3: S3 storage.** 🔄 **Built 2026-11-18, end-to-end test pending** ([spec 0012](../../claude/specs/archive/0012-add-compute-s3-storage.md)). `s3` as a connection storage setting (D15) for the Kubernetes platform type: RustFS locally (MinIO's community edition was archived), S3 on AWS. The Docker type keeps the shared filesystem. Covers the Nextflow work directory, Funnel's file staging (on Funnel 0.12.3, with a claim per task and no cluster-wide permissions), WES input staging (D17), output downloads (D19), and credentials for each run limited to its own files. Helm mode is now S3 only, with no `hostPath`, so its compute namespace enforces the restricted Pod Security level.
+2. **Stage 3: S3 storage.** ✅ **Done 2026-11-18** ([spec 0012](../../claude/specs/archive/0012-add-compute-s3-storage.md)). `s3` as a connection storage setting (D15) for the Kubernetes platform type: RustFS locally (MinIO's community edition was archived), S3 on AWS. The Docker type keeps the shared filesystem. Covers the Nextflow work directory, Funnel's file staging (on Funnel 0.12.3, with a claim per task and no cluster-wide permissions), WES input staging (D17), output downloads (D19), and credentials for each run limited to its own files. Helm mode is now S3 only, with no `hostPath`, so its compute namespace enforces the restricted Pod Security level.
 3. **A compute platform on AWS (EKS).** Run WES/TES jobs on the Kubernetes cluster on AWS that the refcloud is deployed to, fully working and tested there before production. See [Running on AWS](#running-on-aws).
    * **One branch covers it all:**
      * the AWS prerequisites, in Terraform: the `refcloud-nextflow` ECR repository, an S3 bucket, IAM roles through EKS Pod Identity, a node pool for task Jobs, and a budget with alarms;
@@ -64,7 +64,7 @@ The AWS platform goes before the My Runs page for three reasons:
 
 | Week | Dates | Work |
 |-|-|-|
-| 1 | Nov 16–20 | ✅ Stage 1 closed. ✅ Deployment hardened ([issue 58](https://github.com/ga4gh/ga4gh-reference-cloud/issues/58)). ✅ Stage 2 (item 1), done November 17th. 🔄 Stage 3 (item 2), built November 18th (its spike settled RustFS, Funnel 0.12.3 and per-run credentials); end-to-end test and PR next. |
+| 1 | Nov 16–20 | ✅ Stage 1 closed. ✅ Deployment hardened ([issue 58](https://github.com/ga4gh/ga4gh-reference-cloud/issues/58)). ✅ Stage 2 (item 1), done November 17th. ✅ Stage 3 (item 2), done November 18th (its spike settled RustFS, Funnel 0.12.3 and per-run credentials). |
 | 2 | Nov 23–27 | The AWS compute platform (item 3): its prerequisites in Terraform (the `refcloud-nextflow` ECR repository, an S3 bucket, IAM roles, a node pool for task Jobs, a budget with alarms), then the platform on EKS, on stage 2's chart and stage 3's S3 storage. |
 | 3 | Nov 30–Dec 4 | Finish item 3. The My Runs page (item 4), then start the testing framework and CI (item 5). |
 | 4 | Dec 7–11 | Finish item 5, trimmed to fit. The docs refresh (item 6). Rehearse the release in minikube. **December 11th: go/no-go on what ships** ([spec 0010](../../claude/specs/active/0010-production-rollout.md), Task 1). |
