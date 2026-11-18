@@ -1,0 +1,194 @@
+{{- /*
+NetworkPolicies: each refcloud pod accepts only the traffic it needs (see networkPolicy in values.yaml). A pod
+selected by a policy refuses all other incoming traffic, except its node's (kubelet health probes). Outgoing traffic
+isn't restricted.
+
+  to                          from
+  refcloud-ui :3000           the ingress
+  refcloud-docs :8080         the ingress
+  refcloud-api :8080          the ingress, refcloud-ui, kratos (registration webhook), and locally the Nextflow
+                              Jobs in the compute namespace (its TES API, through the engine callback URL)
+  kratos :4433 (public)       the ingress, refcloud-ui, refcloud-api
+  kratos :4434 (admin)        nothing (health probes only)
+  hydra :4444 (public)        the ingress, refcloud-ui, refcloud-api (signing keys)
+  hydra :4445 (admin)         refcloud-ui (login and consent)
+  refcloud-admin-cli          nothing
+  rustfs :9000 (local only)   refcloud-api, the rustfs-setup Job, and in the compute namespace the Nextflow Jobs and
+                              Funnel's workers (run storage, spec 0012)
+
+A new in-cluster caller (e.g. a new internal URL in a deployment or config map) needs a rule here, or its requests
+time out. The compute namespace's policies, which deny all traffic in and out by default, are in
+compute-network-policies.yaml.
+*/ -}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $ingressFrom := .Values.networkPolicy.ingressFrom }}
+{{- if not $ingressFrom }}
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $ingressFrom = list (dict "namespaceSelector" (dict "matchLabels" (dict "kubernetes.io/metadata.name" "ingress-nginx"))) }}
+{{- else }}
+{{- fail "networkPolicy.ingressFrom is required unless cloudEnvironment is local: where the ingress's traffic comes from, e.g. [{ipBlock: {cidr: <the VPC CIDR>}}] for an AWS ALB with IP targets (see deploy/helm/README.md)" }}
+{{- end }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: refcloud-ui
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-ui
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml $ingressFrom | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: refcloud-docs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-docs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml $ingressFrom | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: refcloud-api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml $ingressFrom | nindent 8 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-ui
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kratos
+        {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "refcloud.computeNamespace" . }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-nextflow
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kratos
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kratos
+  policyTypes:
+    - Ingress
+  ingress:
+    # public API only; the admin API (4434) has no rule
+    - from:
+        {{- toYaml $ingressFrom | nindent 8 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-ui
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-api
+      ports:
+        - protocol: TCP
+          port: 4433
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hydra
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hydra
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml $ingressFrom | nindent 8 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-ui
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-api
+      ports:
+        - protocol: TCP
+          port: 4444
+    # admin API: login and consent acceptance, from the researcher UI's server only
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-ui
+      ports:
+        - protocol: TCP
+          port: 4445
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: refcloud-admin-cli
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: refcloud-admin-cli
+  policyTypes:
+    - Ingress
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rustfs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rustfs-setup
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "refcloud.computeNamespace" . }}
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [refcloud-nextflow, funnel-worker]
+      ports:
+        - protocol: TCP
+          port: 9000
+{{- end }}
+{{- end }}

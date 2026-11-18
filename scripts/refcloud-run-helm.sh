@@ -44,23 +44,39 @@ check_k8s_secrets_exist() {
 
 build_images() {
   local tag=$1
-  local entry repository context log_file
+  local entry repository context dockerfile log_file
 
   mkdir -p "$BUILD_LOG_DIR"
 
   for entry in "${REFCLOUD_IMAGES[@]}"; do
+    # "<repository>:<context>:<Dockerfile, relative to the context>"
     repository=${entry%%:*}
-    context=${entry#*:}
+    context=${${entry#*:}%%:*}
+    dockerfile=${entry##*:}
     log_file="$BUILD_LOG_DIR/$repository.log"
 
-    log_info "building image '$repository:$tag' from '$context' into minikube"
-    minikube image build -t "$repository:$tag" "$context" > "$log_file" 2>&1 \
+    log_info "building image '$repository:$tag' from '$context/$dockerfile' into minikube"
+    minikube image build -t "$repository:$tag" -f "$dockerfile" "$context" > "$log_file" 2>&1 \
       || { log_error "failed to build image '$repository:$tag', see '$log_file'"; exit 1; }
 
     # 'minikube image build' can exit 0 when the build fails, so confirm the image exists
     minikube image ls 2>/dev/null | grep -qx "docker.io/library/$repository:$tag" \
       || { log_error "image '$repository:$tag' was not built, see '$log_file'"; exit 1; }
   done
+}
+
+# core-api's Deployment now uses the Recreate strategy (spec 0011, Task 8). A Deployment created with rolling updates
+# keeps the default rollingUpdate settings Kubernetes filled in, which nothing owns, so Helm's server-side apply can't
+# remove them and the change is refused as invalid. Replace the whole strategy once; it doesn't restart anything, and
+# does nothing once the Deployment is switched
+switch_core_api_to_recreate() {
+  local strategy=$(kubectl_local get deployment refcloud-api -o jsonpath='{.spec.strategy.type}' 2>/dev/null)
+  if [[ -n "$strategy" && "$strategy" != "Recreate" ]]; then
+    log_info "switching deployment 'refcloud-api' to the Recreate strategy (once)"
+    kubectl_local patch deployment refcloud-api --type=json \
+      -p '[{"op":"replace","path":"/spec/strategy","value":{"type":"Recreate"}}]' > /dev/null \
+      || { log_error "failed to switch deployment 'refcloud-api' to the Recreate strategy"; exit 1; }
+  fi
 }
 
 deploy_release() {
@@ -94,6 +110,7 @@ uninstall_release() {
   if helm_local status "$HELM_RELEASE" > /dev/null 2>&1; then
     log_info "uninstalling helm release '$HELM_RELEASE'"
     helm_local uninstall "$HELM_RELEASE" --wait > /dev/null || { log_error "failed to uninstall helm release '$HELM_RELEASE'"; exit 1; }
+    log_info "compute runs' files are kept (RustFS's data, '$RUSTFS_DATA_CLAIM'): ./scripts/refcloud-setup.sh --reset deletes them"
   else
     log_info "helm release '$HELM_RELEASE' is not installed"
   fi
@@ -115,6 +132,7 @@ log_info "starting refcloud in helm mode (minikube)"
 
 check_port_443_free
 start_minikube
+require_minikube_calico
 use_minikube_context
 check_k8s_secrets_exist
 
@@ -122,9 +140,11 @@ IMAGE_TAG=$(refcloud_image_tag)
 log_info "using lockstep image tag '$IMAGE_TAG'"
 
 build_images "$IMAGE_TAG"
+switch_core_api_to_recreate
 deploy_release "$IMAGE_TAG"
+init_kubernetes_compute_platform
 
-print_service_urls
+print_service_urls compute "$KUBERNETES_COMPUTE_CONNECTION_KEY"
 log_info "starting 'minikube tunnel' to expose the ingress on port 443 (may prompt for your password)"
 log_info "press Ctrl+C to stop the tunnel. the release keeps running; use --down to uninstall it"
 

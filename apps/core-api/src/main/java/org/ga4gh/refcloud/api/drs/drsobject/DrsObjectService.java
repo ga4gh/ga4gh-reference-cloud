@@ -204,6 +204,22 @@ public class DrsObjectService {
         return exists;
     }
 
+    // for staging a DRS object as a workflow input (compute, Task 8); access is checked separately with
+    // validateUserIsAuthorizedForDrsObject
+    @Transactional(readOnly = true)
+    public Optional<DrsStagingInfo> getStagingInfo(String id) {
+        return drsObjectRepository
+                .findById(id)
+                .map(drsObject -> new DrsStagingInfo(
+                        drsObject.getId(),
+                        drsObject.getName(),
+                        drsObject.getSize(),
+                        Boolean.TRUE.equals(drsObject.getIsManifest()),
+                        drsObject.getAwsS3AccessObjects().stream()
+                                .map(this::generateAccessUrlForOpenAccessS3Object)
+                                .toList()));
+    }
+
     @Transactional(readOnly = true)
     private DrsObject loadDrsObject(String id) {
         return drsObjectRepository

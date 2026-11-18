@@ -75,8 +75,8 @@ The `datasets` type takes no parameters.
 ### Data model conventions
 
 * JSON Schema draft-07, matching the Data Connect spec's examples.
-* `format` holds the column's SQL type name (`varchar`, `bigint`, `boolean`, `timestamp`, `json`), as in the Data Connect spec's examples.
-* Following the Data Connect SQL-to-JSON type mapping, `bigint` columns (`size`, `length`) are declared as `"type": "string"`, and `timestamp` columns are ISO 8601 strings. `refcloud-api` converts values to match.
+* `format` holds the column's SQL type name (`varchar`, `bigint`, `boolean`, `timestamp with time zone`, `json`), as in the Data Connect spec's examples.
+* Following the Data Connect SQL-to-JSON type mapping, `bigint` columns (`size`, `length`) are declared as `"type": "string"`, and timestamp columns are ISO 8601 strings. Refcloud timestamps are `timestamp with time zone`, stored in UTC, so values carry their offset (e.g. `2026-11-11T20:24:16Z`). `refcloud-api` converts values to match.
 
 ## Table types
 

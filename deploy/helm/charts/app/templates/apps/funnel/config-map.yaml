@@ -1,0 +1,84 @@
+{{- /*
+Funnel's config (funnel.yml), read by its server and by every worker.
+
+Tasks keep their files in the local connection's S3 storage (RustFS, spec 0012): workers download each task's inputs
+into its workspace (a claim of its own, files/funnel/storage.yaml) and upload its outputs, with Funnel's own RustFS
+user (funnel-s3, from the environment). No other storage is enabled, local files included.
+
+The job and storage templates are Go templates that Funnel renders for each task, kept verbatim in files/funnel/ so
+Helm never interprets their braces. The chart only replaces their capitalized placeholders.
+
+Kubernetes.Resources: Funnel's own defaults and maximums for a task, from the local connection. Funnel reads these in
+GiB but compares them with a task's TES values (in GB) as plain numbers, so they're written in Gi with the
+connection's GB figures: the numbers then match.
+*/}}
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+{{- $image := include "refcloud.funnelImage" . }}
+{{- $connection := include "refcloud.localComputeConnection" . | fromYaml }}
+{{- $limits := $connection.limits }}
+{{- $defaultTaskDiskGb := include "refcloud.defaultTaskDiskGb" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: funnel-config
+  namespace: {{ $namespace }}
+data:
+  funnel.yml: |
+    Server:
+      HostName: funnel
+      HTTPPort: "8000"
+      RPCPort: "9090"
+    # workers fetch their task and report its events over RPC (templates/apps/funnel/service.yaml)
+    RPCClient:
+      ServerAddress: funnel:9090
+    Logger:
+      Level: info
+    # one file on Funnel's own claim (funnel-db), so tasks survive a restart of the server (which runs one replica)
+    Database: boltdb
+    BoltDB:
+      Path: /var/lib/funnel/funnel.db
+    EventWriters:
+      - boltdb
+      - log
+    Compute: kubernetes
+    Worker:
+      # where each task's workspace claim is mounted (plus the task ID); see files/funnel/worker-job.yaml
+      WorkDir: /tmp
+      LeaveWorkDir: false
+    AmazonS3:
+      Disabled: false
+      AWSConfig:
+        Endpoint: http://rustfs.{{ .Release.Namespace }}.svc.cluster.local:9000
+        Region: {{ $connection.storage.region }}
+    LocalStorage:
+      Disabled: true
+    HTTPStorage:
+      Disabled: true
+    FTPStorage:
+      Disabled: true
+    GoogleStorage:
+      Disabled: true
+    Swift:
+      Disabled: true
+    Kubernetes:
+      Executor: kubernetes
+      Namespace: {{ $namespace }}
+      JobsNamespace: {{ $namespace }}
+      ReconcileRate: 10s
+      Resources:
+        Defaults:
+          Cpus: {{ index $limits "default-task-cpu-cores" | quote }}
+          RamGb: {{ printf "%vGi" (index $limits "default-task-memory-gb") | quote }}
+          DiskGb: {{ printf "%sGi" $defaultTaskDiskGb | quote }}
+        Limits:
+          Cpus: {{ index $limits "max-task-cpu-cores" | quote }}
+          RamGb: {{ printf "%vGi" (index $limits "max-task-memory-gb") | quote }}
+          DiskGb: {{ printf "%vGi" (index $limits "max-task-disk-gb") | quote }}
+      Storage:
+        {{- $.Files.Get "files/funnel/storage.yaml" | replace "REFCLOUD_DEFAULT_TASK_DISK" (printf "%sG" $defaultTaskDiskGb) | nindent 8 }}
+      {{- range $key, $file := dict "WorkerTemplate" "worker-job.yaml" "ExecutorTemplate" "executor-job.yaml" }}
+      {{ $key }}: |
+        {{- $.Files.Get (printf "files/funnel/%s" $file) | replace "REFCLOUD_FUNNEL_IMAGE" $image | nindent 8 }}
+      {{- end }}
+{{- end }}

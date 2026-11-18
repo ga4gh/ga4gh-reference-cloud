@@ -1,0 +1,78 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+# Funnel's server: creates each task's worker Job and its workspace claim (files/funnel/storage.yaml). It needs no
+# permission on PersistentVolumes (spec 0012): the claim's volume comes from the StorageClass, and Kubernetes deletes the
+# claim with the worker Job that owns it
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: funnel
+  namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: funnel
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: funnel
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: funnel
+subjects:
+  - kind: ServiceAccount
+    name: funnel
+    namespace: {{ $namespace }}
+---
+# Funnel's workers (files/funnel/worker-job.yaml): each creates and watches its task's executor Jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: funnel-worker
+  namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: funnel-worker
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: funnel-worker
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: funnel-worker
+subjects:
+  - kind: ServiceAccount
+    name: funnel-worker
+    namespace: {{ $namespace }}
+{{- end }}

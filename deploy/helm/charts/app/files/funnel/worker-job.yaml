@@ -1,0 +1,72 @@
+# Funnel's worker Job (Kubernetes.WorkerTemplate in funnel.yml), one per TES task. The worker fetches its task from
+# Funnel's server over RPC, downloads the task's inputs from the run's S3 storage (RustFS locally) into the task's
+# workspace, creates an executor Job for each executor (executor-job.yaml), and uploads the outputs back (spec 0012).
+#
+# Funnel renders this file as a Go template for each task. The chart only replaces the capitalized placeholders
+# (templates/apps/funnel/config-map.yaml), so never write template braces in these comments.
+#
+# The workspace is a claim of its own per task (Kubernetes.Storage in funnel.yml), which Funnel mounts here and in the
+# executors at Worker.WorkDir (/tmp) plus the task ID. Funnel 0.12 stages outputs in a directory next to the workspace,
+# in WorkDir itself, where it allows no other mount, so the worker's root filesystem is writable (the image's /tmp is
+# world-writable); the executors' stays read-only (spec 0012, Task 1).
+#
+# The app and task-id labels match Funnel's default template, which Funnel may select its Jobs by: keep them. The
+# executors' podAffinity finds the worker by them too.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.TaskId}}
+  namespace: {{.JobsNamespace}}
+  labels:
+    app: funnel-worker
+    task-id: {{.TaskId}}
+    app.kubernetes.io/name: funnel-worker
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: funnel-worker
+        task-id: {{.TaskId}}
+        app.kubernetes.io/name: funnel-worker
+    spec:
+      # creates and watches its task's executor Jobs (templates/apps/funnel/rbac.yaml)
+      serviceAccountName: funnel-worker
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: REFCLOUD_FUNNEL_IMAGE
+          imagePullPolicy: IfNotPresent
+          args: ["worker", "run", "--config", "/etc/funnel/funnel.yml", "--taskID", "{{.TaskId}}"]
+          # its S3 credentials (Funnel's user, for every run's files: the refcloud's TES has already checked that the
+          # task's files are its own run's)
+          envFrom:
+            - secretRef:
+                name: funnel-s3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/funnel
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: funnel-config

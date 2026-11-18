@@ -1,4 +1,4 @@
-from sqlalchemy import MetaData, create_engine, delete, insert, select
+from sqlalchemy import MetaData, and_, create_engine, delete, func, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from refcloud.config.env_config import EnvConfig
@@ -15,8 +15,10 @@ class DatabaseEngine:
 
     def _load_engine(self):
         config = EnvConfig()
+        # sessions run in UTC, so timestamps read back are UTC and any zone-less value is taken as UTC
         self._engine = create_engine(
-            f"postgresql+psycopg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}"
+            f"postgresql+psycopg://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}@{config.POSTGRES_HOST}:{config.POSTGRES_PORT}/{config.POSTGRES_DB}",
+            connect_args={"options": "-c timezone=UTC"},
         )
         self._metadata = MetaData()
         self._metadata.reflect(bind=self._engine)
@@ -25,6 +27,9 @@ class DatabaseEngine:
         self._tag_table = self._metadata.tables["tag"]
         self._dataset_tag_table = self._metadata.tables["dataset_tag"]
         self._passport_visa_table = self._metadata.tables["passport_visa"]
+        self._passport_user_visa_assertion_table = self._metadata.tables["passport_user_visa_assertion"]
+        self._compute_platform_table = self._metadata.tables["compute_platform"]
+        self._compute_platform_workflow_table = self._metadata.tables["compute_platform_workflow"]
         self._drs_object_table = self._metadata.tables["drs_object"]
         self._drs_object_alias_table = self._metadata.tables["drs_object_alias"]
         self._drs_object_checksum_table = self._metadata.tables["drs_object_checksum"]
@@ -68,6 +73,189 @@ class DatabaseEngine:
 
     def insert_passport_visa(self, **kwargs):
         return self._insert(self._passport_visa_table, **kwargs)
+
+    def list_visas(self):
+        # every visa with the one resource it gates (a dataset or a compute platform), plus a count of its access
+        # requests by status
+        visa = self._passport_visa_table
+        dataset = self._dataset_table
+        compute_platform = self._compute_platform_table
+        assertion = self._passport_user_visa_assertion_table
+        counts = (
+            select(assertion.c.visa_id, assertion.c.current_status, func.count().label("count"))
+            .group_by(assertion.c.visa_id, assertion.c.current_status)
+            .subquery()
+        )
+        visas_stmt = (
+            select(
+                visa.c.id,
+                visa.c.name,
+                visa.c.description,
+                visa.c.dataset_id,
+                dataset.c.name.label("dataset_name"),
+                visa.c.compute_platform_id,
+                compute_platform.c.name.label("compute_platform_name"),
+            )
+            .select_from(
+                visa.outerjoin(dataset, visa.c.dataset_id == dataset.c.id).outerjoin(
+                    compute_platform, visa.c.compute_platform_id == compute_platform.c.id
+                )
+            )
+            .order_by(visa.c.id)
+        )
+        counts_stmt = select(counts.c.visa_id, counts.c.current_status, counts.c.count)
+        with self._engine.connect() as conn:
+            visas = conn.execute(visas_stmt).all()
+            request_counts = {}
+            for visa_id, status, count in conn.execute(counts_stmt).all():
+                request_counts.setdefault(visa_id, {})[str(status)] = count
+        return visas, request_counts
+
+    def get_visa_by_id(self, id):
+        stmt = select(self._passport_visa_table).where(self._passport_visa_table.c.id == id)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def list_visa_requests(self, status=None, visa_id=None):
+        # access requests (user visa assertions), oldest status change first. no filter means all statuses
+        visa = self._passport_visa_table
+        assertion = self._passport_user_visa_assertion_table
+        stmt = (
+            select(
+                assertion.c.user_id,
+                assertion.c.visa_id,
+                visa.c.name.label("visa_name"),
+                assertion.c.current_status,
+                assertion.c.current_status_at,
+            )
+            .select_from(assertion.join(visa, assertion.c.visa_id == visa.c.id))
+            .order_by(assertion.c.current_status_at, assertion.c.user_id)
+        )
+        if status is not None:
+            stmt = stmt.where(assertion.c.current_status == status)
+        if visa_id is not None:
+            stmt = stmt.where(assertion.c.visa_id == visa_id)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).all()
+
+    def get_visa_request(self, user_id, visa_id):
+        assertion = self._passport_user_visa_assertion_table
+        stmt = select(assertion).where(and_(assertion.c.user_id == user_id, assertion.c.visa_id == visa_id))
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def update_visa_request_status(self, user_id, visa_id, from_statuses, to_status):
+        # moves a request to to_status only if its current status is one of from_statuses, in a single
+        # statement, so two admins acting at once can't both apply a transition. returns True if updated.
+        assertion = self._passport_user_visa_assertion_table
+        stmt = (
+            update(assertion)
+            .where(
+                and_(
+                    assertion.c.user_id == user_id,
+                    assertion.c.visa_id == visa_id,
+                    assertion.c.current_status.in_(from_statuses),
+                )
+            )
+            .values(current_status=to_status, current_status_at=func.now())
+        )
+        with self._engine.begin() as conn:
+            return conn.execute(stmt).rowcount == 1
+
+    def get_compute_platform(self, id):
+        stmt = select(self._compute_platform_table).where(self._compute_platform_table.c.id == id)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def get_compute_platform_by_name(self, name):
+        stmt = select(self._compute_platform_table).where(self._compute_platform_table.c.name == name)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def list_compute_platforms(self):
+        # every compute platform with its visa id and allowlist size
+        platform = self._compute_platform_table
+        visa = self._passport_visa_table
+        workflow = self._compute_platform_workflow_table
+        workflow_counts = (
+            select(workflow.c.compute_platform_id, func.count().label("workflow_count"))
+            .group_by(workflow.c.compute_platform_id)
+            .subquery()
+        )
+        stmt = (
+            select(
+                platform,
+                visa.c.id.label("visa_id"),
+                func.coalesce(workflow_counts.c.workflow_count, 0).label("workflow_count"),
+            )
+            .select_from(
+                platform.outerjoin(visa, visa.c.compute_platform_id == platform.c.id).outerjoin(
+                    workflow_counts, workflow_counts.c.compute_platform_id == platform.c.id
+                )
+            )
+            .order_by(platform.c.id)
+        )
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).all()
+
+    def insert_compute_platform_with_visa(self, platform, visa):
+        # one transaction: a compute platform always has its visa (no open-access compute)
+        with self._engine.begin() as conn:
+            conn.execute(insert(self._compute_platform_table).values(**platform))
+            conn.execute(insert(self._passport_visa_table).values(**visa))
+
+    def update_compute_platform(self, id, platform_values, visa_values=None):
+        # one transaction, so a renamed platform's visa is renamed with it
+        with self._engine.begin() as conn:
+            if platform_values:
+                conn.execute(
+                    update(self._compute_platform_table)
+                    .where(self._compute_platform_table.c.id == id)
+                    .values(**platform_values)
+                )
+            if visa_values:
+                conn.execute(
+                    update(self._passport_visa_table)
+                    .where(self._passport_visa_table.c.compute_platform_id == id)
+                    .values(**visa_values)
+                )
+
+    def delete_compute_platform(self, id):
+        # its visa (and so its access requests) and its allowlist are removed by ON DELETE CASCADE
+        stmt = delete(self._compute_platform_table).where(self._compute_platform_table.c.id == id)
+        with self._engine.begin() as conn:
+            conn.execute(stmt)
+
+    def list_compute_platform_workflows(self, compute_platform_id):
+        workflow = self._compute_platform_workflow_table
+        stmt = select(workflow).where(workflow.c.compute_platform_id == compute_platform_id).order_by(workflow.c.id)
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).all()
+
+    def get_compute_platform_workflow_by_url(self, compute_platform_id, workflow_url):
+        workflow = self._compute_platform_workflow_table
+        stmt = select(workflow).where(
+            and_(workflow.c.compute_platform_id == compute_platform_id, workflow.c.workflow_url == workflow_url)
+        )
+        with self._engine.connect() as conn:
+            return conn.execute(stmt).first()
+
+    def insert_compute_platform_workflow(self, **kwargs):
+        with self._engine.begin() as conn:
+            return conn.execute(
+                insert(self._compute_platform_workflow_table)
+                .values(**kwargs)
+                .returning(self._compute_platform_workflow_table.c.id)
+            ).scalar_one()
+
+    def delete_compute_platform_workflow(self, compute_platform_id, workflow_id):
+        # returns True if an entry was removed
+        workflow = self._compute_platform_workflow_table
+        stmt = delete(workflow).where(
+            and_(workflow.c.compute_platform_id == compute_platform_id, workflow.c.id == workflow_id)
+        )
+        with self._engine.begin() as conn:
+            return conn.execute(stmt).rowcount == 1
 
     def insert_drs_object(self, **kwargs):
         return self._insert(self._drs_object_table, **kwargs)

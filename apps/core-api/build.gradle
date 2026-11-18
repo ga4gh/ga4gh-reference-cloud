@@ -55,10 +55,25 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'software.amazon.awssdk:s3:2.25.15'
+    // the AWS SDK's versions come from its BOM: S3 for DRS's access objects and compute's S3 storage (spec 0012).
+    // its HTTP client is the JDK-based url-connection-client: core-api makes only synchronous calls, so the default
+    // Apache (whose httpcore5, pinned by Spring Boot, had HIGH CVEs) and Netty clients aren't needed
+    implementation platform('software.amazon.awssdk:bom:2.57.8')
+    implementation('software.amazon.awssdk:s3') {
+        exclude group: 'software.amazon.awssdk', module: 'apache5-client'
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+    }
+    // STS issues each compute run's storage credentials, limited to the run's own prefix (spec 0012, Task 3)
+    implementation('software.amazon.awssdk:sts') {
+        exclude group: 'software.amazon.awssdk', module: 'apache5-client'
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+    }
+    implementation 'software.amazon.awssdk:url-connection-client'
     implementation 'com.github.jsqlparser:jsqlparser:5.4' // Data Connect query parsing/rewriting, no Spring-managed alternative
     compileOnly 'org.projectlombok:lombok'
     compileOnly 'com.github.spotbugs:spotbugs-annotations:4.10.5' // @SuppressFBWarnings(justification = ...)
+    // tests that load classes carrying @SuppressFBWarnings need the annotation on the classpath, or -Werror fails
+    testCompileOnly 'com.github.spotbugs:spotbugs-annotations:4.10.5'
     annotationProcessor 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
 

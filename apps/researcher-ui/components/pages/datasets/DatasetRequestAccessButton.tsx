@@ -21,10 +21,10 @@ const DatasetRequestAccessButton = ({ id, datasetMap, setDatasetMap }: DatasetRe
         throw new Error("dataset request access response was not ok");
       }
 
-      const result = await response.json();
-      const { ...updatedDatasetMap } = datasetMap;
-      updatedDatasetMap[id] = result;
-      setDatasetMap(updatedDatasetMap);
+      // the dataset with the user's (new or existing) access request. only its visa changes: keep the fields the
+      // request endpoint doesn't return (tables, hasManifests)
+      const result: Dataset = await response.json();
+      setDatasetMap({ ...datasetMap, [id]: { ...datasetMap[id], visa: result.visa } });
     } catch (error) {
       console.error("Failed to request access to dataset", error);
     }

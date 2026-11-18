@@ -7,15 +7,28 @@ spec:
     matchLabels:
       app.kubernetes.io/name: refcloud-api
   replicas: 1
+  # never two core-apis at once, even during a deploy or restart: compute serializes its work (launching runs,
+  # preparing their inputs, admitting tasks against pooled limits) with in-process locks, which two instances would
+  # each hold separately (spec 0011, Task 8). the cost is a short gap with no API while the new pod starts
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app.kubernetes.io/name: refcloud-api
+      annotations:
+        # restart when the compute connections change: core-api reads them at startup
+        checksum/compute-connections: {{ include (print $.Template.BasePath "/common/compute-connections.yaml") . | sha256sum }}
     spec:
+      # its own account: locally, its Role in the compute namespace lets it run Nextflow Jobs (rbac.yaml)
+      serviceAccountName: refcloud-api
       {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: compute-connections
+          configMap:
+            name: refcloud-compute-connections
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-core-api") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -25,6 +38,9 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: compute-connections
+              mountPath: /etc/refcloud/compute
+              readOnly: true
           ports:
             - containerPort: 8080
           # spring boot actuator health groups (unauthenticated in SecurityConfig, not routed by the ingress).
@@ -80,6 +96,18 @@ spec:
             {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
             - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
               value: http://hydra:4444/.well-known/jwks.json
+            # core-api's own RustFS user, for the local compute connection's S3 storage (spec 0012); the connection names
+            # these variables (access-key-id-env, secret-access-key-env)
+            - name: REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-compute-s3-core-api
+                  key: access-key-id
+            - name: REFCLOUD_COMPUTE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-compute-s3-core-api
+                  key: secret-access-key
             {{- end }}
             - name: GA4GH_REFCLOUD_SECURITY_CORS_ALLOWED_ORIGINS_0
               value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
@@ -161,4 +189,18 @@ spec:
               value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.environment | quote }}
             - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_VERSION
               value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.version | quote }}
+            # compute (WES/TES). connections come only from the connections file, never from env vars
+            - name: REFCLOUD_COMPUTE_CONNECTIONS_FILE
+              value: /etc/refcloud/compute/connections.yml
+            - name: GA4GH_REFCLOUD_COMPUTE_SERVICEINFO_IDSUFFIX
+              value: {{ .Values.ga4gh.referenceCloud.compute.serviceInfo.idSuffix | quote }}
+            - name: GA4GH_REFCLOUD_COMPUTE_SERVICEINFO_ENVIRONMENT
+              value: {{ .Values.ga4gh.referenceCloud.compute.serviceInfo.environment | quote }}
+            # the docs page on requesting compute access (apps/docs/docs/compute/access.mdx)
+            - name: GA4GH_REFCLOUD_COMPUTE_SERVICEINFO_AUTHINSTRUCTIONSURL
+              value: https://docs.{{ .Values.ga4gh.referenceCloud.baseURL }}/docs/compute/access
+            # engines call core-api's TES API in the cluster, not through the ingress. fully qualified, since the
+            # Nextflow Jobs run in the compute namespace, where the short name doesn't resolve
+            - name: GA4GH_REFCLOUD_COMPUTE_RUNS_ENGINECALLBACKURL
+              value: http://refcloud-api.{{ .Release.Namespace }}.svc:8080
       {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

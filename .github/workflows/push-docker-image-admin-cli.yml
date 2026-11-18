@@ -13,7 +13,9 @@ jobs:
   build-push:
     uses: ./.github/workflows/push-docker-image.yml
     with:
-      app-path: apps/admin-cli
+      # built from the repo root, to include compute/workflows/ (/.dockerignore limits what it sees)
+      app-path: .
+      dockerfile: apps/admin-cli/Dockerfile
       docker-repo: refcloud-admin-cli
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}

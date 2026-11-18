@@ -1,0 +1,80 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+# Funnel's server: the TES executor behind core-api's TES API. It runs each task as a worker Job in the compute
+# namespace (files/funnel/worker-job.yaml), and never touches the run storage itself (its workers do). Its TES API
+# has no auth: only core-api may call it
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnel
+  namespace: {{ include "refcloud.computeNamespace" . }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: funnel
+  replicas: 1
+  # its database is one file that only one server can open: stop the old pod before starting the new one
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: funnel
+      annotations:
+        # restart when the config changes: Funnel reads it at startup
+        checksum/config: {{ include (print $.Template.BasePath "/apps/funnel/config-map.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: funnel
+      # Funnel's image runs as root by default. It runs as 10001 (user and group), like the workers and executors, and
+      # owns its database claim (fsGroup); so it is set here rather than with refcloud.podSecurityContext
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: funnel-config
+        # Funnel's database (funnel-db.yaml)
+        - name: db
+          persistentVolumeClaim:
+            claimName: funnel-db
+      containers:
+        - image: {{ include "refcloud.funnelImage" . }}
+          imagePullPolicy: IfNotPresent
+          name: funnel
+          args: ["server", "run", "--config", "/etc/funnel/funnel.yml"]
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /etc/funnel
+              readOnly: true
+            - name: db
+              mountPath: /var/lib/funnel
+          ports:
+            - containerPort: 8000
+            - containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /ga4gh/tes/v1/service-info
+              port: 8000
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ga4gh/tes/v1/service-info
+              port: 8000
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+{{- end }}

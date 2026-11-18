@@ -1,6 +1,6 @@
 package org.ga4gh.refcloud.api.drs.drsobject;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Set;
 import org.ga4gh.refcloud.api.drs.accessmethod.AccessMethodResponseDTO;
 import org.ga4gh.refcloud.api.drs.drsobjectchecksum.DrsObjectChecksumResponseDTO;
@@ -13,8 +13,8 @@ public record DrsObjectResponseDTO(
         String name,
         String selfUri,
         Long size,
-        LocalDateTime createdTime,
-        LocalDateTime updatedTime,
+        Instant createdTime,
+        Instant updatedTime,
         String version,
         String mimeType,
         Set<DrsObjectChecksumResponseDTO> checksums,

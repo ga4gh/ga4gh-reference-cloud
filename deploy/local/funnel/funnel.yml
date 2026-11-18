@@ -1,0 +1,32 @@
+# Funnel config for native-mode compute (docker-compose.yml). Its storage paths (work directory, BoltDB file, allowed
+# directories) are absolute host paths, so docker-compose.yml passes them as flags from REFCLOUD_COMPUTE_STORAGE_ROOT.
+Compute: local
+Database: boltdb
+Server:
+  HostName: localhost
+  HTTPPort: "8000"
+  RPCPort: "9090"
+Logger:
+  Level: info
+Worker:
+  LeaveWorkDir: false
+  Container:
+    DriverCommand: docker
+    # each task's CPU and memory requests become its container's limits (swap off), as on Kubernetes (spec 0012)
+    EnforceResources: true
+    # Funnel 0.12's default template, with a larger, executable /tmp: tasks run --read-only, and some tools (e.g.
+    # FastQC) write and run files in /tmp, which Docker's default tmpfs (64 MB, noexec) doesn't allow
+    RunCommand: |
+      run -i --read-only
+      {{.GPUArgs}}
+      {{if and .EnforceResources .Resources}}{{if gt .Resources.CpuCores 0}}--cpus {{.Resources.CpuCores}}{{end}} {{if .MemoryMB}}--memory {{.MemoryMB}}m --memory-swap {{.MemoryMB}}m{{end}}{{end}}
+      {{if .NeedsTmpfs}}--tmpfs /tmp:rw,exec,size=1g{{end}}
+      {{if .RemoveContainer}}--rm{{end}}
+      {{.GetEnvArgs}}
+      {{.GetTagArgs}}
+      {{if .Name}}--name "{{.Name}}"{{end}}
+      {{if .Workdir}}--workdir "{{.Workdir}}"{{end}}
+      {{range .Volumes}}--volume "{{.HostPath}}:{{.ContainerPath}}:{{if .Readonly}}ro{{else}}rw{{end}}" {{end}}
+      {{.Image}} {{.Command}}
+    PullCommand: pull {{.Image}}
+    StopCommand: rm -f {{.Name}}
