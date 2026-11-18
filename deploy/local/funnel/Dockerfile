@@ -3,7 +3,8 @@
 # docker-compose.yml), but the official image has no docker CLI, so this adds it (claude/specs/archive/0008, Tasks 1, 10).
 # It runs as root: using the host's Docker socket needs it (and is root-equivalent anyway); see deploy/local/.trivyignore
 #
-# Keep the version in sync with the helm chart's Funnel image (refcloud.funnelImage in deploy/helm/charts/app/templates/_helpers.tpl)
-FROM quay.io/ohsu-comp-bio/funnel:0.11.14
+# Keep the version and digest in sync with the helm chart's Funnel image (refcloud.funnelImage in
+# deploy/helm/charts/app/templates/_helpers.tpl). Funnel has moved to github.com/calypr/funnel; its images are still on quay.io
+FROM quay.io/ohsu-comp-bio/funnel:0.12.3@sha256:bfd615926d2bbc5aac76cd9640235f3e7fcd3badc95f58fbdff29368f86b6db4
 
 RUN apk add --no-cache docker-cli

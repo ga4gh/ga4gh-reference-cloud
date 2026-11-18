@@ -29,13 +29,6 @@ spec:
         - name: compute-connections
           configMap:
             name: refcloud-compute-connections
-        {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
-        # compute run storage on the minikube node (refcloud.computeStorageRoot in _helpers.tpl)
-        - name: compute-storage
-          hostPath:
-            path: {{ include "refcloud.computeStorageRoot" . }}
-            type: Directory
-        {{- end }}
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-core-api") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -48,11 +41,6 @@ spec:
             - name: compute-connections
               mountPath: /etc/refcloud/compute
               readOnly: true
-            {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
-            # at the same path as on the node, where the compute pods mount it too
-            - name: compute-storage
-              mountPath: {{ include "refcloud.computeStorageRoot" . }}
-            {{- end }}
           ports:
             - containerPort: 8080
           # spring boot actuator health groups (unauthenticated in SecurityConfig, not routed by the ingress).
@@ -108,6 +96,18 @@ spec:
             {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
             - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
               value: http://hydra:4444/.well-known/jwks.json
+            # core-api's own RustFS user, for the local compute connection's S3 storage (spec 0012); the connection names
+            # these variables (access-key-id-env, secret-access-key-env)
+            - name: REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-compute-s3-core-api
+                  key: access-key-id
+            - name: REFCLOUD_COMPUTE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-compute-s3-core-api
+                  key: secret-access-key
             {{- end }}
             - name: GA4GH_REFCLOUD_SECURITY_CORS_ALLOWED_ORIGINS_0
               value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}

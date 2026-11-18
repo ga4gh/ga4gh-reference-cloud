@@ -3,6 +3,8 @@
 
 # Log file
 *.log
+# except test fixtures: sample engine logs the tests read
+!src/test/resources/**/*.log
 
 # BlueJ files
 *.ctxt

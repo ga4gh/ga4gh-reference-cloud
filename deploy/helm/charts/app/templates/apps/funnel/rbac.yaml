@@ -1,7 +1,8 @@
 {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
 {{- $namespace := include "refcloud.computeNamespace" . }}
-{{- $persistentVolumesRole := printf "%s-funnel-persistentvolumes" $namespace }}
-# Funnel's server: creates each task's worker Job, and the volume and claim Funnel requires for it (files/funnel/)
+# Funnel's server: creates each task's worker Job and its workspace claim (files/funnel/storage.yaml). It needs no
+# permission on PersistentVolumes (spec 0012): the claim's volume comes from the StorageClass, and Kubernetes deletes the
+# claim with the worker Job that owns it
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -33,31 +34,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: funnel
-subjects:
-  - kind: ServiceAccount
-    name: funnel
-    namespace: {{ $namespace }}
----
-# PersistentVolumes have no namespace, so this permission covers every volume in the cluster, not only Funnel's.
-# Accepted for stage 2's minikube (spec 0011, Task 1); named per release, so installations don't share it. Funnel
-# deletes only the volumes labelled with its namespace
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ $persistentVolumesRole }}
-rules:
-  - apiGroups: [""]
-    resources: ["persistentvolumes"]
-    verbs: ["create", "get", "list", "update", "patch", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ $persistentVolumesRole }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ $persistentVolumesRole }}
 subjects:
   - kind: ServiceAccount
     name: funnel

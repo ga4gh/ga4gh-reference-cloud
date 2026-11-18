@@ -97,7 +97,7 @@ Usage rules:
     - **Executors:** the refcloud TES talks to the executor over TES, so a new TES executor (e.g. TESK) is a new connection in config, with no new code.
     - **Engines:** each engine needs an adapter, a small `WorkflowEngine` interface (submit, status, cancel, logs, outputs) with one implementation per engine. Nextflow is the first.
   - **Attributing tasks to runs:** the WES glue issues a credential scoped to one run and configures that run's Nextflow process to call the refcloud TES with it. TES identifies the run, and so the user, from the credential, without relying on task tags.
-- **D13. Storage: a shared local directory for the first platform.** In native mode this is a host directory. In helm mode it's a `hostPath` volume in minikube. Everything runs on the developer's machine at no cost. The engine's work directory, task inputs and outputs, and workflow outputs all live there (D18). S3-compatible object storage (e.g. MinIO) comes later, once the fully local setup works.
+- **D13. Storage: a shared local directory for the first platform.** In native mode this is a host directory. In helm mode it's a `hostPath` volume in minikube. Everything runs on the developer's machine at no cost. The engine's work directory, task inputs and outputs, and workflow outputs all live there (D18). S3-compatible object storage comes later, once the fully local setup works. (Stage 3, 2026-11-18: helm mode now keeps runs in S3, on RustFS locally; native mode keeps the shared directory. See D15 and spec 0012.)
 - **D14. Compute platform types and naming.** A compute platform type is a stack the refcloud supports. It's named after its layers from the top down: engine + executor (infrastructure). The docs list the supported types so people know which infrastructure the refcloud supports. Storage is not part of the name; it's a setting on the connection (D9).
 
   | Display name | Config key | Storage | Used by |
@@ -107,11 +107,13 @@ Usage rules:
 
   - "Local" is deliberately left out of names. It could mean the developer's machine, Funnel's `local` backend, or single-node storage. The Kubernetes type also runs on real clusters.
   - Later types follow the same pattern, e.g. `nextflow-tesk-kubernetes`, `cromwell-funnel-docker`.
-- **D15. Storage is a connection setting, not a platform type.** Each connection sets how files are staged: `shared-filesystem` first, `s3` (MinIO locally, S3-compatible stores in real deployments) later. Adding S3 doesn't create new platform types. The storage setting exists from the start, even while `shared-filesystem` is the only value, so adding S3 doesn't need a refactor.
+- **D15. Storage is a connection setting, not a platform type.** Each connection sets how files are staged: `shared-filesystem` first, `s3` later. Adding S3 doesn't create new platform types. The storage setting exists from the start, even while `shared-filesystem` is the only value, so adding S3 doesn't need a refactor.
+  - Stage 3 (spec 0012, 2026-11-18) added `s3` for the Kubernetes type: Amazon S3 in real deployments, and locally **RustFS**, an S3-compatible server in the cluster (MinIO's community edition was archived in 2026). The Docker type keeps the shared filesystem for now.
+  - Each run's engine gets temporary STS credentials limited to its own run's prefix, and task containers never touch the storage (Funnel's workers copy each task's files in and out).
 - **D16. Implementation order.**
   1. Nextflow + Funnel (Docker), using a shared host directory (native mode).
   2. Nextflow + Funnel (Kubernetes), using a `hostPath` volume (helm mode).
-  3. MinIO/S3 file staging as a storage setting for both platform types.
+  3. S3 file staging as a storage setting: done for the Kubernetes type (spec 0012); the Docker type is a Future Direction there.
   4. Longer term: Cromwell + Funnel (Docker) and beyond. Stages 1–3 cover most of what the refcloud needs.
 - **D17. WES stages DRS inputs at submission.**
   1. WES scans `workflow_params` for `drs://` URIs.
@@ -171,7 +173,7 @@ Usage rules:
 - Upstream: track the nf-ga4gh `.command.env` issue/PR (D22) and the transient-status-error retry issue/PR (D23). Once released, bump the pinned plugin version and widen the compatibility table. A second gap: nf-ga4gh doesn't return `.command.trace`, so Nextflow's per-task resource metrics are missing (a candidate for a follow-up PR).
 - A second engine: Cromwell (WDL). Its server/REST style of integration would show the `WorkflowEngine` adapter is really pluggable, and WDL matters to much of the GA4GH community (D12).
 - A second executor: TESK, for helm mode and real Kubernetes clusters (D12).
-- S3-compatible object storage (MinIO locally, S3 or other object stores in real deployments) as an alternative to the shared directory, giving outputs standard DRS access URLs (D13).
+- S3-compatible object storage as an alternative to the shared directory (D13): done in stage 3 for the Kubernetes type (spec 0012). Giving outputs standard DRS access URLs is still to come, with DRS write-back (below).
 - Writing workflow outputs back to DRS. This needs an ownership or access model for researcher-owned objects (owned by the user, or gated by a visa so they can be shared), plus a way to serve the bytes: a `local_file_access_object` for shared-filesystem storage, or `aws_s3_access_object` once S3 storage lands (D18).
 - Resolving `drs://` inputs from other DRS servers, and manifest DRS objects as inputs (D17).
 - Retention policies for kept outputs, and a storage cap on connections, so a laptop's disk doesn't fill up (D18).
@@ -189,6 +191,12 @@ Stage 1 items were checked on 2026-11-11. Details are in the spec's **Decisions 
 5. ✅ TRS: resolve to the source git repository and commit. Dockstore's TRS descriptor files are incomplete for Nextflow workflows (D20).
 6. ✅ File staging: Funnel copies plain host paths under `LocalStorage.AllowedDirs`. Task images need `bash`. Tasks need a writable `/tmp` because Funnel runs them `--read-only`. **Gap:** nf-ga4gh 1.5.0 doesn't return `.command.env`, so Nextflow `env`/`eval` outputs (used by current nf-core modules) fail (D12, D20).
 7. ✅ **Stage 2 (helm mode):** with minikube's Docker driver, a `hostPath` is a directory inside the minikube node, not on the macOS host. Decided (2026-11-16): outputs only through the WES API; `minikube ssh` reaches run directories for debugging.
+8. ✅ **Stage 3 (S3 storage), checked 2026-11-18 in minikube:** Nextflow with an `s3://` work directory (nf-amazon, offline) runs through nf-ga4gh and Funnel with no shared filesystem.
+   * The local S3 server is RustFS (MinIO's community edition is archived).
+   * Funnel moves to 0.12.3, whose per-task workspace claims replace stage 2's `hostPath` and its cluster-wide volume permission.
+   * Each run's engine gets credentials limited to its own prefix (STS `AssumeRole` with a session policy).
+
+   Details are in spec 0012, Decisions (Task 1).
 
 ## Open Questions
 
@@ -196,4 +204,4 @@ _None._
 
 ## Next Step
 
-Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md). Stage 2 is specified in [`claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md`](../specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md).
+Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md). Stage 2 is specified in [`claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md`](../specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md), and stage 3 (S3 storage) in [`claude/specs/archive/0012-add-compute-s3-storage.md`](../specs/archive/0012-add-compute-s3-storage.md). Next: the AWS compute platform (milestones item 3).

@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeConnections;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +23,8 @@ public class ComputeHealthService {
 
     private final ConnectionChecker connectionChecker;
 
+    private final RunStorages runStorages;
+
     private final Map<String, ComputeHealth> healthByConnection = new ConcurrentHashMap<>();
 
     // the latest failure reasons per connection, so each change is logged once instead of every round
@@ -29,9 +32,11 @@ public class ComputeHealthService {
 
     private volatile Instant lastRoundCompletedAt;
 
-    public ComputeHealthService(ComputeConnections computeConnections, ConnectionChecker connectionChecker) {
+    public ComputeHealthService(
+            ComputeConnections computeConnections, ConnectionChecker connectionChecker, RunStorages runStorages) {
         this.computeConnections = computeConnections;
         this.connectionChecker = connectionChecker;
+        this.runStorages = runStorages;
     }
 
     @Scheduled(initialDelay = 0, fixedDelayString = "${ga4gh.refcloud.compute.health.check-interval}")
@@ -39,8 +44,7 @@ public class ComputeHealthService {
         for (String connectionKey : computeConnections.keys()) {
             ComputeConfig.Connection connection =
                     computeConnections.find(connectionKey).orElseThrow();
-            List<String> failures = connectionChecker.check(
-                    connection, computeConnections.storageRoot(connectionKey).orElseThrow());
+            List<String> failures = connectionChecker.check(connection, runStorages.forConnection(connectionKey));
             Instant checkedAt = Instant.now();
             healthByConnection.put(
                     connectionKey,

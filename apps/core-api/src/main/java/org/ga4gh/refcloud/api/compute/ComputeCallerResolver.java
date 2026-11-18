@@ -13,7 +13,7 @@ public class ComputeCallerResolver {
 
     public ComputeCaller resolve(Authentication authentication) {
         if (authentication != null && authentication.getPrincipal() instanceof RunPrincipal run) {
-            return ComputeCaller.run(run.userId(), run.runId(), run.runDirectoryPath());
+            return ComputeCaller.run(run.userId(), run.runId(), run.runDirectory());
         }
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt && jwt.getSubject() != null) {
             return ComputeCaller.researcher(jwt.getSubject());

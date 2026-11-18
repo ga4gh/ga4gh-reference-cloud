@@ -6,7 +6,7 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
-import java.nio.file.Path;
+import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,6 +15,9 @@ import java.util.Map;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputeConnections;
 import org.ga4gh.refcloud.api.compute.ComputeHealthConfig;
+import org.ga4gh.refcloud.api.compute.ComputeRunConfig;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.testng.annotations.Test;
@@ -31,7 +34,7 @@ public class ComputeHealthServiceTest {
         }
 
         @Override
-        public List<String> check(ComputeConfig.Connection connection, Path storageRoot) {
+        public List<String> check(ComputeConfig.Connection connection, RunStorage storage) {
             return failures;
         }
     }
@@ -64,9 +67,19 @@ public class ComputeHealthServiceTest {
         return new ComputeConnections(config);
     }
 
+    private static ComputeHealthService service(ConnectionChecker checker) {
+        ComputeConnections connections = connections();
+        ComputeRunConfig runConfig = new ComputeRunConfig(
+                URI.create("http://localhost:8080"),
+                Duration.ofSeconds(5),
+                Duration.ofMinutes(2),
+                Duration.ofSeconds(30));
+        return new ComputeHealthService(connections, checker, new RunStorages(connections, null, runConfig));
+    }
+
     @Test
     public void unhealthyUntilTheFirstCheck() {
-        ComputeHealthService service = new ComputeHealthService(connections(), new StubChecker());
+        ComputeHealthService service = service(new StubChecker());
 
         ComputeHealth health = service.healthOf("c1");
 
@@ -76,7 +89,7 @@ public class ComputeHealthServiceTest {
 
     @Test
     public void passingChecksAreHealthy() {
-        ComputeHealthService service = new ComputeHealthService(connections(), new StubChecker());
+        ComputeHealthService service = service(new StubChecker());
 
         service.checkConnections();
         ComputeHealth health = service.healthOf("c1");
@@ -88,7 +101,7 @@ public class ComputeHealthServiceTest {
     @Test
     public void anyFailedCheckIsUnhealthyAndRecovers() {
         StubChecker checker = new StubChecker();
-        ComputeHealthService service = new ComputeHealthService(connections(), checker);
+        ComputeHealthService service = service(checker);
 
         checker.failures = List.of("executor is unreachable");
         service.checkConnections();
@@ -101,7 +114,7 @@ public class ComputeHealthServiceTest {
 
     @Test
     public void connectionMissingFromTheFileIsUnhealthy() {
-        ComputeHealthService service = new ComputeHealthService(connections(), new StubChecker());
+        ComputeHealthService service = service(new StubChecker());
         service.checkConnections();
 
         ComputeHealth health = service.healthOf("not-in-the-file");

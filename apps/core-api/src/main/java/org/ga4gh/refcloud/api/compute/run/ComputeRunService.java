@@ -23,6 +23,11 @@ import org.ga4gh.refcloud.api.compute.engine.EngineStatus;
 import org.ga4gh.refcloud.api.compute.engine.WorkflowEngine;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatformRepository;
+import org.ga4gh.refcloud.api.compute.storage.RelativePaths;
+import org.ga4gh.refcloud.api.compute.storage.RunCredentials;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
+import org.ga4gh.refcloud.api.compute.storage.S3Location;
 import org.ga4gh.refcloud.api.compute.tes.TesTaskService;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
@@ -51,6 +56,8 @@ public class ComputeRunService {
 
     private final TesTaskService tesTaskService;
 
+    private final RunStorages runStorages;
+
     private final Map<ComputePlatformType, WorkflowEngine> engines;
 
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
@@ -61,28 +68,22 @@ public class ComputeRunService {
             ComputeConnections computeConnections,
             ComputeRunConfig runConfig,
             TesTaskService tesTaskService,
+            RunStorages runStorages,
             List<WorkflowEngine> engines) {
         this.computeRunRepository = computeRunRepository;
         this.computePlatformRepository = computePlatformRepository;
         this.computeConnections = computeConnections;
         this.runConfig = runConfig;
         this.tesTaskService = tesTaskService;
+        this.runStorages = runStorages;
         this.engines = engines.stream().collect(Collectors.toMap(WorkflowEngine::platformType, Function.identity()));
     }
 
-    // a new run's id and directory (runs/<run_id>/ under the connection's storage root, with inputs/, work/ and
-    // outputs/), for WES to put the workflow and staged inputs into before submitting
+    // a new run's id and location in its connection's storage (runs/<run_id>/: a directory, or an S3 prefix), for WES
+    // to put the workflow and staged inputs into before submitting
     public RunDirectory allocateRunDirectory(ComputePlatform platform) throws IOException {
-        Path storageRoot = computeConnections
-                .storageRoot(platform.getConnectionKey())
-                .orElseThrow(() -> new IllegalStateException(
-                        "compute platform " + platform.getId() + " has no connection " + platform.getConnectionKey()));
         String runId = UUID.randomUUID().toString();
-        Path runDirectory = storageRoot.resolve("runs").resolve(runId);
-        for (String child : List.of("inputs", "work", "outputs")) {
-            Files.createDirectories(runDirectory.resolve(child));
-        }
-        return new RunDirectory(runId, runDirectory);
+        return new RunDirectory(runId, storage(platform).allocate(runId));
     }
 
     // records a prepared run as QUEUED and starts it right away if the connection has capacity. returns the run id
@@ -90,12 +91,7 @@ public class ComputeRunService {
         ComputeConfig.Connection connection = connection(platform);
         WorkflowEngine engine = engine(connection);
 
-        // a run submitted unprepared (WES, Task 8) gets its workflow in the background, so it isn't there yet
-        Path workflowPath = directory.path().resolve(submission.workflowPath()).normalize();
-        if (!workflowPath.startsWith(directory.path()) || (submission.prepared() && !Files.exists(workflowPath))) {
-            throw new BadRequestException(
-                    "the workflow must be inside the run directory: " + submission.workflowPath());
-        }
+        String workflowPath = workflowLocation(directory.location(), submission.workflowPath(), submission.prepared());
         for (String name : submission.engineEnv().keySet()) {
             if (engine.isReservedEnvironmentVariable(name)) {
                 throw new BadRequestException("engine environment variable " + name + " is set by the refcloud");
@@ -113,8 +109,8 @@ public class ComputeRunService {
                 .computePlatformId(platform.getId())
                 .userId(userId)
                 .state(ComputeRunStates.QUEUED)
-                .runDirectory(directory.path().toString())
-                .workflowPath(workflowPath.toString())
+                .runDirectory(directory.location())
+                .workflowPath(workflowPath)
                 .workflowParams(params)
                 .engineProfiles(List.copyOf(submission.engineProfiles()))
                 .engineEnv(Map.copyOf(submission.engineEnv()))
@@ -155,6 +151,7 @@ public class ComputeRunService {
             ComputeRun run = computeRunRepository.findById(runId).orElseThrow();
             if (!ComputeRunStates.QUEUED.equals(run.getState()) || run.getPreparedAt() != null) {
                 engine(connection).cleanUp(run, connection);
+                storage(platform).removeIntermediates(run.getRunDirectory());
                 return;
             }
             run.setWorkflowParams(workflowParams);
@@ -332,7 +329,11 @@ public class ComputeRunService {
 
         String tesEndpoint = runConfig.engineCallbackBase() + "/ga4gh/tes/" + run.getComputePlatformId();
         try {
-            EngineProcess process = engine.launch(run, connection, tesEndpoint, token);
+            // on S3 storage, the run's own credentials, for as long as its engine can be alive (spec 0012, Task 3)
+            Optional<RunCredentials> storageCredentials = runStorages
+                    .forRun(run)
+                    .issueRunCredentials(run.getRunDirectory(), runConfig.engineLifetime(run.getMaxDurationSeconds()));
+            EngineProcess process = engine.launch(run, connection, tesEndpoint, token, storageCredentials);
             run.setEnginePid(process.pid());
             run.setEngineJobUid(process.jobUid());
             run.setEngineStartedAt(process.startedAt());
@@ -356,8 +357,8 @@ public class ComputeRunService {
         log.info("run {} canceling: {}", run.getId(), reason);
     }
 
-    // the run's final state: its token stops working, any task it left behind is cancelled, and the run directory keeps
-    // only outputs and logs
+    // the run's final state: its token stops working, any task it left behind is cancelled, the engine's own resources
+    // are removed, and the run's storage keeps only outputs and logs
     private void finish(ComputeRun run, ComputeConfig.Connection connection, String state, Integer exitCode) {
         run.setState(state);
         run.setExitCode(exitCode);
@@ -372,6 +373,29 @@ public class ComputeRunService {
 
         tesTaskService.cancelRunTasks(run.getId());
         engine(connection).cleanUp(run, connection);
+        runStorages.forRun(run).removeIntermediates(run.getRunDirectory());
+    }
+
+    // where the run's workflow is, from its path relative to the run's location: inside the run directory on a shared
+    // filesystem (and already there if the run was submitted prepared), or under the run's S3 prefix
+    static String workflowLocation(String runLocation, String relative, boolean mustExist) {
+        if (S3Location.isS3(runLocation)) {
+            if (!RelativePaths.isSafe(relative)) {
+                throw new BadRequestException("the workflow must be inside the run's storage: " + relative);
+            }
+            return runLocation + "/" + relative;
+        }
+        // a run submitted unprepared (WES, Task 8) gets its workflow in the background, so it isn't there yet
+        Path runDirectory = Path.of(runLocation);
+        Path workflowPath = runDirectory.resolve(relative).normalize();
+        if (!workflowPath.startsWith(runDirectory) || (mustExist && !Files.exists(workflowPath))) {
+            throw new BadRequestException("the workflow must be inside the run directory: " + relative);
+        }
+        return workflowPath.toString();
+    }
+
+    private RunStorage storage(ComputePlatform platform) {
+        return runStorages.forConnection(platform.getConnectionKey());
     }
 
     private int maxDurationSeconds(ComputePlatform platform, ComputeConfig.Connection connection) {
@@ -406,10 +430,11 @@ public class ComputeRunService {
         }
     }
 
-    // a run's id and directory, allocated before the run is submitted
-    public record RunDirectory(String runId, Path path) {}
+    // a run's id and location (compute_run.run_directory: a path, or an s3:// prefix), allocated before the run is
+    // submitted
+    public record RunDirectory(String runId, String location) {}
 
-    // what WES hands over (Task 8): the workflow (relative to the run directory), the researcher's workflow_params,
+    // what WES hands over (Task 8): the workflow (relative to the run's location), the researcher's workflow_params,
     // the allowlist entry's engine settings and source, the DRS inputs to stage, and the WES request
     public record RunSubmission(
             String workflowPath,

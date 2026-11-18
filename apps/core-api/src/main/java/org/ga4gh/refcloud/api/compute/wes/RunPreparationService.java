@@ -10,7 +10,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
@@ -29,15 +28,18 @@ import org.ga4gh.refcloud.api.compute.ComputeWesConfig;
 import org.ga4gh.refcloud.api.compute.run.ComputeRun;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunService;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunStates;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
 
-// prepares a WES run in the background (Task 8): puts its workflow into the run directory (the pinned commit for git
-// and TRS entries, a copy for bundled ones) and downloads its DRS inputs, then hands it to the run service, which
-// starts it when pooled capacity allows. a failure ends the run SYSTEM_ERROR with the reason. preparation runs on its
+// prepares a WES run in the background (Task 8): puts its workflow into the run's storage (the pinned commit for git
+// and TRS entries, a copy for bundled ones) and downloads its DRS inputs into it (a directory, or S3: spec 0012), then
+// hands it to the run service, which starts it when pooled capacity allows. a failure ends the run SYSTEM_ERROR with
+// the reason. preparation runs on its
 // own pool, never on the scheduler; a sweep picks up queued runs that aren't prepared yet (e.g. after a restart)
 @Slf4j
 @Service
@@ -52,6 +54,8 @@ public class RunPreparationService {
 
     private final ComputeWesConfig wesConfig;
 
+    private final RunStorages runStorages;
+
     private final TaskExecutor executor;
 
     private final HttpClient httpClient;
@@ -62,9 +66,11 @@ public class RunPreparationService {
     public RunPreparationService(
             ComputeRunService computeRunService,
             ComputeWesConfig wesConfig,
+            RunStorages runStorages,
             @Qualifier(ComputeAsyncConfig.PREPARATION_EXECUTOR) TaskExecutor executor) {
         this.computeRunService = computeRunService;
         this.wesConfig = wesConfig;
+        this.runStorages = runStorages;
         this.executor = executor;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(java.time.Duration.ofSeconds(30))
@@ -100,9 +106,9 @@ public class RunPreparationService {
             return;
         }
         try {
-            Path runDirectory = Path.of(run.getRunDirectory());
-            putWorkflowInPlace(run.getWorkflowSource(), runDirectory.resolve("workflow"));
-            Map<String, String> localPaths = stageInputs(run.getDrsInputs(), runDirectory.resolve("inputs"));
+            RunStorage storage = runStorages.forRun(run);
+            putWorkflowInPlace(run.getWorkflowSource(), storage, run.getRunDirectory());
+            Map<String, String> localPaths = stageInputs(run.getDrsInputs(), storage, run.getRunDirectory());
             JsonNode params = DrsInputs.rewrite(run.getWorkflowParams(), localPaths);
             if (computeRunService.markPrepared(runId, params)) {
                 log.info("run {} prepared ({} DRS inputs)", runId, localPaths.size());
@@ -134,18 +140,29 @@ public class RunPreparationService {
                 .orElse(false);
     }
 
-    // the workflow, at exactly what the allowlist entry pinned
-    private void putWorkflowInPlace(JsonNode source, Path workflowDirectory) throws IOException, InterruptedException {
-        deleteRecursively(workflowDirectory); // a retry after a restart starts clean
-        String kind = source.path("kind").asString("");
-        switch (kind) {
-            case "git", "trs" ->
-                fetchCommit(
-                        source.path("repository").asString(""),
-                        source.path("commit").asString(""),
-                        workflowDirectory);
-            case "bundled" -> copyBundled(source.path("bundled_path").asString(""), workflowDirectory);
-            default -> throw new IOException("unknown workflow source: " + kind);
+    // the workflow, at exactly what the allowlist entry pinned, fetched into the storage's staging directory (a retry
+    // after a restart starts with an empty one) and then published to the run's storage
+    private void putWorkflowInPlace(JsonNode source, RunStorage storage, String location)
+            throws IOException, InterruptedException {
+        Path workflowDirectory = storage.workflowStaging(location);
+        boolean published = false;
+        try {
+            String kind = source.path("kind").asString("");
+            switch (kind) {
+                case "git", "trs" ->
+                    fetchCommit(
+                            source.path("repository").asString(""),
+                            source.path("commit").asString(""),
+                            workflowDirectory);
+                case "bundled" -> copyBundled(source.path("bundled_path").asString(""), workflowDirectory);
+                default -> throw new IOException("unknown workflow source: " + kind);
+            }
+            storage.publishWorkflow(location, workflowDirectory);
+            published = true;
+        } finally {
+            if (!published) {
+                storage.discardWorkflowStaging(location, workflowDirectory);
+            }
         }
     }
 
@@ -231,8 +248,9 @@ public class RunPreparationService {
         });
     }
 
-    // downloads each DRS input into inputs/<object id>/<name>; returns drs uri -> local path
-    private Map<String, String> stageInputs(JsonNode drsInputs, Path inputsDirectory)
+    // downloads each DRS input into the run's inputs/<object id>/<name>; returns drs uri -> where the engine finds it
+    // (a path, or an s3:// URI)
+    private Map<String, String> stageInputs(JsonNode drsInputs, RunStorage storage, String location)
             throws IOException, InterruptedException {
         Map<String, String> localPaths = new LinkedHashMap<>();
         if (drsInputs == null) {
@@ -242,20 +260,18 @@ public class RunPreparationService {
             String uri = input.path("uri").asString("");
             String objectId = input.path("object_id").asString("");
             String url = input.path("url").asString("");
-            Path directory = inputsDirectory.resolve(DrsInputs.safeFileName(objectId, "object"));
-            Path target =
-                    directory.resolve(DrsInputs.safeFileName(input.path("name").asString(""), "input"));
-            Files.createDirectories(directory);
-            download(
-                    url,
-                    target,
-                    input.path("size").isNumber() ? input.get("size").longValue() : null);
-            localPaths.put(uri, target.toString());
+            String name = DrsInputs.safeFileName(input.path("name").asString(""), "input");
+            String relativePath = DrsInputs.safeFileName(objectId, "object") + "/" + name;
+            Long size = input.path("size").isNumber() ? input.get("size").longValue() : null;
+            localPaths.put(uri, download(url, name, storage, location, relativePath, size));
         }
         return localPaths;
     }
 
-    private void download(String url, Path target, Long expectedSize) throws IOException, InterruptedException {
+    // streams the download straight into the run's storage, which checks its size
+    private String download(
+            String url, String name, RunStorage storage, String location, String relativePath, Long expectedSize)
+            throws IOException, InterruptedException {
         if (!url.startsWith("https://")) {
             throw new IOException("refusing to download a non-https input url");
         }
@@ -263,40 +279,12 @@ public class RunPreparationService {
                 .timeout(wesConfig.downloadTimeout())
                 .GET()
                 .build();
-        Path partial = target.resolveSibling(target.getFileName() + ".part");
         HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
         try (InputStream body = response.body()) {
             if (response.statusCode() != 200) {
-                throw new IOException(
-                        "downloading " + target.getFileName() + " failed (HTTP " + response.statusCode() + ")");
+                throw new IOException("downloading " + name + " failed (HTTP " + response.statusCode() + ")");
             }
-            Files.copy(body, partial, StandardCopyOption.REPLACE_EXISTING);
+            return storage.stageInput(location, relativePath, body, expectedSize);
         }
-        long size = Files.size(partial);
-        if (expectedSize != null && size != expectedSize) {
-            Files.deleteIfExists(partial);
-            throw new IOException(
-                    "downloaded " + size + " bytes of " + target.getFileName() + ", expected " + expectedSize);
-        }
-        Files.move(partial, target, StandardCopyOption.REPLACE_EXISTING);
-    }
-
-    private static void deleteRecursively(Path directory) throws IOException {
-        if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
-            return;
-        }
-        Files.walkFileTree(directory, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                Files.deleteIfExists(file);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exception) throws IOException {
-                Files.deleteIfExists(dir);
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 }

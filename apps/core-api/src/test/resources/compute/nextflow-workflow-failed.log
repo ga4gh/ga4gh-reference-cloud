@@ -1,0 +1,7 @@
+Nov-12 14:40:02.118 [main] DEBUG nextflow.cli.Launcher - $> nextflow -log nextflow.log run workflow -ansi-log false -c refcloud.config -work-dir work -params-file params.json --outdir outputs
+Nov-12 14:40:21.530 [Task monitor] ERROR nextflow.processor.TaskProcessor - Error executing process > 'GREET (1)'
+
+Caused by:
+  Process `GREET (1)` terminated with an error exit status (1)
+Nov-12 14:40:21.541 [Task monitor] DEBUG nextflow.Session - Session aborted -- Cause: Process `GREET (1)` terminated with an error exit status (1)
+Nov-12 14:40:21.560 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye

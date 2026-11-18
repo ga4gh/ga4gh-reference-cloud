@@ -24,6 +24,10 @@ import org.ga4gh.refcloud.api.compute.ComputeRunConfig;
 import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesClient;
 import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesPermission;
 import org.ga4gh.refcloud.api.compute.run.ComputeRun;
+import org.ga4gh.refcloud.api.compute.storage.RunCredentials;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
+import org.ga4gh.refcloud.api.compute.storage.S3Location;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -33,10 +37,14 @@ import tools.jackson.databind.node.ObjectNode;
 
 // runs a workflow with Nextflow as a kubernetes Job per run, in the connection's compute namespace, sending every task
 // to the refcloud TES as stage 1 does (spec 0011, Tasks 1 and 4). the Job runs the Nextflow image
-// (compute/images/nextflow) with the run directory mounted from the node at the same path, and stage 1's launcher, so
-// the exit-code file in the run directory still says how the engine ended: the Job's own status can't (the launcher
-// exits 0 whatever nextflow did). the run-scoped TES token reaches the Job through a per-run Secret, never the Job's
-// spec, which Funnel's service accounts can read
+// (compute/images/nextflow), and the exit-code file its launcher writes says how the engine ended: the Job's own status
+// can't (the launcher exits 0 whatever nextflow did). the run's files are its storage's (RunStorage):
+//   * on a shared filesystem, the run directory is mounted from the node at the same path, with stage 1's launcher;
+//   * on S3 (spec 0012), the Job keeps the engine's files in its own emptyDir: the image's refcloud-run-s3 fetches the
+//     workflow, config and params from the run's prefix, uploads the logs while nextflow runs, and the logs and exit
+//     code when it ends. nextflow's work directory and outputs are the run's s3:// prefixes
+// the run-scoped TES token (and on S3, the run's own storage credentials) reach the Job through a per-run Secret,
+// never the Job's spec, which Funnel's service accounts can read
 @Slf4j
 @Component
 public class NextflowKubernetesEngine implements WorkflowEngine {
@@ -55,12 +63,20 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
 
     static final String TOKEN_KEY = "token";
 
+    // on S3 storage: the image's launcher, the Job's own directory for the engine's files, where the run's prefix is
+    // (its URL), and how often the logs are uploaded while the engine runs (compute/images/nextflow/refcloud-run-s3)
+    static final String S3_LAUNCHER = "refcloud-run-s3";
+
+    static final String S3_RUN_DIRECTORY = "/refcloud/run";
+
+    static final String RUN_URL_VARIABLE = "REFCLOUD_RUN_URL";
+
+    static final String LOG_SYNC_VARIABLE = "REFCLOUD_LOG_SYNC_SECONDS";
+
+    static final int LOG_SYNC_SECONDS = 15;
+
     // the Nextflow image's user, which owns the compute storage (as Funnel's workers and executors do)
     static final long RUN_AS = 10001;
-
-    // core-api enforces the run's max duration itself (cancel, then kill after the grace period); kubernetes stops the
-    // Job only this long after that, in case core-api is down
-    static final Duration DEADLINE_MARGIN = Duration.ofMinutes(5);
 
     // a finished Job is deleted at clean-up; this removes it anyway if core-api never gets to it
     static final Duration FINISHED_JOB_TTL = Duration.ofDays(1);
@@ -98,11 +114,17 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
 
     private final ObjectMapper objectMapper;
 
+    private final RunStorages runStorages;
+
     public NextflowKubernetesEngine(
-            KubernetesClient kubernetes, ComputeRunConfig runConfig, ObjectMapper objectMapper) {
+            KubernetesClient kubernetes,
+            ComputeRunConfig runConfig,
+            ObjectMapper objectMapper,
+            RunStorages runStorages) {
         this.kubernetes = kubernetes;
         this.runConfig = runConfig;
         this.objectMapper = objectMapper;
+        this.runStorages = runStorages;
     }
 
     @Override
@@ -122,22 +144,38 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
                 "NXF_OPTS",
                 "NXF_TEMP",
                 "HOME",
-                "REFCLOUD_");
+                "REFCLOUD_",
+                // the run's storage credentials, and anything else that would point the AWS SDK elsewhere (spec 0012)
+                "AWS_");
     }
 
-    // writes the run's files, then creates its token Secret and its Job. the Job starts when kubernetes schedules it
+    // writes the run's config and params to its storage, then creates its Secret and its Job. the Job starts when
+    // kubernetes schedules it
     @Override
     public EngineProcess launch(
-            ComputeRun run, ComputeConfig.Connection connection, String tesEndpoint, String tesToken)
+            ComputeRun run,
+            ComputeConfig.Connection connection,
+            String tesEndpoint,
+            String tesToken,
+            Optional<RunCredentials> storageCredentials)
             throws IOException {
-        Path runDirectory = Path.of(run.getRunDirectory());
-        NextflowEngine.writeRunFiles(run, withResolvedHost(tesEndpoint, InetAddress::getByName), objectMapper);
-        HostProcessRunner.writeLauncher(runDirectory);
+        RunStorage storage = runStorages.forRun(run);
+        String location = run.getRunDirectory();
+        Optional<S3Access> s3 = s3Access(run, connection.storage(), InetAddress::getByName);
+        String config = NextflowEngine.config(withResolvedHost(tesEndpoint, InetAddress::getByName))
+                + s3.map(S3Access::nextflowConfig).orElse("");
+        storage.writeEngineFile(location, NextflowEngine.CONFIG_FILE, config);
+        storage.writeEngineFile(
+                location, NextflowEngine.PARAMS_FILE, objectMapper.writeValueAsString(run.getWorkflowParams()));
+        if (s3.isEmpty()) {
+            HostProcessRunner.writeLauncher(Path.of(location));
+        }
 
         String namespace = connection.engine().namespace();
-        kubernetes.create(secretsPath(namespace), secret(run, tesToken));
+        kubernetes.create(secretsPath(namespace), secret(run, tesToken, storageCredentials));
         try {
-            JsonNode job = kubernetes.create(jobsPath(namespace), job(run, connection, runConfig.cancelGracePeriod()));
+            JsonNode job =
+                    kubernetes.create(jobsPath(namespace), job(run, connection, runConfig.cancelGracePeriod(), s3));
             JsonNode metadata = job.path("metadata");
             return EngineProcess.kubernetesJob(
                     UUID.fromString(metadata.path("uid").asString()),
@@ -151,27 +189,28 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
     // the exit-code file first (the launcher writes it as the engine exits), then the Job and its pod
     @Override
     public EngineStatus status(ComputeRun run, ComputeConfig.Connection connection) {
-        Path runDirectory = Path.of(run.getRunDirectory());
-        Optional<Integer> exitCode = HostProcessRunner.exitCode(runDirectory);
-        if (exitCode.isPresent()) {
-            return new EngineStatus.Exited(exitCode.get());
-        }
         String namespace = connection.engine().namespace();
         try {
+            RunStorage storage = runStorages.forRun(run);
+            Optional<Integer> exitCode = exitCode(storage, run);
+            if (exitCode.isPresent()) {
+                return new EngineStatus.Exited(exitCode.get());
+            }
             Optional<JsonNode> job =
                     kubernetes.get(jobsPath(namespace) + "/" + jobName(run)).filter(found -> isRunsJob(found, run));
             JsonNode pods = kubernetes.list(podsPath(namespace), RUN_ID_LABEL + "=" + run.getId());
             EngineStatus status = status(job, pods, Instant.now());
             if (status instanceof EngineStatus.Lost) {
                 // the pod may have written the exit code since it was first read
-                Optional<Integer> late = HostProcessRunner.exitCode(runDirectory);
+                Optional<Integer> late = exitCode(storage, run);
                 if (late.isPresent()) {
                     return new EngineStatus.Exited(late.get());
                 }
             }
             return status;
-        } catch (IOException exception) {
-            // a passing API problem shouldn't fail the run; one that outlasts a cancel can't keep it going forever
+        } catch (IOException | RuntimeException exception) {
+            // a passing problem reaching the kubernetes API or the run's storage shouldn't fail the run; one that
+            // outlasts a cancel can't keep it going forever
             if (run.getCancelRequestedAt() != null
                     && Instant.now()
                             .isAfter(run.getCancelRequestedAt()
@@ -182,6 +221,18 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
             log.warn("could not check run {}'s kubernetes Job: {}", run.getId(), exception.getMessage());
             return new EngineStatus.Alive();
         }
+    }
+
+    // the exit code the launcher recorded in the run's storage, if it has
+    static Optional<Integer> exitCode(RunStorage storage, ComputeRun run) throws IOException {
+        return storage.readEngineFile(run.getRunDirectory(), HostProcessRunner.EXIT_CODE_FILE)
+                .flatMap(text -> {
+                    try {
+                        return Optional.of(Integer.parseInt(text.strip()));
+                    } catch (NumberFormatException exception) {
+                        return Optional.empty();
+                    }
+                });
     }
 
     // the engine's status from its Job (empty if gone) and pods, when there's no exit code
@@ -258,12 +309,79 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         String namespace = connection.engine().namespace();
         deleteQuietly(jobsPath(namespace) + "/" + jobName(run), deleteOptions(null));
         deleteQuietly(secretsPath(namespace) + "/" + secretName(run), null);
-        NextflowEngine.removeIntermediateDirectories(Path.of(run.getRunDirectory()));
     }
 
+    // read from the end of nextflow.log in the run's storage
     @Override
     public Optional<String> refcloudFailure(ComputeRun run) {
-        return NextflowEngine.refcloudFailureOf(run);
+        try {
+            return NextflowEngine.refcloudFailureIn(
+                    run,
+                    runStorages
+                            .forRun(run)
+                            .readEngineFileTail(
+                                    run.getRunDirectory(), NextflowEngine.LOG_FILE, NextflowEngine.LOG_TAIL_BYTES));
+        } catch (IOException | RuntimeException exception) {
+            log.warn("could not read run {}'s nextflow log: {}", run.getId(), exception.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    // how a run on S3 storage reaches its files (spec 0012). an endpoint (an S3-compatible server such as RustFS) is
+    // reached by its address, since workflow pods have no DNS, which means path-style URLs; on AWS the bucket's own
+    // virtual-hosted URL, which needs DNS (the AWS platform spec)
+    record S3Access(String runUrl, String region, String endpoint, NextflowEngine.RunFiles files) {
+
+        // nextflow's S3 client settings (nf-amazon), appended to the run's refcloud.config. the credentials come from
+        // the environment
+        String nextflowConfig() {
+            StringBuilder config = new StringBuilder();
+            config.append("aws.region = '").append(groovyString(region)).append("'\n");
+            if (endpoint != null) {
+                config.append("aws.client.endpoint = '")
+                        .append(groovyString(endpoint))
+                        .append("'\n");
+                config.append("aws.client.s3PathStyleAccess = true\n");
+            }
+            return config.toString();
+        }
+    }
+
+    // empty for a run on a shared filesystem
+    static Optional<S3Access> s3Access(ComputeRun run, ComputeConfig.Storage storage, Resolver resolver)
+            throws IOException {
+        String location = run.getRunDirectory();
+        if (!S3Location.isS3(location)) {
+            return Optional.empty();
+        }
+        S3Location prefix =
+                S3Location.parse(location).orElseThrow(() -> new IOException("invalid run location " + location));
+        String endpoint = null;
+        String runUrl;
+        if (storage.endpoint() != null) {
+            endpoint = stripTrailingSlash(withResolvedHost(storage.endpoint().toString(), resolver));
+            runUrl = endpoint + "/" + prefix.bucket() + "/" + prefix.key();
+        } else {
+            runUrl = "https://" + prefix.bucket() + ".s3." + storage.region() + ".amazonaws.com/" + prefix.key();
+        }
+        if (!run.getWorkflowPath().startsWith(location + "/")) {
+            throw new IOException("the run's workflow " + run.getWorkflowPath() + " is outside its location");
+        }
+        NextflowEngine.RunFiles files = new NextflowEngine.RunFiles(
+                S3_RUN_DIRECTORY,
+                S3_RUN_DIRECTORY + "/" + run.getWorkflowPath().substring(location.length() + 1),
+                location + "/work",
+                location + "/outputs");
+        return Optional.of(new S3Access(runUrl, storage.region(), endpoint, files));
+    }
+
+    // a groovy single-quoted string's content: backslashes, then quotes, escaped
+    private static String groovyString(String value) {
+        return value.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    private static String stripTrailingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     // looks up a host name's address (InetAddress::getByName; a stand-in in tests)
@@ -292,11 +410,19 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         }
     }
 
-    // the run's Job
+    // the run's Job on a shared filesystem
     static ObjectNode job(ComputeRun run, ComputeConfig.Connection connection, Duration cancelGracePeriod) {
+        return job(run, connection, cancelGracePeriod, Optional.empty());
+    }
+
+    // the run's Job: on a shared filesystem (s3 empty), or on S3
+    static ObjectNode job(
+            ComputeRun run, ComputeConfig.Connection connection, Duration cancelGracePeriod, Optional<S3Access> s3) {
         JsonNodeFactory json = JsonNodeFactory.instance;
         ComputeConfig.Engine engine = connection.engine();
-        String runDirectory = Path.of(run.getRunDirectory()).toString();
+        String runDirectory = s3.isPresent()
+                ? S3_RUN_DIRECTORY
+                : Path.of(run.getRunDirectory()).toString();
 
         ObjectNode job = json.objectNode();
         job.put("apiVersion", "batch/v1");
@@ -307,9 +433,13 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
 
         ObjectNode spec = job.putObject("spec");
         spec.put("backoffLimit", 0);
+        // core-api enforces the run's max duration itself (cancel, then kill after the grace period); kubernetes stops
+        // the Job only after the margin too, in case core-api is down (ComputeRunConfig.engineLifetime)
         spec.put(
                 "activeDeadlineSeconds",
-                run.getMaxDurationSeconds() + cancelGracePeriod.toSeconds() + DEADLINE_MARGIN.toSeconds());
+                run.getMaxDurationSeconds()
+                        + cancelGracePeriod.toSeconds()
+                        + ComputeRunConfig.ENGINE_DEADLINE_MARGIN.toSeconds());
         spec.put("ttlSecondsAfterFinished", FINISHED_JOB_TTL.toSeconds());
 
         ObjectNode template = spec.putObject("template");
@@ -332,22 +462,33 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         container.put("imagePullPolicy", engine.imagePullPolicy().kubernetesValue());
         container.put("workingDir", runDirectory);
         ArrayNode command = container.putArray("command");
-        command.add("sh");
-        command.add(Path.of(runDirectory).resolve(HostProcessRunner.LAUNCHER).toString());
-        command.add(runDirectory);
-        NextflowEngine.command(run, NEXTFLOW_COMMAND).forEach(command::add);
+        if (s3.isPresent()) {
+            command.add(S3_LAUNCHER);
+            command.add(runDirectory);
+            NextflowEngine.command(run, s3.get().files(), NEXTFLOW_COMMAND).forEach(command::add);
+        } else {
+            command.add("sh");
+            command.add(
+                    Path.of(runDirectory).resolve(HostProcessRunner.LAUNCHER).toString());
+            command.add(runDirectory);
+            NextflowEngine.command(run, NEXTFLOW_COMMAND).forEach(command::add);
+        }
 
         ArrayNode env = container.putArray("env");
-        environment(run, engine).forEach((name, value) -> {
+        environment(run, engine, s3).forEach((name, value) -> {
             ObjectNode variable = env.addObject();
             variable.put("name", name);
             variable.put("value", value);
         });
-        ObjectNode token = env.addObject();
-        token.put("name", NextflowEngine.TOKEN_ENVIRONMENT_VARIABLE);
-        ObjectNode secretKey = token.putObject("valueFrom").putObject("secretKeyRef");
-        secretKey.put("name", secretName(run));
-        secretKey.put("key", TOKEN_KEY);
+        fromSecret(env, NextflowEngine.TOKEN_ENVIRONMENT_VARIABLE, secretName(run), TOKEN_KEY);
+        if (s3.isPresent()) {
+            for (String name : List.of(
+                    RunCredentials.ACCESS_KEY_ID_VARIABLE,
+                    RunCredentials.SECRET_ACCESS_KEY_VARIABLE,
+                    RunCredentials.SESSION_TOKEN_VARIABLE)) {
+                fromSecret(env, name, secretName(run), name);
+            }
+        }
 
         ObjectNode containerSecurity = container.putObject("securityContext");
         containerSecurity.put("allowPrivilegeEscalation", false);
@@ -370,18 +511,44 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         tmpMount.put("name", "tmp");
         tmpMount.put("mountPath", "/tmp");
 
-        // the run directory only, at the same path as on the node and in core-api, so every path in it is the same
-        // everywhere (funnel's workers mount the whole storage root)
+        // on a shared filesystem, the run directory only, at the same path as on the node and in core-api, so every
+        // path in it is the same everywhere (funnel's workers mount the whole storage root). on S3, the Job's own
         ArrayNode volumes = pod.putArray("volumes");
         ObjectNode runVolume = volumes.addObject();
         runVolume.put("name", "run");
-        ObjectNode hostPath = runVolume.putObject("hostPath");
-        hostPath.put("path", runDirectory);
-        hostPath.put("type", "Directory");
+        if (s3.isPresent()) {
+            runVolume.putObject("emptyDir");
+        } else {
+            ObjectNode hostPath = runVolume.putObject("hostPath");
+            hostPath.put("path", runDirectory);
+            hostPath.put("type", "Directory");
+        }
         ObjectNode tmpVolume = volumes.addObject();
         tmpVolume.put("name", "tmp");
         tmpVolume.putObject("emptyDir");
         return job;
+    }
+
+    // a variable read from the run's Secret, so its value is never in the Job's spec
+    private static void fromSecret(ArrayNode env, String name, String secret, String key) {
+        ObjectNode variable = env.addObject();
+        variable.put("name", name);
+        ObjectNode secretKey = variable.putObject("valueFrom").putObject("secretKeyRef");
+        secretKey.put("name", secret);
+        secretKey.put("key", key);
+    }
+
+    // with, on S3, where the run's prefix is and its region (the credentials come from the Secret). the AWS SDK never
+    // asks the instance metadata service for credentials: the run has its own
+    static Map<String, String> environment(ComputeRun run, ComputeConfig.Engine engine, Optional<S3Access> s3) {
+        Map<String, String> environment = environment(run, engine);
+        s3.ifPresent(access -> {
+            environment.put(RUN_URL_VARIABLE, access.runUrl());
+            environment.put(LOG_SYNC_VARIABLE, String.valueOf(LOG_SYNC_SECONDS));
+            environment.put("AWS_REGION", access.region());
+            environment.put("AWS_EC2_METADATA_DISABLED", "true");
+        });
+        return environment;
     }
 
     // stage 1's pinned environment, plus what running offline in a read-only container needs. sorted, so the Job is
@@ -407,7 +574,9 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
                 .longValueExact();
     }
 
-    static ObjectNode secret(ComputeRun run, String tesToken) {
+    // the run's secrets: its TES token, and on S3 storage its own credentials (spec 0012), under the names the AWS SDK
+    // reads from the environment
+    static ObjectNode secret(ComputeRun run, String tesToken, Optional<RunCredentials> storageCredentials) {
         ObjectNode secret = JsonNodeFactory.instance.objectNode();
         secret.put("apiVersion", "v1");
         secret.put("kind", "Secret");
@@ -415,7 +584,13 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         metadata.put("name", secretName(run));
         metadata.set("labels", labels(run));
         secret.put("type", "Opaque");
-        secret.putObject("stringData").put(TOKEN_KEY, tesToken);
+        ObjectNode data = secret.putObject("stringData");
+        data.put(TOKEN_KEY, tesToken);
+        storageCredentials.ifPresent(credentials -> {
+            data.put(RunCredentials.ACCESS_KEY_ID_VARIABLE, credentials.accessKeyId());
+            data.put(RunCredentials.SECRET_ACCESS_KEY_VARIABLE, credentials.secretAccessKey());
+            data.put(RunCredentials.SESSION_TOKEN_VARIABLE, credentials.sessionToken());
+        });
         return secret;
     }
 

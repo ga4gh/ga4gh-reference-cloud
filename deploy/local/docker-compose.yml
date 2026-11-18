@@ -81,7 +81,7 @@ services:
   # compose by hand. no auth, so the TES API is only published on 127.0.0.1 (core-api's connection, tes-url)
   funnel:
     build: ./funnel
-    image: refcloud-local/funnel:0.11.14
+    image: refcloud-local/funnel:0.12.3
     command:
       - server
       - run

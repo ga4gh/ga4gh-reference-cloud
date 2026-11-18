@@ -8,7 +8,8 @@ connection allows at once, half again (pods shutting down still count, and must 
   * each run: its Nextflow Job (engine cpu-cores, memory-gb; requests equal limits);
   * each task in flight: its executor (the task's resources, within the pooled max-cpu-cores-in-flight and
     max-memory-gb-in-flight; requests equal limits) and its Funnel worker (files/funnel/worker-job.yaml);
-  * Funnel's server (templates/apps/funnel/deployment.yaml).
+  * Funnel's server (templates/apps/funnel/deployment.yaml);
+  * storage claims: each task's workspace (at most max-task-disk-gb) and Funnel's database (funnel-db.yaml, 1Gi).
 Keep the worker's and Funnel's sizes below in sync with those files.
 
 With a quota on CPU and memory, every pod in the namespace must set requests and limits for both: all of the compute
@@ -42,6 +43,9 @@ stack's pods do.
 {{- $requestsMemory := addf $workloadMemory (mulf $tasks $workerMemoryRequest) $serverMemoryRequest | mulf $headroom | ceil }}
 {{- $limitsMemory := addf $workloadMemory (mulf $tasks $workerMemoryLimit) $serverMemoryLimit | mulf $headroom | ceil }}
 {{- $pods := addf $runs (mulf $tasks 2) 1 | mulf $headroom | ceil }}
+{{- $taskDiskGb := index $limits "max-task-disk-gb" | float64 }}
+{{- $claims := addf $tasks 1 | mulf $headroom | ceil }}
+{{- $storage := addf (mulf $tasks $taskDiskGb 1000000000) 1073741824 | mulf $headroom | ceil }}
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -54,4 +58,6 @@ spec:
     requests.memory: {{ printf "%d" (int64 $requestsMemory) | quote }}
     limits.memory: {{ printf "%d" (int64 $limitsMemory) | quote }}
     pods: {{ printf "%d" (int64 $pods) | quote }}
+    persistentvolumeclaims: {{ printf "%d" (int64 $claims) | quote }}
+    requests.storage: {{ printf "%d" (int64 $storage) | quote }}
 {{- end }}
