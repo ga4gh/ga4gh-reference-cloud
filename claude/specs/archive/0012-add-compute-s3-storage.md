@@ -612,7 +612,7 @@ Done 2026-11-18:
     * leave the deletions of `files/funnel/pv.yaml` and `pvc.yaml` in place;
     * run `./scripts/refcloud-static-analysis-secrets.sh staged`.
 
-**Results:** (to be recorded)
+**Results:** the user ran the end-to-end tests on 2026-11-18 from a fresh `--reset` setup, and everything passed. Steps 6 and 7 ran from a helper script that submits the demo run and acts as soon as its Nextflow pod is up, since the demo is `RUNNING` for under a minute.
 
 ## Future Directions
 
