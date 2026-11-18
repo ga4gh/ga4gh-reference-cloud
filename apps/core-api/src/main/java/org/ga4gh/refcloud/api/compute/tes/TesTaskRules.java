@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.util.Locale;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
+import org.ga4gh.refcloud.api.compute.storage.RelativePaths;
+import org.ga4gh.refcloud.api.compute.storage.S3Location;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -31,8 +33,10 @@ public final class TesTaskRules {
     private TesTaskRules() {}
 
     // executors are required, client tags can't use the reserved prefix, and every file location must be inside the
-    // run's own directory: the storage root is shared by every user, so a task may only read and write its own run
-    public static void validate(JsonNode task, Path runDirectory) {
+    // run's own location (a directory, or an s3:// prefix): storage is shared by every user, so a task may only read
+    // and
+    // write its own run's files
+    public static void validate(JsonNode task, String runDirectory) {
         if (task == null || !task.isObject()) {
             throw new BadRequestException("the request body must be a TES task object");
         }
@@ -76,14 +80,26 @@ public final class TesTaskRules {
         }
     }
 
-    // http(s) inputs are fetched by the executor; anything stored (file:// or a plain absolute path, as nf-ga4gh
-    // sends) must be inside the run directory. other schemes aren't supported with shared-filesystem storage
-    private static void checkLocation(JsonNode urlNode, Path runDirectory, boolean input) {
+    // http(s) inputs are fetched by the executor; anything stored must be inside the run's location: on a shared
+    // filesystem, file:// or a plain absolute path (as nf-ga4gh sends); on S3, s3://<bucket>/<run key>/... (spec 0012)
+    private static void checkLocation(JsonNode urlNode, String runDirectory, boolean input) {
         String kind = input ? "input" : "output";
         if (!urlNode.isString() || urlNode.stringValue().isBlank()) {
             throw new BadRequestException("every " + kind + " needs a url");
         }
         String url = urlNode.stringValue();
+        if (input && isHttp(url)) {
+            try {
+                new URI(url);
+            } catch (URISyntaxException exception) {
+                throw new BadRequestException(kind + " url is not a valid URI: " + url);
+            }
+            return;
+        }
+        if (S3Location.isS3(runDirectory)) {
+            checkS3Location(url, S3Location.parse(runDirectory).orElseThrow(), kind);
+            return;
+        }
         Path path;
         if (url.startsWith("/")) {
             path = Path.of(url);
@@ -95,18 +111,33 @@ public final class TesTaskRules {
                 throw new BadRequestException(kind + " url is not a valid URI: " + url);
             }
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-            if (input && (scheme.equals("https") || scheme.equals("http"))) {
-                return;
-            }
             if (!scheme.equals("file") || uri.getPath() == null) {
                 throw new BadRequestException(kind + " url scheme is not supported: " + url);
             }
             path = Path.of(uri.getPath());
         }
         Path normalized = path.normalize();
-        if (runDirectory == null || !normalized.startsWith(runDirectory.normalize())) {
+        if (runDirectory == null || !normalized.startsWith(Path.of(runDirectory).normalize())) {
             throw new BadRequestException(kind + " " + url + " is outside the run's directory");
         }
+    }
+
+    // on S3 storage: the run's bucket, a key under the run's prefix, and nothing that could step out of it
+    private static void checkS3Location(String url, S3Location run, String kind) {
+        S3Location location = S3Location.parse(url)
+                .orElseThrow(() ->
+                        new BadRequestException(kind + " url must be an s3:// location in the run's storage: " + url));
+        String runPrefix = run.key() + "/";
+        if (!location.bucket().equals(run.bucket())
+                || !location.key().startsWith(runPrefix)
+                || !RelativePaths.isSafe(location.key().substring(runPrefix.length()))) {
+            throw new BadRequestException(kind + " " + url + " is outside the run's storage");
+        }
+    }
+
+    private static boolean isHttp(String url) {
+        String lower = url.toLowerCase(Locale.ROOT);
+        return lower.startsWith("https://") || lower.startsWith("http://");
     }
 
     // the task's resources, with the connection's defaults for anything not requested, checked against the

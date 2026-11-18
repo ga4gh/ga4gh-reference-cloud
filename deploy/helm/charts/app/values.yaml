@@ -60,6 +60,11 @@ ga4gh:
       # empty: nothing, not even DNS. when it isn't empty they get DNS too, to reach destinations by name. it applies to
       # the local connection's compute namespace (templates/common/compute-network-policies.yaml)
       outgoingAllowlist: []
+      # local only: RustFS, the S3-compatible server the local connection keeps its runs in (spec 0012). Its data volume
+      # outlives the release (--down keeps it; ./scripts/refcloud-setup.sh --reset deletes it). A minikube volume only
+      # takes the space its files use
+      localObjectStorage:
+        size: 10Gi
       # shared by every compute platform's WES and TES service-info
       serviceInfo:
         # ids are org.ga4gh.refcloud.{wes|tes}.{platform id}.{idSuffix}: give each deployment its own

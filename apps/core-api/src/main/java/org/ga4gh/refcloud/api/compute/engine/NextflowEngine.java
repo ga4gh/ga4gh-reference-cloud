@@ -3,11 +3,8 @@ package org.ga4gh.refcloud.api.compute.engine;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +16,7 @@ import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputePlatformType;
 import org.ga4gh.refcloud.api.compute.ComputeRunConfig;
 import org.ga4gh.refcloud.api.compute.run.ComputeRun;
+import org.ga4gh.refcloud.api.compute.storage.RunCredentials;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -37,16 +35,14 @@ public class NextflowEngine implements WorkflowEngine {
 
     static final String PARAMS_FILE = "params.json";
 
+    static final String LOG_FILE = "nextflow.log";
+
     static final String TOKEN_ENVIRONMENT_VARIABLE = "REFCLOUD_TES_TOKEN";
 
     static final String ABORT_MARKER = "Session aborted -- Cause:";
 
     // how much of the end of nextflow.log is read when looking for why a run failed
     static final long LOG_TAIL_BYTES = 256 * 1024;
-
-    // directories removed when a run ends: the workflow's copy (the run records where it came from: repository and
-    // commit, or bundled path), staged inputs, task work directories, nextflow's cache
-    static final List<String> INTERMEDIATE_DIRECTORIES = List.of("workflow", "inputs", "work", ".nextflow");
 
     private final HostProcessRunner hostProcessRunner;
 
@@ -70,9 +66,14 @@ public class NextflowEngine implements WorkflowEngine {
         return Set.of("NXF_VER", "NXF_PLUGINS_DEFAULT", "NXF_HOME", "REFCLOUD_");
     }
 
+    // runs on a shared filesystem only, so there are never storage credentials
     @Override
     public EngineProcess launch(
-            ComputeRun run, ComputeConfig.Connection connection, String tesEndpoint, String tesToken)
+            ComputeRun run,
+            ComputeConfig.Connection connection,
+            String tesEndpoint,
+            String tesToken,
+            Optional<RunCredentials> storageCredentials)
             throws IOException {
         Path runDirectory = Path.of(run.getRunDirectory());
         writeRunFiles(run, tesEndpoint, objectMapper);
@@ -93,13 +94,12 @@ public class NextflowEngine implements WorkflowEngine {
         hostProcessRunner.signal(Path.of(run.getRunDirectory()), process(run), force);
     }
 
+    // a host process leaves nothing of its own behind; the run's storage is cleaned up by the run service
     @Override
-    public void cleanUp(ComputeRun run, ComputeConfig.Connection connection) {
-        removeIntermediateDirectories(Path.of(run.getRunDirectory()));
-    }
+    public void cleanUp(ComputeRun run, ComputeConfig.Connection connection) {}
 
     // the run's generated nextflow config and its params file, in the run directory (shared with
-    // NextflowKubernetesEngine, as are the command, the environment, refcloudFailureOf and the clean-up)
+    // NextflowKubernetesEngine, as are the command, the environment and refcloudFailureOf)
     static void writeRunFiles(ComputeRun run, String tesEndpoint, ObjectMapper objectMapper) throws IOException {
         Path runDirectory = Path.of(run.getRunDirectory());
         Files.writeString(runDirectory.resolve(CONFIG_FILE), config(tesEndpoint), StandardCharsets.UTF_8);
@@ -107,12 +107,6 @@ public class NextflowEngine implements WorkflowEngine {
                 runDirectory.resolve(PARAMS_FILE),
                 objectMapper.writeValueAsString(run.getWorkflowParams()),
                 StandardCharsets.UTF_8);
-    }
-
-    static void removeIntermediateDirectories(Path runDirectory) {
-        for (String name : INTERMEDIATE_DIRECTORIES) {
-            deleteRecursively(runDirectory.resolve(name));
-        }
     }
 
     // nextflow logs why it aborted a workflow as "Session aborted -- Cause: <message>". when the message is a failed
@@ -125,8 +119,13 @@ public class NextflowEngine implements WorkflowEngine {
     }
 
     static Optional<String> refcloudFailureOf(ComputeRun run) {
-        Path log = Path.of(run.getRunDirectory()).resolve("nextflow.log");
-        return abortCause(tail(log, LOG_TAIL_BYTES))
+        Path log = Path.of(run.getRunDirectory()).resolve(LOG_FILE);
+        return refcloudFailureIn(run, tail(log, LOG_TAIL_BYTES));
+    }
+
+    // the same, from the end of the log's text (NextflowKubernetesEngine reads it through the run's storage)
+    static Optional<String> refcloudFailureIn(ComputeRun run, String logTail) {
+        return abortCause(logTail)
                 .filter(cause -> cause.contains("/ga4gh/tes/" + run.getComputePlatformId() + "/v1/"))
                 .map(cause -> "the workflow engine lost contact with the refcloud TES: " + truncate(cause, 300));
     }
@@ -175,23 +174,42 @@ public class NextflowEngine implements WorkflowEngine {
         return command(run, engine.nextflowExecutable());
     }
 
-    // the nextflow command for the run, run by executable
+    // where the engine finds the run's files: its local directory (its launch directory, with the workflow, config,
+    // params and log) and the workflow in it, and where its work directory and outputs go. all in the run directory
+    // on a shared filesystem; on S3 the local directory is the Job's own and the rest are s3:// prefixes (spec 0012)
+    record RunFiles(String directory, String workflow, String workDir, String outputs) {
+
+        static RunFiles shared(ComputeRun run) {
+            Path runDirectory = Path.of(run.getRunDirectory());
+            return new RunFiles(
+                    runDirectory.toString(),
+                    run.getWorkflowPath(),
+                    runDirectory.resolve("work").toString(),
+                    runDirectory.resolve("outputs").toString());
+        }
+    }
+
+    // the nextflow command for a run on a shared filesystem, run by executable
     static List<String> command(ComputeRun run, String executable) {
-        Path runDirectory = Path.of(run.getRunDirectory());
+        return command(run, RunFiles.shared(run), executable);
+    }
+
+    static List<String> command(ComputeRun run, RunFiles files, String executable) {
+        Path directory = Path.of(files.directory());
         List<String> command = new ArrayList<>(List.of(
                 executable,
                 "-log",
-                runDirectory.resolve("nextflow.log").toString(),
+                directory.resolve(LOG_FILE).toString(),
                 "run",
-                run.getWorkflowPath(),
+                files.workflow(),
                 "-ansi-log",
                 "false",
                 "-c",
-                runDirectory.resolve(CONFIG_FILE).toString(),
+                directory.resolve(CONFIG_FILE).toString(),
                 "-work-dir",
-                runDirectory.resolve("work").toString(),
+                files.workDir(),
                 "-params-file",
-                runDirectory.resolve(PARAMS_FILE).toString()));
+                directory.resolve(PARAMS_FILE).toString()));
         if (run.getMainScript() != null && !run.getMainScript().equals("main.nf")) {
             command.add("-main-script");
             command.add(run.getMainScript());
@@ -202,7 +220,7 @@ public class NextflowEngine implements WorkflowEngine {
         }
         // last, so it overrides any outdir in the params file
         command.add("--outdir");
-        command.add(runDirectory.resolve("outputs").toString());
+        command.add(files.outputs());
         return command;
     }
 
@@ -227,30 +245,5 @@ public class NextflowEngine implements WorkflowEngine {
 
     private static EngineProcess process(ComputeRun run) {
         return EngineProcess.hostProcess(run.getEnginePid(), run.getEngineStartedAt());
-    }
-
-    // deletes a directory inside the run directory; files the engine's containers wrote may not be deletable by
-    // core-api on every platform (e.g. root-owned on linux), which is logged rather than failing the run
-    private static void deleteRecursively(Path directory) {
-        if (!Files.isDirectory(directory)) {
-            return;
-        }
-        try {
-            Files.walkFileTree(directory, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                    Files.deleteIfExists(file);
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exception) throws IOException {
-                    Files.deleteIfExists(dir);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException exception) {
-            log.warn("could not fully remove {}: {}", directory, exception.toString());
-        }
     }
 }

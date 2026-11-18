@@ -20,6 +20,7 @@ import org.ga4gh.refcloud.api.compute.ComputeHealthConfig;
 import org.ga4gh.refcloud.api.compute.engine.NextflowKubernetesEngine;
 import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesClient;
 import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesPermission;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
 import org.springframework.stereotype.Component;
 
 // the checks behind a connection's health (D10). a connection is healthy only if every check passes; each failed
@@ -45,8 +46,9 @@ public class ConnectionChecker {
                 .build();
     }
 
-    // returns the reasons the connection is unhealthy; empty means healthy
-    public List<String> check(ComputeConfig.Connection connection, Path storageRoot) {
+    // returns the reasons the connection is unhealthy; empty means healthy. storage is the connection's run storage,
+    // which checks itself (a writable root, or a usable S3 bucket: spec 0012)
+    public List<String> check(ComputeConfig.Connection connection, RunStorage storage) {
         List<String> failures = new ArrayList<>();
         checkExecutor(connection.executor()).ifPresent(failures::add);
         Optional<String> engineFailure = switch (connection.type()) {
@@ -54,7 +56,7 @@ public class ConnectionChecker {
             case NEXTFLOW_FUNNEL_KUBERNETES -> checkKubernetesEngine(connection.engine());
         };
         engineFailure.ifPresent(failures::add);
-        checkStorage(storageRoot).ifPresent(failures::add);
+        storage.check().ifPresent(failures::add);
         return failures;
     }
 
@@ -152,22 +154,6 @@ public class ConnectionChecker {
                 ? Optional.empty()
                 : Optional.of("core-api may not " + String.join(", ", denied) + " in namespace " + engine.namespace()
                         + " (does the namespace exist, with core-api's Role and RoleBinding?)");
-    }
-
-    // a file can be created in the storage root. a missing root is unhealthy, not created: setup creates it
-    Optional<String> checkStorage(Path storageRoot) {
-        if (!Files.isDirectory(storageRoot)) {
-            return Optional.of("storage root " + storageRoot + " does not exist");
-        }
-        Path probe = null;
-        try {
-            probe = Files.createTempFile(storageRoot, ".refcloud-health-", ".tmp");
-            return Optional.empty();
-        } catch (IOException exception) {
-            return Optional.of("storage root " + storageRoot + " is not writable: " + exception.getMessage());
-        } finally {
-            deleteQuietly(probe);
-        }
     }
 
     // some exceptions (e.g. a refused connection) have no message

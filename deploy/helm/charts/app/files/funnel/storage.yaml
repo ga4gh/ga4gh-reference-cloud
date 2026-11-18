@@ -1,0 +1,20 @@
+# Kubernetes.Storage in funnel.yml (spec 0012): each task's workspace is a claim of its own, from the cluster's default
+# StorageClass (minikube's standard locally), which Funnel mounts into the task's worker and executors. The worker Job
+# owns the claim, so Kubernetes deletes it with the Job, and Funnel never touches PersistentVolumes itself.
+#
+# Funnel renders the string values below as Go templates for each task (after reading its config). The chart embeds
+# this file verbatim and only replaces the capitalized placeholder (templates/apps/funnel/config-map.yaml), so never
+# write template braces in these comments.
+#
+# Its size is the task's disk request, or the default for a task that asks for none: Funnel sizes the claim from the
+# task as submitted, before it applies Kubernetes.Resources.Defaults, so the default is repeated here.
+WorkspaceVolume: workspace
+volumeClaimTemplates:
+  - metadata:
+      name: workspace
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: '{{if gt .DiskGb 0.0}}{{printf "%gG" .DiskGb}}{{else}}REFCLOUD_DEFAULT_TASK_DISK{{end}}'

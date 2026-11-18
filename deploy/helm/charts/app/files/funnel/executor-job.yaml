@@ -1,9 +1,13 @@
 # Funnel's executor Job (Kubernetes.ExecutorTemplate in funnel.yml), one per executor of a TES task, created by the
 # task's worker. It runs the task's image and command: workflow code, so it gets no Kubernetes token, no privileges,
-# and limits equal to the task's requested resources (Funnel's default template sets requests only).
+# no credentials, no network (templates/common/compute-network-policies.yaml), and limits equal to the task's requested
+# resources (Funnel's default template sets requests only).
 #
 # Funnel renders this file as a Go template for each executor. The chart only replaces the capitalized placeholders
 # (templates/apps/funnel/config-map.yaml), so never write template braces in these comments.
+#
+# Funnel adds the task's workspace (its claim, at the task's paths) to this template (spec 0012). The claim is
+# ReadWriteOnce, so the executor runs on its worker's node (podAffinity, by the worker's labels).
 #
 # Executors run as 10001, like the worker: with every capability dropped, another user couldn't write to the
 # worker's directories. Images that need root aren't supported.
@@ -31,8 +35,17 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: funnel-worker
+                  task-id: {{.TaskId}}
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: executor
           image: {{.Image}}
@@ -70,19 +83,6 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            {{- range $i, $v := .Volumes}}
-            - name: vol-{{$i}}
-              mountPath: {{printf "%q" $v.ContainerPath}}
-              {{- if $v.Readonly}}
-              readOnly: true
-              {{- end}}
-            {{- end}}
       volumes:
         - name: tmp
           emptyDir: {}
-        # the task's inputs, outputs and working directories, in the worker's directory on the compute storage
-        {{- range $i, $v := .Volumes}}
-        - name: vol-{{$i}}
-          hostPath:
-            path: {{printf "%q" $v.HostPath}}
-        {{- end}}

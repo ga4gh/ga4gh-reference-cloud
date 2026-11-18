@@ -1,0 +1,17 @@
+#!/bin/sh
+# runs this image's Nextflow, but only when the run's pins match the versions baked into the image. core-api sets
+# NXF_VER and NXF_PLUGINS_DEFAULT from the connection (engine nextflow-version and nf-ga4gh-version), and reports
+# them in WES service-info; Nextflow's self-contained build ignores NXF_VER, so a mismatch would otherwise run other
+# versions silently. exits 126, which core-api reports as "the engine could not be started", with the reason on
+# stderr (engine.stderr.log in the run directory)
+set -eu
+
+image_plugin="nf-ga4gh@${REFCLOUD_IMAGE_NF_GA4GH_VERSION}"
+if [ "${NXF_VER:-}" != "$REFCLOUD_IMAGE_NEXTFLOW_VERSION" ] || [ "${NXF_PLUGINS_DEFAULT:-}" != "$image_plugin" ]; then
+  echo "refcloud-nextflow: the image has Nextflow $REFCLOUD_IMAGE_NEXTFLOW_VERSION and $image_plugin, but the run" \
+    "pins Nextflow ${NXF_VER:-(none)} and ${NXF_PLUGINS_DEFAULT:-(none)}: make the connection's nextflow-version" \
+    "and nf-ga4gh-version match the image" >&2
+  exit 126
+fi
+
+exec nextflow "$@"

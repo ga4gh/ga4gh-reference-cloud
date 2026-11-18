@@ -82,6 +82,23 @@ public class DrsInputsTest {
         assertEquals(params.path("input").asString(), "drs://h/a");
     }
 
+    // spec 0012: a run's engine may only be given storage locations by the refcloud
+    @Test
+    public void storageLocationsInParamsAreRefused() {
+        for (String json : new String[] {
+            "{\"input\": \"s3://refcloud-compute/runs/other/outputs/x\"}",
+            "{\"samples\": [{\"bam\": \"S3://bucket/key\"}]}",
+            "{\"input\": \"  s3://bucket/key\"}",
+        }) {
+            BadRequestException exception = expectThrows(
+                    BadRequestException.class, () -> DrsInputs.refuseStorageLocations(objectMapper.readTree(json)));
+            assertTrue(exception.getMessage().contains("can't name storage locations"), json);
+        }
+        DrsInputs.refuseStorageLocations(
+                objectMapper.readTree("{\"input\": \"drs://h/x\", \"note\": \"see s3://docs\", \"n\": 1}"));
+        DrsInputs.refuseStorageLocations(null);
+    }
+
     @Test
     public void safeFileNamesAreOneSegment() {
         assertEquals(DrsInputs.safeFileName("HG00096.bam.bai", "x"), "HG00096.bam.bai");

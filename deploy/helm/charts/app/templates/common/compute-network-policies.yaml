@@ -4,10 +4,15 @@ part of the compute stack gets only what it needs (spec 0011, Tasks 1 and 6).
 
   pod (app.kubernetes.io/name)   accepts                                    sends to
   funnel                         core-api (TES, 8000), workers (RPC, 9090)  the Kubernetes API, DNS
-  funnel-worker                  nothing                                    funnel (RPC, 9090), the Kubernetes API, DNS
-  refcloud-nextflow              nothing                                    core-api (8080), by address: no DNS
+  funnel-worker                  nothing                                    funnel (RPC, 9090), RustFS (9000), the
+                                                                            Kubernetes API, DNS
+  refcloud-nextflow              nothing                                    core-api (8080) and RustFS (9000), by
+                                                                            address: no DNS
   funnel-executor                nothing                                    nothing
   anything else                  nothing                                    nothing
+
+RustFS (run storage, spec 0012) is in the release namespace; its own policy, accepting these, is in
+network-policies.yaml.
 
 The workflow pods (refcloud-nextflow and funnel-executor, where workflow code runs) can also reach the destinations in
 ga4gh.referenceCloud.compute.outgoingAllowlist, and DNS, when it isn't empty. Otherwise they get no DNS: lookups of
@@ -110,6 +115,7 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    {{- include "refcloud.computeEgressToRustfs" . | nindent 4 }}
     {{- with include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPeers "ports" $apiPorts) }}
     {{- . | nindent 4 }}
     {{- end }}
@@ -138,6 +144,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    {{- include "refcloud.computeEgressToRustfs" . | nindent 4 }}
 {{- if $allowlist }}
 ---
 # the outgoing allowlist, for the workflow pods

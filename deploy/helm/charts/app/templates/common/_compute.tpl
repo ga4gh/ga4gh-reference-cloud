@@ -1,8 +1,11 @@
 {{/*
 The local compute connection (nextflow-funnel-kubernetes-local), as YAML: Nextflow Jobs and Funnel in this
-release's compute namespace, with run storage on the minikube node. Read with fromYaml by
-templates/common/compute-connections.yaml (the connections file) and templates/common/compute-resource-quota.yaml
-(the quota is computed from its limits).
+release's compute namespace, with run storage in the S3-compatible RustFS (templates/apps/rustfs/, spec 0012):
+core-api's own RustFS user, from refcloud-compute-s3-core-api in its environment, and STS credentials limited to each
+run's prefix for its Nextflow Job. RustFS issues those for core-api's user itself and ignores the role ARN (any
+well-formed one does), for up to 12 hours. Read with fromYaml by templates/common/compute-connections.yaml (the
+connections file), templates/common/compute-resource-quota.yaml (the quota is computed from its limits),
+templates/common/compute-limit-range.yaml and Funnel's config.
 
 Its Nextflow and nf-ga4gh versions must match the Nextflow image's (compute/images/nextflow/Dockerfile): the image
 refuses to run otherwise. Native mode pins the same versions (deploy/local/compute/connections.yml).
@@ -25,7 +28,16 @@ platform registered on it (scripts/refcloud-run-helm.sh) sets no per-user limits
         "cpu-cores" 1
         "memory-gb" 1)
       "executor" (dict "tes-url" (printf "http://funnel.%s.svc:8000" $namespace))
-      "storage" (dict "type" "shared-filesystem" "root" (include "refcloud.computeStorageRoot" .))
+      "storage" (dict
+        "type" "s3"
+        "bucket" (include "refcloud.localComputeBucket" .)
+        "region" "us-east-1"
+        "endpoint" (printf "http://rustfs.%s.svc.cluster.local:9000" .Release.Namespace)
+        "path-style-access" true
+        "access-key-id-env" "REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID"
+        "secret-access-key-env" "REFCLOUD_COMPUTE_S3_SECRET_ACCESS_KEY"
+        "run-role-arn" "arn:aws:iam::000000000000:role/refcloud-compute-run"
+        "run-credentials-max-seconds" 43200)
       "limits" (dict
         "max-concurrent-runs" 1
         "max-tasks-in-flight" 2
@@ -70,4 +82,18 @@ Usage: {{- include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPee
       port: 53
     - protocol: TCP
       port: 53
+{{- end -}}
+
+{{- define "refcloud.computeEgressToRustfs" -}}
+# RustFS, the run storage, in the release namespace (spec 0012)
+- to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Release.Namespace }}
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rustfs
+  ports:
+    - protocol: TCP
+      port: 9000
 {{- end -}}

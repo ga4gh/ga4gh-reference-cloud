@@ -40,9 +40,10 @@ public class ComputeConnections {
         return Optional.ofNullable(computeConfig.connections().get(connectionKey));
     }
 
-    // the connection's storage root as an absolute path
+    // the connection's storage root as an absolute path (shared-filesystem storage only; s3 has none)
     public Optional<Path> storageRoot(String connectionKey) {
         return find(connectionKey)
+                .filter(connection -> connection.storage().root() != null)
                 .map(connection -> connectionsFileDirectory
                         .resolve(connection.storage().root())
                         .normalize());

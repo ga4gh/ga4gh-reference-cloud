@@ -1,0 +1,138 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $bucket := include "refcloud.localComputeBucket" . }}
+# what the setup Job applies to RustFS (spec 0012, Task 5): the bucket, and a user and policy each for core-api and
+# Funnel's workers. core-api's user may also use health/ (its storage health probe) and issues each run's credentials,
+# which RustFS limits to both its policy and the run's own prefix. Funnel's workers stage every run's task files
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rustfs-setup
+data:
+  setup.sh: |
+    set -eu
+    # RustFS may still be starting
+    tries=0
+    until curl --silent --fail --output /dev/null http://rustfs:9000/health/ready; do
+      tries=$((tries + 1))
+      if [ "$tries" -ge 60 ]; then
+        echo "RustFS isn't ready after 2 minutes" >&2
+        exit 1
+      fi
+      sleep 2
+    done
+    export RC_HOST_local="http://${ROOT_ACCESS_KEY_ID}:${ROOT_SECRET_ACCESS_KEY}@rustfs:9000"
+    # each step is safe to repeat: an existing bucket is kept, and users and policies are replaced
+    rc bucket create "local/${BUCKET}" --ignore-existing > /dev/null
+    for account in core-api funnel; do
+      case "$account" in
+        core-api) access_key_id="$CORE_API_ACCESS_KEY_ID"; secret_access_key="$CORE_API_SECRET_ACCESS_KEY" ;;
+        funnel) access_key_id="$FUNNEL_ACCESS_KEY_ID"; secret_access_key="$FUNNEL_SECRET_ACCESS_KEY" ;;
+      esac
+      rc admin policy create local "$account" "/etc/rustfs-setup/${account}-policy.json" > /dev/null
+      rc admin user add local "$access_key_id" "$secret_access_key" > /dev/null
+      rc admin policy attach local "$account" --user "$access_key_id" > /dev/null
+      echo "RustFS user $access_key_id has policy $account"
+    done
+    echo "RustFS bucket ${BUCKET} is ready"
+  core-api-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],
+          "Resource": ["arn:aws:s3:::{{ $bucket }}/runs/*", "arn:aws:s3:::{{ $bucket }}/health/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:ListBucketMultipartUploads"],
+          "Resource": ["arn:aws:s3:::{{ $bucket }}"]
+        }
+      ]
+    }
+  funnel-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"],
+          "Resource": ["arn:aws:s3:::{{ $bucket }}/runs/*"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+          "Resource": ["arn:aws:s3:::{{ $bucket }}"]
+        }
+      ]
+    }
+---
+# applies rustfs-setup after every install and upgrade, with RustFS's own CLI (rc) as its root account. A hook, so it
+# runs again whenever the chart changes; it's deleted once it succeeds
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-setup
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rustfs-setup
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: setup
+          configMap:
+            name: rustfs-setup
+      containers:
+        - image: {{ include "refcloud.rustfsImage" . }}
+          imagePullPolicy: IfNotPresent
+          name: setup
+          command: ["sh", "/etc/rustfs-setup/setup.sh"]
+          env:
+            # rc keeps its settings under HOME
+            - name: HOME
+              value: /tmp
+            - name: BUCKET
+              value: {{ $bucket }}
+            {{- range $account := list (list "ROOT" "refcloud-compute-s3-root") (list "CORE_API" "refcloud-compute-s3-core-api") (list "FUNNEL" "refcloud-compute-s3-funnel") }}
+            - name: {{ index $account 0 }}_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ index $account 1 }}
+                  key: access-key-id
+            - name: {{ index $account 0 }}_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ index $account 1 }}
+                  key: secret-access-key
+            {{- end }}
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: setup
+              mountPath: /etc/rustfs-setup
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+{{- end }}

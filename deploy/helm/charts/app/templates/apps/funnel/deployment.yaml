@@ -1,7 +1,7 @@
 {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
-{{- $storageRoot := include "refcloud.computeStorageRoot" . }}
 # Funnel's server: the TES executor behind core-api's TES API. It runs each task as a worker Job in the compute
-# namespace (files/funnel/worker-job.yaml). Its TES API has no auth: only core-api may call it
+# namespace (files/funnel/worker-job.yaml), and never touches the run storage itself (its workers do). Its TES API
+# has no auth: only core-api may call it
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,12 +24,13 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/apps/funnel/config-map.yaml") . | sha256sum }}
     spec:
       serviceAccountName: funnel
-      # Funnel's image runs as root by default. 10001 (user and group) owns the compute storage, like the workers
-      # and executors; so it is set here rather than with refcloud.podSecurityContext, which sets no group
+      # Funnel's image runs as root by default. It runs as 10001 (user and group), like the workers and executors, and
+      # owns its database claim (fsGroup); so it is set here rather than with refcloud.podSecurityContext
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       volumes:
@@ -38,11 +39,10 @@ spec:
         - name: config
           configMap:
             name: funnel-config
-        # the compute storage on the minikube node (refcloud.computeStorageRoot), for Funnel's database
-        - name: storage
-          hostPath:
-            path: {{ $storageRoot }}
-            type: Directory
+        # Funnel's database (funnel-db.yaml)
+        - name: db
+          persistentVolumeClaim:
+            claimName: funnel-db
       containers:
         - image: {{ include "refcloud.funnelImage" . }}
           imagePullPolicy: IfNotPresent
@@ -55,8 +55,8 @@ spec:
             - name: config
               mountPath: /etc/funnel
               readOnly: true
-            - name: storage
-              mountPath: {{ $storageRoot }}
+            - name: db
+              mountPath: /var/lib/funnel
           ports:
             - containerPort: 8000
             - containerPort: 9090

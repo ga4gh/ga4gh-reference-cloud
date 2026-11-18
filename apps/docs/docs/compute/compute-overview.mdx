@@ -24,7 +24,7 @@ you → refcloud WES → workflow engine (Nextflow) → refcloud TES → task ex
 
 * **Access:** every compute platform is gated by a Passport visa, which you request the same way you request access to a dataset. See [Accessing Compute Platforms](./access).
 * **Workflows:** a platform runs only the workflows on its **allowlist**: pinned GitHub commits, versions on a TRS server such as Dockstore (pinned to their source commit), or demos bundled with the reference cloud. A run's `workflow_url` must match an allowlist entry exactly. Uploaded workflows (`workflow_attachment`) and `workflow_engine_parameters` are refused: the platform's admin decides how each workflow runs.
-* **Inputs:** put `drs://` URIs of the reference cloud's DRS objects anywhere in `workflow_params`. Before the run starts, the reference cloud checks that you can access each object, downloads it, and replaces its URI with the local file. DRS objects from other servers aren't supported yet.
+* **Inputs:** put `drs://` URIs of the reference cloud's DRS objects anywhere in `workflow_params`. Before the run starts, the reference cloud checks that you can access each object, downloads it into the run's own storage, and replaces its URI with the file's location there. DRS objects from other servers aren't supported yet, and `workflow_params` can't name storage locations (`s3://...`) directly.
 * **Limits:** each platform sets per-user limits: runs at a time, CPU, memory and disk per task, run duration, and a monthly quota in core-hours (CPU cores × hours). You can see them on the platform's card in the researcher UI.
 * **Outputs** stay with the run, and you download them through WES (see [Output Downloads](#output-downloads)).
 * **Tasks:** the workflow engine creates TES tasks with a credential that only works for its run. You can list, view and cancel your own tasks through TES, but you submit work only through WES.
@@ -50,8 +50,10 @@ A platform type is a stack the reference cloud supports, named after its layers:
 
 | Platform type | Key | Versions | Status |
 |---|---|---|---|
-| **Nextflow + Funnel (Docker)** | `nextflow-funnel-docker` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin; Funnel 0.11.14 | Available in local native mode, on any single machine with Docker |
-| **Nextflow + Funnel (Kubernetes)** | `nextflow-funnel-kubernetes` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin; Funnel 0.11.14 | Available in local helm mode (a local Kubernetes cluster). Each run's Nextflow and each task run as Kubernetes Jobs, isolated from the internet |
+| **Nextflow + Funnel (Docker)** | `nextflow-funnel-docker` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin; Funnel 0.12.3 | Available in local native mode, on any single machine with Docker, with a shared directory for storage |
+| **Nextflow + Funnel (Kubernetes)** | `nextflow-funnel-kubernetes` | Nextflow 26.10.5 with the nf-ga4gh 1.5.0 plugin and its nf-amazon S3 plugin; Funnel 0.12.3 | Available in local helm mode (a local Kubernetes cluster), with S3 storage. Each run's Nextflow and each task run as Kubernetes Jobs, isolated from the internet |
+
+**Storage** is a setting of each platform's connection, not part of its platform type. A run keeps its files (its staged inputs, the engine's work directory, its outputs and logs) either in a directory every component shares, or in S3 storage, under a prefix of its own. Locally, native mode uses a shared directory, and helm mode uses S3, with RustFS, an S3-compatible server in the cluster, standing in for Amazon S3. On S3, each run's engine gets temporary credentials for its own run's files only, and your tasks' containers never reach the storage: the executor copies each task's files in and out. Either way, you download outputs through WES.
 
 On the Kubernetes platform type, workflows run **without internet access**: neither Nextflow nor the tasks can reach anything outside the cluster, so data a run reads can't be sent out. Inputs come from the reference cloud's DRS objects, as on every platform, and container images still load. Workflows that download Nextflow plugins or files while they run don't work there (see [Workflow Compatibility](#workflow-compatibility)).
 

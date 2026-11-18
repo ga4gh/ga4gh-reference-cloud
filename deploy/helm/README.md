@@ -25,9 +25,9 @@ Alongside the database, OAuth client and dataset setup, the setup script's Kuber
 * starts minikube (docker driver) if it isn't running and enables the `ingress` addon. A new cluster gets the **Calico** network plugin, which enforces the chart's [NetworkPolicies](#network-policies). A cluster created before Calico was added makes setup and the run script stop with instructions: recreate it with `minikube delete`, then run setup again. Your databases are in host Postgres, so they're unaffected
 * switches your `kubectl` context to `minikube` (every script command also passes `--context minikube --namespace default` explicitly, so it never touches another cluster)
 * installs the mkcert local CA and generates a TLS certificate for `refcloud.ga4gh.localhost` and `*.refcloud.ga4gh.localhost` in `deploy/helm/.certs/` (git-ignored)
-* creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode
+* creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode where both use them. RustFS's three are helm-only: random, and created only if they don't exist yet, since they go with RustFS's data (see Compute)
 
-`--reset` also deletes the TLS certificate, uninstalls the helm release and deletes the refcloud secrets before recreating them (starting minikube first if needed). The cluster itself is not deleted.
+`--reset` also deletes the TLS certificate, uninstalls the helm release, and deletes the refcloud secrets and RustFS's data (compute runs' files) before recreating the secrets (starting minikube first if needed). The cluster itself is not deleted.
 
 The Kubernetes section is skipped with a warning if `minikube`, `kubectl`, `helm` or `mkcert` is missing, so native-only contributors don't need them.
 
@@ -42,11 +42,10 @@ The run script:
 1. fails fast if port 443 is in use (e.g. native mode's Caddy, or another `minikube tunnel`)
 2. computes the lockstep image tag: `git describe --tags --match 'v[0-9]*' --always`, plus `-uncommitted` if the working tree has any changes (including untracked files)
 3. builds all app images, and the Nextflow image compute runs, into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`. core-api and the admin CLI build from the repo root, so they can bundle `compute/workflows/`
-4. creates the compute run storage directory on the minikube node (`/data/refcloud-compute/refcloud`, owned by user 10001), which core-api mounts
-5. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks
-6. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
-7. registers the `nextflow-demo-kubernetes` compute platform, if it doesn't exist yet (see Compute below)
-8. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
+4. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks, and RustFS's setup (its bucket and users) runs after, as another
+5. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
+6. registers the `nextflow-demo-kubernetes` compute platform, if it doesn't exist yet (see Compute below)
+7. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
 
 The refcloud is then available at `https://refcloud.ga4gh.localhost` and `https://docs.refcloud.ga4gh.localhost`.
 
@@ -54,10 +53,11 @@ Ctrl+C stops the tunnel only; the release keeps running, so the next run is fast
 
 ### Compute
 
-Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md)):
+Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md)), with each run's files in S3 storage ([spec 0012](../../claude/specs/archive/0012-add-compute-s3-storage.md)):
 
 * core-api runs each workflow run as a Kubernetes Job with Nextflow (the `refcloud-nextflow` image, from `compute/images/nextflow/`), in the release's compute namespace, `refcloud-compute`;
 * Nextflow sends each task to core-api's TES API, which passes it to Funnel; Funnel runs it as Jobs in the same namespace;
+* the run's files (its workflow, staged inputs, Nextflow's work directory, outputs and logs) are in **RustFS**, the S3-compatible server that stands in for Amazon S3 locally: core-api and Funnel's workers each use an account of their own, and each run's Nextflow Job gets temporary credentials for its own run only. Funnel's workers copy each task's files in and out of a claim of its own, so the task containers never reach RustFS;
 * the chart's connection, `nextflow-funnel-kubernetes-local`, is sized for minikube's default container (2 CPUs, about 6 GB): **one run at a time**, up to 1 GB of tasks in flight, and 1 CPU and 1 GB per task.
 
 **The demo platform:** the run script registers `nextflow-demo-kubernetes` on that connection, with the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow on its allowlist. It sets no per-user limits of its own, so the connection's apply, except 10 core-hours a month. An existing platform is left as it is; to recreate it, `kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform delete -p nextflow-demo-kubernetes`, then run the script again. Native mode has its own platform, `nextflow-demo`; both modes share the databases, so each shows the other's as unavailable.
@@ -77,7 +77,7 @@ Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/sp
 
 **No internet:** the Nextflow Jobs and task containers can't reach anything outside the cluster (see Network Policies). Workflows that download plugins or files at run time fail here, nf-core/demo's `test` profile among them; `drs-checksum` works. Container images still load, since the node pulls them.
 
-**Run files** live on the minikube node, in `/data/refcloud-compute/refcloud/` (`runs/<run_id>/`, and Funnel's database and work directory), which the run script creates. Outputs download through WES; to look around, `minikube ssh -- sudo ls /data/refcloud-compute/refcloud/runs`. `./scripts/refcloud-setup.sh --reset` deletes it.
+**Run files** live in RustFS, the S3-compatible server in the release's namespace, under `runs/<run_id>/` in its `refcloud-compute` bucket ([spec 0012](../../claude/specs/archive/0012-add-compute-s3-storage.md)). Outputs download through WES. To look around, list them with RustFS's own CLI in its pod: `kubectl exec deploy/rustfs -- sh -c 'HOME=/tmp RC_HOST_l="http://$RUSTFS_ACCESS_KEY:$RUSTFS_SECRET_KEY@127.0.0.1:9000" rc object list l/refcloud-compute/runs/ --recursive'`. They survive `--down`; `./scripts/refcloud-setup.sh --reset` deletes them. Each task's working files are on a claim of its own, deleted when the task ends.
 
 **Following a run:** `kubectl -n refcloud-compute get jobs,pods` shows each run's Nextflow Job (`nextflow-<run id>`) and its tasks' Funnel worker and executor Jobs. The run's own logs are in its run directory (`nextflow.log`, `engine.stdout.log`, `engine.stderr.log`), and through WES.
 
@@ -97,9 +97,18 @@ kubectl run np-check --rm -it --restart=Never --image=busybox:1.37 -- wget -T 5 
 **The compute namespace** (`refcloud-compute`, `charts/app/templates/common/compute-network-policies.yaml`) denies everything, in and out, then allows only what the compute stack needs:
 
 * Funnel's TES API accepts core-api only; its RPC port accepts its workers only;
-* Funnel and its workers reach the Kubernetes API and DNS; workers also reach Funnel;
-* each run's Nextflow Job reaches core-api's port 8080 and nothing else, not even DNS (core-api gives it its own address rather than its name);
+* Funnel and its workers reach the Kubernetes API and DNS; workers also reach Funnel and RustFS;
+* each run's Nextflow Job reaches core-api's port 8080 and RustFS's port 9000, and nothing else, not even DNS (core-api gives it their addresses rather than their names);
 * the task containers (Funnel's executors) reach nothing.
+
+**RustFS** (the S3-compatible server that holds compute runs' files; [spec 0012](../../claude/specs/archive/0012-add-compute-s3-storage.md)) runs in the release's namespace and accepts only core-api, its setup Job, and the compute namespace's Nextflow Jobs and Funnel workers.
+
+To check from inside the compute namespace (which enforces the restricted Pod Security level, so the pod needs a restricted security context):
+
+```sh
+kubectl -n refcloud-compute run np-check --rm -i --restart=Never --image=busybox:1.37 --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":65534,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"np-check","image":"busybox:1.37","command":["nc","-z","-w","3","1.1.1.1","443"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}'
+# fails: blocked
+```
 
 So workflow code can't send data out of the cluster, including through DNS lookups. To let a platform's workflows reach specific destinations (e.g. a federated-learning server), list them in `ga4gh.referenceCloud.compute.outgoingAllowlist`, as NetworkPolicy egress rules:
 
@@ -124,6 +133,8 @@ The namespace also has a ResourceQuota and a LimitRange, computed from the local
 minikube stop                           # optional: stop the cluster
 ```
 
+`--down` keeps compute runs' files (RustFS's data claim, `rustfs-data`, and its secrets), as the databases keep the runs: the next install picks them up. `./scripts/refcloud-setup.sh --reset` deletes them.
+
 ### One mode at a time
 
 Native mode (Caddy) and helm mode (`minikube tunnel`) both bind port 443, so only one can run at a time. Stop native mode (Ctrl+C) before starting helm mode, and stop the tunnel before starting native mode. Both modes share the same host databases, so data created in one is visible in the other.
@@ -140,7 +151,7 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
 ### Troubleshooting
 
 * **minikube won't start / `kubelet: Stopped`, `apiserver: Stopped`:** the cluster state is broken (e.g. after a Docker Desktop restart or upgrade). Recreate it with `minikube delete && minikube start --driver=docker`, then re-run `./scripts/refcloud-setup.sh`.
-* **`helm upgrade` warns `would violate PodSecurity "restricted:latest": ... hostPath`:** expected. Funnel's Deployment in the compute namespace (`refcloud-compute`) uses the compute storage on the minikube node, which the strictest Pod Security level doesn't allow, so that namespace warns rather than enforces.
+* **A pod is refused in the compute namespace (`violates PodSecurity "restricted:latest"`):** the namespace enforces the strictest Pod Security level. A pod you start there yourself, e.g. to check the NetworkPolicies, needs a restricted security context, as in the `np-check` example under Network Policies.
 * **New pods stay in `ContainerCreating`, and `kubectl describe pod` shows `plugin type="calico" failed ... connection is unauthorized: Unauthorized`** (e.g. the deploy times out in a migration Job): Calico's network plugin token expired without being renewed, which can happen after the laptop sleeps. Running pods are unaffected. Restart Calico's node agent, which writes a new token: `kubectl --context minikube -n kube-system rollout restart daemonset calico-node`.
 * **An image build fails:** see the log path printed by the run script in `$TMPDIR/refcloud-build-logs/`.
 * **The deploy fails:** check `kubectl get pods`, `kubectl get jobs` and `kubectl logs <pod>`. A failed migration Job is kept for inspection and replaced on the next deploy.
@@ -227,5 +238,8 @@ The chart expects these secrets to exist in the release namespace. Locally, `ref
 | `refcloud-ui-hydra-researcher-client` | `id`, `secret` |
 | `refcloud-api-kratos-webhook` | `username`, `password` |
 | `refcloud-tls` | TLS secret (local only; AWS uses the ACM certificate) |
+| `refcloud-compute-s3-root` | `access-key-id`, `secret-access-key`: RustFS's root account, used only by its setup Job (local only) |
+| `refcloud-compute-s3-core-api` | `access-key-id`, `secret-access-key`: core-api's RustFS user (local only) |
+| `refcloud-compute-s3-funnel` | `access-key-id`, `secret-access-key`: Funnel's RustFS user, which the chart copies into the compute namespace for its workers (local only) |
 
 The admin CLI pod in AWS is connected to the production database. Follow the guardrails in [`apps/admin-cli/CLAUDE.md`](../../apps/admin-cli/CLAUDE.md) before running destructive commands.
