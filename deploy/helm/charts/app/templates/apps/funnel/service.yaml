@@ -1,0 +1,19 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+# Funnel's TES API (8000), which core-api calls, and its RPC port (9090), which its workers call
+apiVersion: v1
+kind: Service
+metadata:
+  name: funnel
+  namespace: {{ include "refcloud.computeNamespace" . }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: funnel
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+    - name: rpc
+      port: 9090
+      targetPort: 9090
+{{- end }}

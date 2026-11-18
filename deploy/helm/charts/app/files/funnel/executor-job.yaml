@@ -1,0 +1,88 @@
+# Funnel's executor Job (Kubernetes.ExecutorTemplate in funnel.yml), one per executor of a TES task, created by the
+# task's worker. It runs the task's image and command: workflow code, so it gets no Kubernetes token, no privileges,
+# and limits equal to the task's requested resources (Funnel's default template sets requests only).
+#
+# Funnel renders this file as a Go template for each executor. The chart only replaces the capitalized placeholders
+# (templates/apps/funnel/config-map.yaml), so never write template braces in these comments.
+#
+# Executors run as 10001, like the worker: with every capability dropped, another user couldn't write to the
+# worker's directories. Images that need root aren't supported.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.TaskId}}-{{.JobId}}
+  namespace: {{.JobsNamespace}}
+  labels:
+    app: funnel-executor
+    task-id: {{.TaskId}}
+    app.kubernetes.io/name: funnel-executor
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: funnel-executor
+        task-id: {{.TaskId}}
+        app.kubernetes.io/name: funnel-executor
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: executor
+          image: {{.Image}}
+          imagePullPolicy: IfNotPresent
+          {{- if .UseShell}}
+          command: ["/bin/sh", "-c"]
+          args:
+            - {{printf "%q" (index .Command 0)}}
+          {{- else}}
+          command:
+            {{- range .Command}}
+            - {{printf "%q" .}}
+            {{- end}}
+          {{- end}}
+          {{- if .Workdir}}
+          workingDir: {{printf "%q" .Workdir}}
+          {{- end}}
+          env:
+            {{- range $k, $v := .Env}}
+            - name: {{printf "%q" $k}}
+              value: {{printf "%q" $v}}
+            {{- end}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "{{.Cpus}}"
+              memory: "{{printf "%gG" .RamGb}}"
+            limits:
+              cpu: "{{.Cpus}}"
+              memory: "{{printf "%gG" .RamGb}}"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- range $i, $v := .Volumes}}
+            - name: vol-{{$i}}
+              mountPath: {{printf "%q" $v.ContainerPath}}
+              {{- if $v.Readonly}}
+              readOnly: true
+              {{- end}}
+            {{- end}}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        # the task's inputs, outputs and working directories, in the worker's directory on the compute storage
+        {{- range $i, $v := .Volumes}}
+        - name: vol-{{$i}}
+          hostPath:
+            path: {{printf "%q" $v.HostPath}}
+        {{- end}}

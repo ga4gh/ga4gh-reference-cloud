@@ -1,0 +1,27 @@
+# Image builds that use the repo root as their context: core-api and the admin CLI, which bundle
+# compute/workflows/ from outside their app directory (see REFCLOUD_IMAGES in scripts/lib/common.sh, and their CI
+# workflows). Other images build from their own directory and ignore this file.
+#
+# An allowlist: list only what those Dockerfiles copy. 'minikube image build' copies the build context into the
+# node before building and reads only this file (not per-Dockerfile ignore files), so without it every local build
+# would copy the whole repo, node_modules included.
+*
+
+# core-api (apps/core-api/Dockerfile)
+!apps/core-api/build.gradle
+!apps/core-api/settings.gradle
+!apps/core-api/gradle.lockfile
+!apps/core-api/src
+
+# admin CLI (apps/admin-cli/Dockerfile)
+!apps/admin-cli/pyproject.toml
+!apps/admin-cli/uv.lock
+!apps/admin-cli/README.md
+!apps/admin-cli/src
+
+# the bundled workflows, in both images
+!compute/workflows
+
+# generated files that can sit inside the directories above
+**/__pycache__
+**/.DS_Store

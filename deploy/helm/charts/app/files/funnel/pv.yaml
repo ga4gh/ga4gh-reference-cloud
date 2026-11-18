@@ -1,0 +1,31 @@
+# The PersistentVolume Funnel creates for every task with inputs or outputs (Kubernetes.PVTemplate in funnel.yml).
+# Funnel's Kubernetes backend is built around S3, and its default template mounts a bucket. Here nothing mounts it:
+# workers and executors use the compute storage directly. It exists only because Funnel requires it, and Funnel
+# deletes it when the task ends. PersistentVolumes are cluster-scoped, so Funnel's server needs a ClusterRole for them
+# (templates/apps/funnel/rbac.yaml).
+#
+# Funnel renders this file as a Go template for each task. The chart only replaces the capitalized placeholders
+# (templates/apps/funnel/config-map.yaml), so never write template braces in these comments.
+#
+# Funnel deletes only volumes labelled with its namespace: keep the label.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: funnel-worker-pv-{{.TaskId}}
+  labels:
+    app: funnel
+    taskId: {{.TaskId}}
+    namespace: {{.Namespace}}
+spec:
+  storageClassName: ""
+  capacity:
+    storage: 10Mi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: REFCLOUD_STORAGE_ROOT/funnel/unused-volumes/{{.TaskId}}
+    type: DirectoryOrCreate
+  claimRef:
+    namespace: {{.Namespace}}
+    name: funnel-worker-pvc-{{.TaskId}}

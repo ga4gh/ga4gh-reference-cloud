@@ -19,7 +19,7 @@ release deploys a fixed Kratos/Hydra version.
 Keep in sync with deploy/local/docker-compose.yml.
 */}}
 {{- define "refcloud.kratosImage" -}}
-oryd/kratos:v0.9.0-alpha.2
+oryd/kratos:v26.2.0
 {{- end -}}
 
 {{- define "refcloud.hydraImage" -}}
@@ -65,4 +65,30 @@ securityContext:
   readOnlyRootFilesystem: true
   capabilities:
     drop: ["ALL"]
+{{- end -}}
+
+{{/*
+Compute run storage on the minikube node (local only): a hostPath with one directory per release, mounted at the
+same path in every pod that uses it, since run directories are passed between them by path.
+scripts/refcloud-run-helm.sh creates it, owned by the compute user (10001): a directory Kubernetes created would be
+root's. Keep in sync with MINIKUBE_COMPUTE_STORAGE_ROOT in scripts/lib/common.sh.
+*/}}
+{{- define "refcloud.computeStorageRoot" -}}
+/data/refcloud-compute/{{ .Release.Name }}
+{{- end -}}
+
+{{/*
+The compute namespace: one per release, created by the chart (templates/common/compute-namespace.yaml), so several
+installations can share a cluster. Funnel, its workers and the task pods run there.
+*/}}
+{{- define "refcloud.computeNamespace" -}}
+{{ .Release.Name }}-compute
+{{- end -}}
+
+{{/*
+The Funnel (TES executor) image, run by Funnel's server and its per-task workers. Pinned by version and by the digest
+of its multi-architecture index. Keep the version in sync with deploy/local/funnel/Dockerfile (native mode).
+*/}}
+{{- define "refcloud.funnelImage" -}}
+quay.io/ohsu-comp-bio/funnel:0.11.14@sha256:8e10ba4de436b058bed95427110d9fe947142162078274a6a91cfe3b3eb8d15a
 {{- end -}}

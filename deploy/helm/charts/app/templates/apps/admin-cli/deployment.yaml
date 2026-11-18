@@ -14,11 +14,17 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: refcloud-admin-cli
+      annotations:
+        # restart when the compute connections change, so the pod always has the current file
+        checksum/compute-connections: {{ include (print $.Template.BasePath "/common/compute-connections.yaml") . | sha256sum }}
     spec:
       {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: compute-connections
+          configMap:
+            name: refcloud-compute-connections
       containers:
         - image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-admin-cli") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -29,6 +35,9 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: compute-connections
+              mountPath: /etc/refcloud/compute
+              readOnly: true
           env:
             - name: POSTGRES_HOST
               valueFrom:
@@ -52,4 +61,7 @@ spec:
                   key: password
             - name: POSTGRES_DB
               value: $(POSTGRES_USER)
+            # the same connections file core-api reads; compute-platform commands validate against it
+            - name: REFCLOUD_COMPUTE_CONNECTIONS_FILE
+              value: /etc/refcloud/compute/connections.yml
       {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

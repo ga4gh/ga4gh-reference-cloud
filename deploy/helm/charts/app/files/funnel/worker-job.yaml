@@ -1,0 +1,71 @@
+# Funnel's worker Job (Kubernetes.WorkerTemplate in funnel.yml), one per TES task. The worker fetches its task from
+# Funnel's server over RPC, stages the inputs, creates an executor Job for each executor (executor-job.yaml) and
+# copies the outputs back.
+#
+# Funnel renders this file as a Go template for each task. The chart only replaces the capitalized placeholders
+# (templates/apps/funnel/config-map.yaml), so never write template braces in these comments.
+#
+# The app and task-id labels match Funnel's default template, which Funnel may select its Jobs by: keep them.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.TaskId}}
+  namespace: {{.JobsNamespace}}
+  labels:
+    app: funnel-worker
+    task-id: {{.TaskId}}
+    app.kubernetes.io/name: funnel-worker
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: funnel-worker
+        task-id: {{.TaskId}}
+        app.kubernetes.io/name: funnel-worker
+    spec:
+      # creates and watches its task's executor Jobs (templates/apps/funnel/rbac.yaml)
+      serviceAccountName: funnel-worker
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: REFCLOUD_FUNNEL_IMAGE
+          imagePullPolicy: IfNotPresent
+          args: ["worker", "run", "--config", "/etc/funnel/funnel.yml", "--taskID", "{{.TaskId}}"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/funnel
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            # the compute storage, at the same path as on the node: executors mount task directories from it
+            - name: storage
+              mountPath: REFCLOUD_STORAGE_ROOT
+      volumes:
+        - name: config
+          configMap:
+            name: funnel-config
+        - name: tmp
+          emptyDir: {}
+        - name: storage
+          hostPath:
+            path: REFCLOUD_STORAGE_ROOT
+            type: Directory

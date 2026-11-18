@@ -89,11 +89,11 @@ def onboard_refget_sequences_v2_conformance(s3_client):
                 "drs_object": {
                     "id": file_name,
                     "description": "Reference sequence for Refget Sequences v2 Conformance",
-                    "created_time": obj["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
+                    "created_time": obj["LastModified"],
                     "mime_type": "application/octet-stream",
                     "name": file_name,
                     "size": obj["Size"],
-                    "updated_time": obj["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
+                    "updated_time": obj["LastModified"],
                     "version": "v1",
                 },
                 "aliases": [],
@@ -122,9 +122,9 @@ def onboard_refget_sequences_v2_conformance(s3_client):
     drs_object_set["manifest_obj"]["drs_object"]["description"] = (
         "File manifest for Refget Sequences v2 Conformance Test Sequences"
     )
-    drs_object_set["manifest_obj"]["drs_object"]["created_time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    drs_object_set["manifest_obj"]["drs_object"]["created_time"] = datetime.datetime.now(datetime.UTC)
     drs_object_set["manifest_obj"]["drs_object"]["name"] = "GA4GH-RefgetSequences-V2-ConformanceTestSequences.manifest"
-    drs_object_set["manifest_obj"]["drs_object"]["updated_time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    drs_object_set["manifest_obj"]["drs_object"]["updated_time"] = datetime.datetime.now(datetime.UTC)
     drs_object_set["manifest_obj"]["aliases"].append("File manifest for Refget Sequences v2 Conformance Test Sequences")
 
     drs_object_set["manifest_obj"]["drs_object"]["manifest_content"] = manifest_content_obj

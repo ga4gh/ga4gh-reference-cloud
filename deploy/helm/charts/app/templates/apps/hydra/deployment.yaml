@@ -29,11 +29,10 @@ spec:
             - name: hydra-config-map
               mountPath: /etc/config
               readOnly: true
-          command: ["hydra", "-c", "/etc/config/hydra.yaml", "serve", "all", "--dev"]
+          command: ["hydra", "-c", "/etc/config/hydra.yaml", "serve", "all", "--sqa-opt-out"]
           ports:
             - containerPort: 4444
             - containerPort: 4445
-            - containerPort: 5555
           # health endpoints on the admin port (cluster-internal; the ingress never routes to it)
           livenessProbe:
             httpGet:

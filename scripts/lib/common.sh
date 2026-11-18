@@ -13,7 +13,18 @@ PSQL_PASSWORD="secret"
 PSQL_DATABASE="refcloudapi"
 
 ORY_HYDRA_RESEARCHER_CLIENT_ID="ga4gh-reference-cloud-researcher-client"
-ORY_HYDRA_ENDPOINT="http://localhost:4445"
+ORY_HYDRA_ENDPOINT="http://127.0.0.1:4445"
+
+# compute (native mode). the connections file is shared by core-api and the admin CLI; its storage root must be the
+# same directory as REFCLOUD_COMPUTE_STORAGE_ROOT, which docker-compose.yml mounts into Funnel at the same absolute path
+COMPUTE_CONNECTIONS_FILE="./deploy/local/compute/connections.yml"
+export REFCLOUD_COMPUTE_STORAGE_ROOT="$PWD/compute/nextflow-funnel-docker"
+# the platform setup registers, on the connection below, with the bundled demo workflow on its allowlist
+COMPUTE_CONNECTION_KEY="nextflow-funnel-docker-local"
+DEFAULT_COMPUTE_PLATFORM_ID="nextflow-demo"
+# the demo's input: a 1000 Genomes BAM index (compute/workflows/nextflow/drs-checksum/README.md)
+DEMO_DRS_URI="drs://$REFCLOUD_BASE_URL/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai"
+DEMO_DATASET_VISA="ga4gh_visa:aws_opendata_registry_1000_genomes"
 
 # kubernetes (helm mode). all kubectl/helm calls must go through kubectl_local/helm_local,
 # which pass the context and namespace explicitly so they can never touch a non-local cluster
@@ -22,6 +33,16 @@ KUBE_CONTEXT="minikube"
 K8S_NAMESPACE="default"
 HELM_RELEASE="refcloud"
 TLS_CERT_DIR="./deploy/helm/.certs"
+# compute run storage on the minikube node (a hostPath), one directory per release. keep in sync with
+# refcloud.computeStorageRoot in deploy/helm/charts/app/templates/_helpers.tpl
+MINIKUBE_COMPUTE_STORAGE_ROOT="/data/refcloud-compute/$HELM_RELEASE"
+# helm mode's compute: the release's compute namespace (refcloud.computeNamespace), the chart's local connection
+# (refcloud.localComputeConnection), and the demo platform the run script registers on it
+KUBERNETES_COMPUTE_NAMESPACE="$HELM_RELEASE-compute"
+KUBERNETES_COMPUTE_CONNECTION_KEY="nextflow-funnel-kubernetes-local"
+KUBERNETES_COMPUTE_PLATFORM_ID="nextflow-demo-kubernetes"
+# the user every compute pod and core-api run as, which must own that directory
+COMPUTE_USER_ID=10001
 # secrets the helm chart expects, deleted on --reset
 K8S_SECRETS=(
   common-db-info
@@ -35,13 +56,16 @@ K8S_SECRETS=(
   refcloud-api-kratos-webhook
   refcloud-tls
 )
-# refcloud app images built for helm mode, as "<repository>:<docker build context>"
+# refcloud images built for helm mode (the apps, and the Nextflow image compute Jobs run), as "<repository>:<docker build context>:<Dockerfile, relative to the
+# context>". core-api and the admin CLI build from the repo root, so they can include compute/workflows/; /.dockerignore
+# limits what those builds see. keep in sync with each image's CI workflow (.github/workflows/push-docker-image-*.yml)
 REFCLOUD_IMAGES=(
-  "refcloud-core-api:apps/core-api"
-  "refcloud-core-api-liquibase:apps/core-api/liquibase"
-  "refcloud-researcher-ui:apps/researcher-ui"
-  "refcloud-docs:apps/docs"
-  "refcloud-admin-cli:apps/admin-cli"
+  "refcloud-core-api:.:apps/core-api/Dockerfile"
+  "refcloud-core-api-liquibase:apps/core-api/liquibase:Dockerfile"
+  "refcloud-researcher-ui:apps/researcher-ui:Dockerfile"
+  "refcloud-docs:apps/docs:Dockerfile"
+  "refcloud-admin-cli:.:apps/admin-cli/Dockerfile"
+  "refcloud-nextflow:compute/images/nextflow:Dockerfile"
 )
 # deployments running refcloud app images (restarted after each build)
 REFCLOUD_APP_DEPLOYMENTS=(refcloud-api refcloud-ui refcloud-docs refcloud-admin-cli)
@@ -64,6 +88,7 @@ log_error() {
   echo "[ERROR] $1"
 }
 
+# pass "compute" to also list the compute platforms (native mode only; helm mode has compute off)
 print_service_urls() {
   log_info ""
   log_info "Refcloud dev services are now running:"
@@ -74,8 +99,33 @@ print_service_urls() {
   log_info "   * DRS: https://$REFCLOUD_BASE_URL/ga4gh/drs/v1"
   log_info "   * RefGet: https://$REFCLOUD_BASE_URL/ga4gh/refget/v2"
   log_info "   * Service Registry: https://$REFCLOUD_BASE_URL/ga4gh/service-registry/v1"
+  if [[ "$1" == "compute" ]]; then
+    print_compute_urls "$2"
+  fi
   log_info ""
   log_info "To begin, visit the Researcher UI service and register a new researcher account."
+}
+
+# the WES and TES endpoints of each enabled compute platform on this mode's connection (both modes share the
+# database, and each shows the other's platforms as unavailable)
+print_compute_urls() {
+  local connection_key=$1
+  local platforms=$(psql -d "$PSQL_DATABASE" -tAc "SELECT id FROM compute_platform WHERE enabled AND connection_key = '$connection_key' ORDER BY id;" 2>/dev/null)
+  log_info " * Compute Platforms:"
+  if [[ -z "$platforms" ]]; then
+    if [[ "$connection_key" == "$KUBERNETES_COMPUTE_CONNECTION_KEY" ]]; then
+      log_info "   * no compute platforms are enabled on '$connection_key'. the run script registers '$KUBERNETES_COMPUTE_PLATFORM_ID' (see deploy/helm/README.md)"
+    else
+      log_info "   * no compute platforms are enabled on '$connection_key'. setup registers '$DEFAULT_COMPUTE_PLATFORM_ID' when Nextflow is installed (see deploy/local/README.md)"
+    fi
+    return 0
+  fi
+  local platform
+  for platform in ${(f)platforms}; do
+    log_info "   * $platform:"
+    log_info "     * WES: https://$REFCLOUD_BASE_URL/ga4gh/wes/$platform/v1"
+    log_info "     * TES: https://$REFCLOUD_BASE_URL/ga4gh/tes/$platform/v1"
+  done
 }
 
 # ##############################
@@ -98,6 +148,7 @@ refcloud_image_tag() {
 
 start_docker_compose() {
   log_info "starting docker compose"
+  mkdir -p "$REFCLOUD_COMPUTE_STORAGE_ROOT"
   docker compose -f ./deploy/local/docker-compose.yml up -d --wait > /dev/null 2>&1 || { log_error "failed to start docker compose"; exit 1; }
 }
 
@@ -204,6 +255,119 @@ init_and_onboard_dataset() {
 }
 
 # ##############################
+# COMPUTE (NATIVE MODE)
+# ##############################
+
+# the nextflow version pinned in the connections file. core-api runs exactly this version (NXF_VER), whatever version
+# of the nextflow launcher is installed
+pinned_nextflow_version() {
+  awk '$1 == "nextflow-version:" { print $2; exit }' "$COMPUTE_CONNECTIONS_FILE"
+}
+
+# compute needs nextflow on the PATH, able to run the pinned version. the first check downloads that version into
+# ~/.nextflow (internet access needed), as core-api's own health check would. that needs Nextflow's launcher, which
+# runs whichever version NXF_VER names; a self-contained build (e.g. Homebrew's nextflow) always runs its own version
+nextflow_installed() {
+  if ! command -v nextflow > /dev/null 2>&1; then
+    log_warn "nextflow command not found, skipping compute setup. install Nextflow's launcher (see the requirements in README.md) to run workflows in native mode"
+    return 1
+  fi
+  local version=$(pinned_nextflow_version)
+  log_info "checking that nextflow can run version $version (pinned in $COMPUTE_CONNECTIONS_FILE; the first run downloads it)"
+  local printed=$(NXF_VER="$version" nextflow -version 2>&1)
+  if [[ "$printed" != *"version $version "* ]]; then
+    # e.g. "version 26.10.6 build 0" from a build that ignored NXF_VER
+    local reported=$(printf '%s\n' "$printed" | sed -n -E 's/.*version ([^ ]+) build.*/\1/p' | head -1)
+    if [[ -n "$reported" ]]; then
+      log_warn "nextflow ran version $reported instead of the pinned $version: it ignores NXF_VER, as self-contained builds such as Homebrew's nextflow do. skipping compute setup. install Nextflow's launcher instead (see the requirements in README.md)"
+    else
+      log_warn "nextflow could not run version $version, skipping compute setup. run 'NXF_VER=$version nextflow -version' to see why"
+    fi
+    return 1
+  fi
+  return 0
+}
+
+compute_platform_exists() {
+  [[ "$(psql -d "$PSQL_DATABASE" -tAc "SELECT 1 FROM compute_platform WHERE id = '$1';")" == "1" ]]
+}
+
+# registers the default compute platform with small per-user limits and the bundled demo on its allowlist, and enables
+# it. an existing platform is left as is, since an admin may have changed it. must be called from apps/admin-cli
+init_default_compute_platform() {
+  local platform_id=$DEFAULT_COMPUTE_PLATFORM_ID
+
+  if compute_platform_exists "$platform_id"; then
+    log_info "compute platform '$platform_id' already exists, skipping. to recreate it, run 'uv run refcloud compute-platform delete -p $platform_id' in apps/admin-cli, then setup"
+    return 0
+  fi
+
+  log_info "registering compute platform '$platform_id' on connection '$COMPUTE_CONNECTION_KEY'"
+  uv run refcloud compute-platform init -p "$platform_id" \
+    --name "Nextflow Demo" \
+    --description "Run allowlisted Nextflow workflows on this machine (Funnel + Docker), with refcloud DRS objects as inputs" \
+    --connection "$COMPUTE_CONNECTION_KEY" \
+    --max-concurrent-runs 2 \
+    --max-task-cpu-cores 2 \
+    --max-task-memory-gb 2 \
+    --max-task-disk-gb 10 \
+    --max-run-duration-seconds 1800 \
+    --monthly-core-hours 10 \
+  > /dev/null 2>&1 || { log_error "failed to register compute platform '$platform_id'"; exit 1; }
+
+  log_info "adding the bundled drs-checksum workflow to the allowlist of '$platform_id'"
+  uv run refcloud compute-platform allowlist add -p "$platform_id" --bundled drs-checksum \
+    --name "DRS checksum" \
+    --description "Report a DRS object's name, size, MD5 and SHA-256" \
+  > /dev/null 2>&1 || { log_error "failed to allowlist drs-checksum on '$platform_id'"; exit 1; }
+
+  log_info "enabling compute platform '$platform_id'"
+  uv run refcloud compute-platform enable -p "$platform_id" > /dev/null 2>&1 \
+    || { log_error "failed to enable compute platform '$platform_id'"; exit 1; }
+}
+
+# registers helm mode's demo platform on the chart's local connection, through the admin CLI pod: only the cluster sees
+# the chart's connections. it sets no per-user limits, so the connection's apply (sized for minikube; the platform
+# follows them if they change), except a monthly quota like the native demo's. an existing platform is left as is
+init_kubernetes_compute_platform() {
+  local platform_id=$KUBERNETES_COMPUTE_PLATFORM_ID
+  local admin_cli=(kubectl_local exec deploy/refcloud-admin-cli -- refcloud)
+
+  if compute_platform_exists "$platform_id"; then
+    log_info "compute platform '$platform_id' already exists, skipping. to recreate it, run 'kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform delete -p $platform_id', then this script"
+    return 0
+  fi
+
+  log_info "registering compute platform '$platform_id' on connection '$KUBERNETES_COMPUTE_CONNECTION_KEY'"
+  $admin_cli compute-platform init -p "$platform_id" \
+    --name "Nextflow Demo (Kubernetes)" \
+    --description "Run allowlisted Nextflow workflows in this cluster (Nextflow and Funnel on Kubernetes, with no internet access), with refcloud DRS objects as inputs" \
+    --connection "$KUBERNETES_COMPUTE_CONNECTION_KEY" \
+    --monthly-core-hours 10 \
+  > /dev/null 2>&1 || { log_error "failed to register compute platform '$platform_id'"; exit 1; }
+
+  log_info "adding the bundled drs-checksum workflow to the allowlist of '$platform_id'"
+  $admin_cli compute-platform allowlist add -p "$platform_id" --bundled drs-checksum \
+    --name "DRS checksum" \
+    --description "Report a DRS object's name, size, MD5 and SHA-256" \
+  > /dev/null 2>&1 || { log_error "failed to allowlist drs-checksum on '$platform_id'"; exit 1; }
+
+  log_info "enabling compute platform '$platform_id'"
+  $admin_cli compute-platform enable -p "$platform_id" > /dev/null 2>&1 \
+    || { log_error "failed to enable compute platform '$platform_id'"; exit 1; }
+}
+
+# compute storage is runtime data (run directories, Funnel's database and work directory)
+reset_compute_storage() {
+  if [[ "$REFCLOUD_COMPUTE_STORAGE_ROOT" != */compute/nextflow-funnel-docker ]]; then
+    log_error "refusing to delete unexpected compute storage root '$REFCLOUD_COMPUTE_STORAGE_ROOT'"
+    exit 1
+  fi
+  log_info "deleting compute storage in '$REFCLOUD_COMPUTE_STORAGE_ROOT'"
+  rm -rf "$REFCLOUD_COMPUTE_STORAGE_ROOT" || { log_error "failed to delete compute storage (files created by task containers may need sudo on Linux)"; exit 1; }
+}
+
+# ##############################
 # ORY HYDRA
 # ##############################
 
@@ -280,16 +444,31 @@ minikube_running() {
   minikube status > /dev/null 2>&1
 }
 
+# new clusters get the Calico network plugin, which enforces the helm chart's NetworkPolicies (minikube's default plugin
+# ignores them). a cluster's plugin is fixed when it's created: see require_minikube_calico
 start_minikube() {
   if minikube_running; then
     log_info "minikube is already running"
   else
-    log_info "starting minikube"
-    minikube start --driver=docker > /dev/null 2>&1 || { log_error "failed to start minikube, check 'minikube logs'. if the cluster is broken, run 'minikube delete' and try again"; exit 1; }
+    log_info "starting minikube (a new cluster gets the Calico network plugin; this can take a few minutes)"
+    minikube start --driver=docker --cni=calico > /dev/null 2>&1 || { log_error "failed to start minikube, check 'minikube logs'. if the cluster is broken, run 'minikube delete' and try again"; exit 1; }
   fi
 
   log_info "enabling minikube ingress addon"
   minikube addons enable ingress > /dev/null 2>&1 || { log_error "failed to enable minikube ingress addon"; exit 1; }
+}
+
+# helm mode needs a cluster that enforces the chart's NetworkPolicies, so one created before Calico was added has to be
+# recreated (a cluster's network plugin can't be changed). waits until Calico is ready. not used when uninstalling,
+# which works on any cluster
+require_minikube_calico() {
+  if ! kubectl --context "$KUBE_CONTEXT" --namespace kube-system get daemonset calico-node > /dev/null 2>&1; then
+    log_error "this minikube cluster was created without the Calico network plugin, so it would ignore the helm chart's NetworkPolicies, and a cluster's plugin can't be changed. recreate it: run 'minikube delete', then ./scripts/refcloud-setup.sh (your databases are in host Postgres and aren't affected)"
+    exit 1
+  fi
+  log_info "waiting for the Calico network plugin to be ready"
+  kubectl --context "$KUBE_CONTEXT" --namespace kube-system rollout status daemonset calico-node --timeout=5m > /dev/null 2>&1 \
+    || { log_error "Calico did not become ready, check 'kubectl --context $KUBE_CONTEXT -n kube-system get pods'"; exit 1; }
 }
 
 use_minikube_context() {
@@ -388,4 +567,26 @@ reset_kubernetes() {
 
   log_info "deleting refcloud kubernetes secrets"
   kubectl_local delete secret "${K8S_SECRETS[@]}" --ignore-not-found > /dev/null 2>&1 || { log_error "failed to delete kubernetes secrets"; exit 1; }
+
+  delete_funnel_volumes
+  reset_minikube_compute_storage
+}
+
+# Funnel creates a (cluster-scoped) volume per task and deletes it when the task ends; uninstalling the release while
+# tasks run leaves theirs behind. only volumes labelled with this release's compute namespace
+delete_funnel_volumes() {
+  kubectl_local delete persistentvolume -l "app=funnel,namespace=$KUBERNETES_COMPUTE_NAMESPACE" --ignore-not-found > /dev/null 2>&1 \
+    || log_warn "could not delete Funnel's leftover volumes (kubectl get pv -l namespace=$KUBERNETES_COMPUTE_NAMESPACE)"
+}
+
+# helm mode's compute storage on the minikube node (run directories, Funnel's database and work directory), as
+# reset_compute_storage clears native mode's
+reset_minikube_compute_storage() {
+  if [[ "$MINIKUBE_COMPUTE_STORAGE_ROOT" != /data/refcloud-compute/?* ]]; then
+    log_error "refusing to delete unexpected compute storage root '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
+    exit 1
+  fi
+  log_info "deleting compute storage '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
+  minikube ssh -- sudo rm -rf "$MINIKUBE_COMPUTE_STORAGE_ROOT" > /dev/null 2>&1 \
+    || { log_error "failed to delete '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"; exit 1; }
 }
