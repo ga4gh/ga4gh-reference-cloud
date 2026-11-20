@@ -25,7 +25,7 @@ Alongside the database, OAuth client and dataset setup, the setup script's Kuber
 * starts minikube (docker driver) if it isn't running and enables the `ingress` addon. A new cluster gets the **Calico** network plugin, which enforces the chart's [NetworkPolicies](#network-policies). A cluster created before Calico was added makes setup and the run script stop with instructions: recreate it with `minikube delete`, then run setup again. Your databases are in host Postgres, so they're unaffected
 * switches your `kubectl` context to `minikube` (every script command also passes `--context minikube --namespace default` explicitly, so it never touches another cluster)
 * installs the mkcert local CA and generates a TLS certificate for `refcloud.ga4gh.localhost` and `*.refcloud.ga4gh.localhost` in `deploy/helm/.certs/` (git-ignored)
-* creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode where both use them. RustFS's three are helm-only: random, and created only if they don't exist yet, since they go with RustFS's data (see Compute)
+* creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode where both use them. RustFS's three are helm-only: random, and created only if they don't exist yet, since they go with RustFS's data (see Compute). `refcloud-db-admin` is the login setup's own `psql` commands use, for the chart's [setup Jobs](#setup-jobs); if your Postgres asks for a password on connections from `127.0.0.1`, set `PGPASSWORD` when running setup
 
 `--reset` also deletes the TLS certificate, uninstalls the helm release, and deletes the refcloud secrets and RustFS's data (compute runs' files) before recreating the secrets (starting minikube first if needed). The cluster itself is not deleted.
 
@@ -41,8 +41,8 @@ The run script:
 
 1. fails fast if port 443 is in use (e.g. native mode's Caddy, or another `minikube tunnel`)
 2. computes the lockstep image tag: `git describe --tags --match 'v[0-9]*' --always`, plus `-uncommitted` if the working tree has any changes (including untracked files)
-3. builds all app images, and the Nextflow image compute runs, into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`. core-api and the admin CLI build from the repo root, so they can bundle `compute/workflows/`
-4. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks, and RustFS's setup (its bucket and users) runs after, as another
+3. builds all app images, the Nextflow image compute runs and the setup Jobs' image into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`. core-api and the admin CLI build from the repo root, so they can bundle `compute/workflows/`
+4. runs `helm upgrade --install refcloud` with that tag. The [setup Jobs](#setup-jobs) and the database migrations (Liquibase, Kratos, Hydra) run as Helm hooks: `setup-predeploy` first, then the migrations, and once the release is applied, `setup-postdeploy` and RustFS's setup (its bucket and users). It prints each setup Job's last line: setup has prepared everything, so they should report nothing changed (except `refcloud seed`, which always rewrites its rows)
 5. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
 6. registers the `nextflow-demo-kubernetes` compute platform, if it doesn't exist yet (see Compute below)
 7. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
@@ -85,7 +85,7 @@ Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/sp
 
 ### Network Policies
 
-The chart's NetworkPolicies (`charts/app/templates/common/network-policies.yaml`) let each pod accept only the traffic it needs. The researcher UI, docs, core-api and the Kratos and Hydra public APIs accept traffic from the ingress and from the pods that call them. Hydra's admin API accepts only the researcher UI, and Kratos's admin API nothing but health probes. The template's header has the full table. A new in-cluster caller (a new internal URL) needs a rule there, or its requests time out.
+The chart's NetworkPolicies (`charts/app/templates/common/network-policies.yaml`) let each pod accept only the traffic it needs. The researcher UI, docs, core-api and the Kratos and Hydra public APIs accept traffic from the ingress and from the pods that call them. Hydra's admin API accepts only the researcher UI and the `setup-postdeploy` Job, and Kratos's admin API nothing but health probes. The template's header has the full table. A new in-cluster caller (a new internal URL) needs a rule there, or its requests time out.
 
 In minikube, Calico enforces them. To check that a pod can't reach an admin API:
 
@@ -133,7 +133,7 @@ The namespace also has a ResourceQuota and a LimitRange, computed from the local
 minikube stop                           # optional: stop the cluster
 ```
 
-`--down` keeps compute runs' files (RustFS's data claim, `rustfs-data`, and its secrets), as the databases keep the runs: the next install picks them up. `./scripts/refcloud-setup.sh --reset` deletes them.
+`--down` keeps compute runs' files (RustFS's data claim, `rustfs-data`, and its secrets), as the databases keep the runs: the next install picks them up. `./scripts/refcloud-setup.sh --reset` deletes them. It also deletes the [setup Jobs](#setup-jobs), which uninstalling a release leaves behind, as Helm does with hooks.
 
 ### One mode at a time
 
@@ -154,11 +154,47 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
 * **A pod is refused in the compute namespace (`violates PodSecurity "restricted:latest"`):** the namespace enforces the strictest Pod Security level. A pod you start there yourself, e.g. to check the NetworkPolicies, needs a restricted security context, as in the `np-check` example under Network Policies.
 * **New pods stay in `ContainerCreating`, and `kubectl describe pod` shows `plugin type="calico" failed ... connection is unauthorized: Unauthorized`** (e.g. the deploy times out in a migration Job): Calico's network plugin token expired without being renewed, which can happen after the laptop sleeps. Running pods are unaffected. Restart Calico's node agent, which writes a new token: `kubectl --context minikube -n kube-system rollout restart daemonset calico-node`.
 * **An image build fails:** see the log path printed by the run script in `$TMPDIR/refcloud-build-logs/`.
-* **The deploy fails:** check `kubectl get pods`, `kubectl get jobs` and `kubectl logs <pod>`. A failed migration Job is kept for inspection and replaced on the next deploy.
+* **The deploy fails:** check `kubectl get pods`, `kubectl get jobs` and `kubectl logs <pod>`. A failed migration Job is kept for inspection and replaced on the next deploy. If a setup Job failed, its log ends with an `[ERROR]` line saying what to fix: `kubectl logs job/setup-predeploy`, or `kubectl logs job/setup-postdeploy --all-containers`.
 * **Liquibase migration fails with `relation "..." already exists`:** your local database recorded migrations under the old changelog path. Run this once (or `./scripts/refcloud-setup.sh --reset`):
   ```sh
   psql -d refcloudapi -c "UPDATE databasechangelog SET filename = 'dbchangelog.xml' WHERE filename = 'apps/core-api/liquibase/dbchangelog.xml';"
   ```
+
+## Setup Jobs
+
+The chart prepares what it needs itself, on every install and upgrade ([spec 0013](../../claude/specs/active/0013-add-compute-aws-platform.md), Task 2). Two Helm hook Jobs run `refcloud-setup` (`setup/refcloud-setup`, in the `refcloud-setup` image built from `setup/`):
+
+| Job | When | What it checks |
+|-|-|-|
+| `setup-predeploy` | before the database migrations (`pre-install`, `pre-upgrade`) | the [Secrets](#secrets) the chart expects; each app's database and the login role that owns it, both named after the `username` in its Secret, with the role logging in with the Secret's password; Data Connect's role (read-only, a 30-second statement timeout, no `CREATEDB` or `CREATEROLE`) |
+| `setup-postdeploy` | once the release is applied (`post-install`, `post-upgrade`) | the researcher UI's OAuth client in Hydra (it waits for Hydra to be ready). Its last container then runs `refcloud seed` with the admin CLI image, which upserts the Data Connect table types and platform tables |
+
+Each check changes something only when it fails, so on a deployment where everything is intact nothing changes:
+
+* a missing Secret is created with random values. An existing Secret is never changed: one that's missing a key stops the Job, with the key named;
+* `kratos-secrets`, `hydra-secrets` and `refcloud-ui-hydra-researcher-client` are created only with a new database. If one is missing while Kratos's or Hydra's database has data, the Job stops and asks for it to be restored: Kratos and Hydra encrypt what they store with the first two, and Hydra keeps the OAuth client's secret;
+* a missing database or role is created; a database with another owner gets its role as owner; a role that can't log in with its Secret's password gets that password;
+* an existing Hydra client is kept as it is. Its secret and settings aren't checked, so after a change (e.g. the redirect URI, with a new hostname), update the client by hand.
+
+Nothing is ever deleted. Each check is logged as `[OK]` or `[CHANGE]`, a problem setup can't fix as `[ERROR]` (and the deploy fails, before the migrations if it's `setup-predeploy`), and the last line sums up. The Jobs stay until the next deploy replaces them, so their logs can be read:
+
+```sh
+kubectl logs job/setup-predeploy
+kubectl logs job/setup-postdeploy --all-containers
+```
+
+Apps already running read their Secrets only when they start. If `setup-predeploy` created or changed a Secret or a password an app uses (it says so), restart that app once the deploy is done: `kubectl rollout restart deployment/<name>`.
+
+`setup-predeploy` connects to Postgres with the admin login in `refcloud-db-admin`:
+
+* **locally,** `refcloud-setup.sh` creates it with your local Postgres login;
+* **elsewhere (AWS),** it's `refcloud_admin`'s login: a role that can create databases and roles, but isn't a superuser, and (from Postgres 16) manages only the roles it creates or is granted. `setup-predeploy` creates the role and the Secret itself, with a random password nobody needs to know, on a deploy where the **bootstrap login** is there: the master user's credentials, in `refcloud-db-bootstrap` ([below](#the-bootstrap-login)). After that deploy, delete `refcloud-db-bootstrap`. Every later deploy connects as `refcloud_admin`.
+
+Whenever `refcloud-db-bootstrap` exists and can connect, `setup-predeploy` connects as the master user and creates or repairs `refcloud_admin`: its password, its `CREATEDB` and `CREATEROLE`, and its `ADMIN` on every app role. A copy that can't connect (e.g. one whose password RDS has rotated since) is ignored, with a reminder to delete it. So the same step repairs the admin login if `refcloud-db-admin` is lost, or if setup reports a role `refcloud_admin` can't manage.
+
+`setup-predeploy` also needs permission to read and create the release's Secrets: its ServiceAccount, Role and RoleBinding are hooks too, and Helm deletes them once the migrations have run. Hydra's admin API accepts `setup-postdeploy` ([Network Policies](#network-policies)).
+
+Datasets aren't onboarded by setup: after a first deploy, onboard them with the [admin CLI](#admin-cli) pod (`refcloud dataset init` and `refcloud dataset onboard`).
 
 ## Static Analysis
 
@@ -170,6 +206,7 @@ The chart is checked on every pull request that changes `deploy/helm/` (`.github
 | Chart linting (`helm lint --strict`) | `./scripts/refcloud-static-analysis-helm.sh lint` |
 | Rendered manifests against the Kubernetes API schemas ([kubeconform](https://github.com/yannh/kubeconform)) | `./scripts/refcloud-static-analysis-helm.sh kubeconform` |
 | Security misconfigurations ([Trivy](https://trivy.dev/), HIGH and CRITICAL) | `./scripts/refcloud-static-analysis-helm.sh trivy-config` |
+| The setup Jobs' script ([shellcheck](https://www.shellcheck.net/)); its Dockerfile is checked with the others (`./scripts/refcloud-static-analysis-deploy-local.sh`) | `./scripts/refcloud-static-analysis-helm.sh shellcheck` |
 
 Accepted Trivy findings are listed in `.trivyignore.yaml`, each scoped to the files it applies to and with a reason.
 
@@ -177,7 +214,7 @@ Every pod runs as a non-root user with a read-only root filesystem (writable `em
 
 ## Remote Deployment (AWS)
 
-The chart's defaults target local minikube. For AWS, supply overrides at deploy time and create the secrets yourself.
+The chart's defaults target local minikube. For AWS, supply overrides at deploy time. For an environment's first deploy, also put RDS's master credentials in the `refcloud-db-bootstrap` Secret ([The bootstrap login](#the-bootstrap-login)): the [setup Jobs](#setup-jobs) then create the admin login, the other secrets, the databases and roles, and the OAuth client.
 
 ### Values
 
@@ -197,7 +234,7 @@ The chart's defaults target local minikube. For AWS, supply overrides at deploy 
 
 **NetworkPolicies on AWS:** the chart's policies only take effect if the cluster enforces them. On EKS Auto Mode, turn on its Network Policy Controller once, with the ConfigMap from [AWS's guide](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html) (`amazon-vpc-cni` in `kube-system`, `enable-network-policy-controller: "true"`). Deploy the chart (with `networkPolicy.ingressFrom`) before or after; then check that the site still works and the pods stay ready. If something breaks, `--set networkPolicy.enabled=false` removes the policies.
 
-Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`, and `refcloud-nextflow` (the Nextflow image compute Jobs run; `compute/images/nextflow/`). The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
+Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`, `refcloud-nextflow` (the Nextflow image compute Jobs run; `compute/images/nextflow/`), and `refcloud-setup` (the setup Jobs' image; `setup/`). The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
 
 Example:
 
@@ -224,10 +261,12 @@ kubectl create secret docker-registry ecr-registry-key \
 
 ### Secrets
 
-The chart expects these secrets to exist in the release namespace. Locally, `refcloud-setup.sh` creates them; in AWS, create them with production values.
+The chart expects these secrets in the release namespace. Locally, `refcloud-setup.sh` creates them all. Everywhere, `setup-predeploy` creates any that are missing, except `refcloud-db-bootstrap` and the local-only ones, with random values, and never changes an existing one (see [Setup Jobs](#setup-jobs)).
 
 | Secret | Keys |
 |---|---|
+| `refcloud-db-bootstrap` | `host`, `port`, `username`, `password`: the master user's login, for one deploy only ([The bootstrap login](#the-bootstrap-login)). Never needed locally |
+| `refcloud-db-admin` | `host`, `port`, `username`, `password`: the admin login `setup-predeploy` connects as: `refcloud_admin`, created with the bootstrap login (locally, your Postgres login) |
 | `common-db-info` | `host`, `port` |
 | `kratos-db-credentials` | `username`, `password` |
 | `hydra-db-credentials` | `username`, `password` |
@@ -241,5 +280,27 @@ The chart expects these secrets to exist in the release namespace. Locally, `ref
 | `refcloud-compute-s3-root` | `access-key-id`, `secret-access-key`: RustFS's root account, used only by its setup Job (local only) |
 | `refcloud-compute-s3-core-api` | `access-key-id`, `secret-access-key`: core-api's RustFS user (local only) |
 | `refcloud-compute-s3-funnel` | `access-key-id`, `secret-access-key`: Funnel's RustFS user, which the chart copies into the compute namespace for its workers (local only) |
+
+### The bootstrap login
+
+Once per environment, for its first deploy, and again only to repair the admin login, give `setup-predeploy` the RDS master user's credentials. RDS keeps them in Secrets Manager (and rotates the password), so copy them straight from there; the password never shows in your terminal:
+
+```sh
+aws secretsmanager get-secret-value --secret-id <master user secret ARN> --query SecretString --output text \
+  | jq --arg host '<RDS endpoint>' '{apiVersion: "v1", kind: "Secret", type: "Opaque",
+      metadata: {name: "refcloud-db-bootstrap"},
+      stringData: {host: $host, port: "5432", username: .username, password: .password}}' \
+  | kubectl create --namespace=<namespace> -f -
+```
+
+(`aws rds describe-db-instances --db-instance-identifier <instance> --query 'DBInstances[0].MasterUserSecret.SecretArn'` gives the secret's ARN.)
+
+Deploy, check `setup-predeploy`'s log (`kubectl logs job/setup-predeploy`: it ends with what it created), then delete the copy:
+
+```sh
+kubectl delete secret refcloud-db-bootstrap --namespace=<namespace>
+```
+
+Setup never needs the master password again, so you can also rotate it now (`aws secretsmanager rotate-secret --secret-id <master user secret ARN>`), which makes any copy useless.
 
 The admin CLI pod in AWS is connected to the production database. Follow the guardrails in [`apps/admin-cli/CLAUDE.md`](../../apps/admin-cli/CLAUDE.md) before running destructive commands.

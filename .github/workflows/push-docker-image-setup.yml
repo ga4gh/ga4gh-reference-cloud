@@ -1,0 +1,23 @@
+name: Push Docker Image - Setup (helm chart)
+on:
+  push:
+    branches:
+      - develop
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-push:
+    uses: ./.github/workflows/push-docker-image.yml
+    with:
+      # the image the helm chart's setup Jobs run (spec 0013, Task 2). its ECR repository is created with the
+      # production infrastructure (Terraform)
+      app-path: deploy/helm/setup
+      docker-repo: refcloud-setup
+    secrets:
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
