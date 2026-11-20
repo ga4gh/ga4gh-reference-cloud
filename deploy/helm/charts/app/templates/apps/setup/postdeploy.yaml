@@ -1,0 +1,87 @@
+{{- /*
+setup-postdeploy (spec 0013, Task 2): after every install and upgrade, once the release is applied. Its first container
+(refcloud-setup postdeploy, deploy/helm/setup/refcloud-setup) waits for Hydra's admin API, then creates the researcher
+UI's OAuth client if it doesn't exist; an existing one is kept as it is. Its last container runs `refcloud seed` with the
+admin CLI image, which upserts the Data Connect table types and platform tables that ship with it. Hydra's admin API
+accepts this Job (network-policies.yaml). The Job stays until the next deploy replaces it, so its log can be read:
+kubectl logs job/setup-postdeploy --all-containers
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: setup-postdeploy
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: setup-postdeploy
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      initContainers:
+        - name: hydra-client
+          image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-setup") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["postdeploy"]
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: HYDRA_ADMIN_URL
+              value: http://hydra:4445
+            - name: HYDRA_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-ui-hydra-researcher-client
+                  key: id
+            - name: HYDRA_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-ui-hydra-researcher-client
+                  key: secret
+            - name: HYDRA_CLIENT_REDIRECT_URI
+              value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}/passport/callback
+      containers:
+        # the admin CLI pod's database settings (templates/apps/admin-cli/deployment.yaml)
+        - name: seed
+          image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-admin-cli") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["seed"]
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: common-db-info
+                  key: port
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-api-db-credentials
+                  key: password
+            - name: POSTGRES_DB
+              value: $(POSTGRES_USER)
+      {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

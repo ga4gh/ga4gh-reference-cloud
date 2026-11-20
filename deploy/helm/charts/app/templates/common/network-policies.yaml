@@ -11,7 +11,7 @@ isn't restricted.
   kratos :4433 (public)       the ingress, refcloud-ui, refcloud-api
   kratos :4434 (admin)        nothing (health probes only)
   hydra :4444 (public)        the ingress, refcloud-ui, refcloud-api (signing keys)
-  hydra :4445 (admin)         refcloud-ui (login and consent)
+  hydra :4445 (admin)         refcloud-ui (login and consent), the setup-postdeploy Job (the OAuth client)
   refcloud-admin-cli          nothing
   rustfs :9000 (local only)   refcloud-api, the rustfs-setup Job, and in the compute namespace the Nextflow Jobs and
                               Funnel's workers (run storage, spec 0012)
@@ -140,11 +140,15 @@ spec:
       ports:
         - protocol: TCP
           port: 4444
-    # admin API: login and consent acceptance, from the researcher UI's server only
+    # admin API: login and consent acceptance, from the researcher UI's server, and the researcher UI's OAuth client,
+    # from the setup-postdeploy Job (templates/apps/setup/postdeploy.yaml)
     - from:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: refcloud-ui
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: setup-postdeploy
       ports:
         - protocol: TCP
           port: 4445

@@ -12,6 +12,9 @@
 #       trivy-config  scan for security misconfigurations (HIGH/CRITICAL), both the chart and its rendered
 #                     manifests (trivy's chart mode skips helm hooks, so the migration Jobs are only in the
 #                     rendered scan); ignores: deploy/helm/.trivyignore.yaml
+#       shellcheck    lint the setup Jobs' script (deploy/helm/setup/refcloud-setup, bash) with shellcheck's
+#                     default checks. Its Dockerfile is checked with the others, by
+#                     scripts/refcloud-static-analysis-deploy-local.sh
 #
 # Written for bash 3.2 (macOS) as well as CI, so it avoids zsh and bash 4 features. Run from the repo root.
 
@@ -25,9 +28,12 @@ set -uo pipefail
 HELM_IMAGE="alpine/helm:4.3.1@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e"
 KUBECONFORM_IMAGE="ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e"
 TRIVY_IMAGE="aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb"
+SHELLCHECK_IMAGE="koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d"
 
 HELM_DIR="deploy/helm"
 CHART_DIR="${HELM_DIR}/charts/app"
+# the setup Jobs' image: its script
+SETUP_DIR="${HELM_DIR}/setup"
 # image.tag is required by the chart; any value renders the same manifests
 IMAGE_TAG="static-analysis"
 # kubernetes version whose API schemas kubeconform validates against (minikube's default)
@@ -95,6 +101,11 @@ check_trivy_config() {
   return "${failed}"
 }
 
+check_shellcheck() {
+  log_info "linting ${SETUP_DIR}/refcloud-setup (shellcheck)"
+  docker run --rm -v "${PWD}/${SETUP_DIR}:/setup:ro" "${SHELLCHECK_IMAGE}" /setup/refcloud-setup
+}
+
 # prints only the rendered documents that are helm hooks
 hook_jobs() {
   # documents start at `---` lines (helm template emits one before each); portable across awk implementations
@@ -110,8 +121,9 @@ run_check() {
     lint) check_lint ;;
     kubeconform) check_kubeconform ;;
     trivy-config) check_trivy_config ;;
+    shellcheck) check_shellcheck ;;
     *)
-      log_error "unknown check: $1 (expected lint, kubeconform or trivy-config)"
+      log_error "unknown check: $1 (expected lint, kubeconform, trivy-config or shellcheck)"
       return 2
       ;;
   esac
@@ -127,7 +139,7 @@ if [ ! -f "${CHART_DIR}/Chart.yaml" ]; then
 fi
 
 if [ $# -eq 0 ]; then
-  set -- lint kubeconform trivy-config
+  set -- lint kubeconform trivy-config shellcheck
 fi
 
 # every requested check runs even if an earlier one fails, so a single run reports every problem

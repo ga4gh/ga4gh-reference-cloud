@@ -1,0 +1,360 @@
+# Feature Spec: Add compute on AWS: the refcloud's compute platform on EKS
+
+**Branch:** `ja-iss-64-compute-on-aws`
+
+**Linked GitHub Issue:** [Issue 64](https://github.com/ga4gh/ga4gh-reference-cloud/issues/64)
+
+## Objective
+
+Run compute (WES/TES) on the refcloud's AWS cluster. That means the `nextflow-funnel-kubernetes` platform type (stage 2, [spec 0011](../archive/0011-add-compute-nextflow-funnel-kubernetes.md)) with Amazon S3 storage (stage 3, [spec 0012](../archive/0012-add-compute-s3-storage.md)) on EKS, fully working and tested in staging before production. This is item 3 of the [milestones](../../../docs/milestones/2026-12-18-Compute-Milestones.md). AWS means EKS with Funnel's Kubernetes backend (decided 2026-11-13).
+
+An AWS compute platform is a new connection, not new code (D14, D15). What's new is around it:
+* the AWS resources, in the team's private Terraform repo: S3 buckets, IAM roles through EKS Pod Identity, a node pool for compute pods, an EBS storage class, a route to S3 and a budget;
+* the chart's compute pieces (the compute namespace, Funnel, network policies, quota). Today they render only locally;
+* network policies that work with EKS Auto Mode's networking.
+
+Staging and production are two namespaces in one shared EKS Auto Mode cluster. This spec builds and tests compute in staging, and creates production's AWS resources too. Production itself is updated once, at the end ([spec 0010](0010-production-rollout.md)).
+
+**Done when:** in staging, a researcher with approved visas for the staging demo platform and the 1000 Genomes dataset can:
+
+1. submit the bundled demo workflow through WES, with a 1000 Genomes `.bai` DRS object as input;
+2. watch it run on the compute node pool, with its inputs, work directory and outputs in staging's bucket;
+3. download its report through the output download endpoint.
+
+Also:
+* `./scripts/refcloud-compute-demo.sh` passes against staging;
+* the isolation checks hold on EKS:
+  * a run's credentials reach only its own files;
+  * workflow pods can resolve and reach only what they need;
+  * the compute namespace denies everything else;
+* production's AWS resources exist, and spec 0010 lists exactly what's left for the rollout.
+
+## Context
+
+**Source of truth:** the discussion doc (D1–D23), the Decisions sections of specs 0008, 0011 and 0012, and spec 0010's production notes. Spec 0012 left these to verify on EKS (milestones, Dependencies and Risks):
+* per-task workspace claims on EBS;
+* EKS Pod Identity for core-api and Funnel's workers;
+* DNS and a route to S3 for the Nextflow Jobs.
+
+**How we work on AWS (decided 2026-11-20):**
+* **Staging is where this is built and tested.** It's its own namespace in the shared cluster, deployed by hand with `helm upgrade` and a values file in the team's private values repo.
+* **The user runs every command against AWS or the cluster** (`aws`, `kubectl`, `helm`, `terraform`). Each task's steps list those commands for the user.
+* **Terraform lives in the team's private infra repo:**
+  * `foundation` holds shared resources (the VPC, the cluster);
+  * `reference-cloud` holds the refcloud's own.
+
+  Every change is reviewed before it's written, and the user runs `plan` and `apply`.
+* **Nothing environment-specific goes in this public repo:** account IDs, ARNs, CIDRs, bucket names and hostnames stay in the private repos (spec 0010).
+
+**Found on 2026-11-20** (read-only checks of the cluster and the private repos):
+* **The cluster** is EKS Auto Mode (Kubernetes 1.35) with only the built-in `general-purpose` node pool (amd64). Pod Identity and EBS volumes are built into Auto Mode, so there's no add-on to install.
+* **No storage class can provision new volumes.**
+  * The only one is the legacy `gp2`: the in-tree `kubernetes.io/aws-ebs` provisioner, and not the default.
+  * Auto Mode provisions EBS through `ebs.csi.eks.amazonaws.com`.
+  * So Funnel's per-task claims and its database claim need a new storage class.
+* **No network policies exist or are enforced.** The Network Policy Controller's ConfigMap isn't there, and `kubectl get networkpolicy -A` finds nothing.
+* **The cluster has no CoreDNS pods and no `kube-dns` Service.**
+  * Auto Mode runs CoreDNS on every node, at the `.10` address of the cluster's service range ([AWS: network policies with Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html)).
+  * The compute namespace's DNS rule selects `k8s-app: kube-dns` pods in `kube-system`, so on EKS it would match nothing and block DNS.
+  * On AWS the rule must allow that address instead.
+* **Auto Mode supports DNS-based network policies.** The cluster has the `ApplicationNetworkPolicy` and `ClusterNetworkPolicy` CRDs (`networking.k8s.aws/v1alpha1`).
+  * An `ApplicationNetworkPolicy` egress rule can name destinations by domain (`domainNames`).
+  * A proxy on the node checks the pod's DNS lookups against the allowed names, and lets the pod reach only the addresses those names resolve to.
+  * That could let the Nextflow Jobs reach S3 by name, while lookups of other names are still refused. Refusing those lookups is why workflow pods get no DNS today (spec 0011).
+
+  To verify in Task 5.
+* **The VPC has no endpoints at all,** S3 gateway included, so S3 traffic from the private subnets goes through the NAT gateways.
+* **The AWS account:**
+  * it has no Pod Identity associations yet;
+  * it has one budget, a monthly budget for the whole account;
+  * it's a member of an AWS Organization. Cost allocation tags, which a budget for compute alone would filter on, are activated from the organization's management account.
+* **Staging still runs the pre-monorepo chart** (`ga4gh-reference-cloud-helm` 0.1.0, last upgraded in July) and pre-monorepo images.
+  * Its values file predates the current chart: it has no `image.registry`, `image.tag` or `networkPolicy.ingressFrom`.
+  * So staging has none of this year's changes: specs 0004–0012's chart, the Kratos upgrade (staging runs `v0.9.0-alpha.2`), and the UTC and compute migrations.
+  * Task 3 brings it up to date, which also rehearses spec 0010's rollout on AWS.
+* **Staging lacks a Secret and a database role, and spec 0010's checklist doesn't mention them either:**
+  * the `refcloud-api-data-connect-db-credentials` Secret;
+  * the `data_connect_reader` role, which its Liquibase grants need. Locally, `refcloud-setup.sh` creates it.
+* **Staging and production use the same release name.** The chart names the compute namespace `<release name>-compute`, so both would claim the same namespace.
+* **Images reach ECR only from `develop`.** The push workflows run only there, and each build also moves the `develop` tag. The `refcloud-nextflow` repository doesn't exist yet.
+* **Nodes seem to pull from ECR with their own IAM role.** Staging's current node pulled its images a few days ago, although its image pull secret is months old and ECR tokens last 12 hours. If so, the values need no `image.pullSecrets` (to confirm in Task 3).
+* **Both AWS SDKs can use Pod Identity:**
+  * core-api's run storage uses the SDK's default credential chain when a connection names no keys (`RunStorages.credentials`), and that chain includes Pod Identity;
+  * DRS's S3 reads stay anonymous (`AwsS3ObjectReader`), so core-api's new role doesn't change them;
+  * Funnel 0.12.3 uses the AWS SDK for Go v2 (`config` v1.33), whose default chain includes Pod Identity too.
+* **The Nextflow Job's run URL on AWS is virtual-hosted** (`https://<bucket>.s3.<region>.amazonaws.com/...`, `NextflowKubernetesEngine`), so the Jobs need to resolve exactly that name.
+
+**Decided (2026-11-20):**
+1. **Build and test in staging,** in the shared cluster (see above).
+2. **Branch images:** the user adds this branch to the image workflows' triggers while the branch is open, and removes it before merging.
+3. **Turn on the Network Policy Controller now,** not at the rollout. No namespace has policies, so nothing changes until the chart's policies land in staging.
+4. **Write the Terraform for staging and production now,** and apply both. Production's resources stay unused until the rollout.
+
+**Proposed design** (each part settled in its task):
+* **Per environment:**
+  * a bucket;
+  * the three IAM roles spec 0010 lists (core-api's, the run role, Funnel's workers'), through Pod Identity;
+  * the compute namespace, named after the environment through a new chart value.
+* **Shared by both:** the S3 gateway endpoint, the EBS storage class and the Network Policy Controller, which are all cluster-wide.
+* **Either shared or per environment** (Task 4 decides): the compute node pool and the budget.
+* **The chart defines the AWS connection** from a small block of values (bucket, region, run role, limits), as it defines the local one (`refcloud.localComputeConnection`).
+  * The connections file, the quota, the LimitRange and Funnel's config then all follow from one place.
+  * Empty values mean compute is off, which is how production ships if compute isn't ready (spec 0010).
+* **Compute pods run on their own node pool.** It's tainted so nothing else lands there, and its limits on total CPU and memory are the hard cost cap.
+
+## Engineering Tasks
+
+### Task 1: Images and cluster prerequisites
+
+* **Images:**
+  * the user adds this branch to the push workflows' triggers (temporarily);
+  * only `develop` builds move the `develop` tag (`push-docker-image.yml`), so branch builds don't;
+  * Terraform (`reference-cloud`): the `refcloud-nextflow` and `refcloud-setup` (Task 2) ECR repositories and their CI push policies.
+* **The Network Policy Controller** (Terraform, `foundation`): the `amazon-vpc-cni` ConfigMap, as spec 0010 planned. Afterwards, check that nothing changed for other namespaces (none have policies).
+
+**Decisions (Task 1):**
+
+1. **Only `develop` builds move the `develop` tag.** Done 2026-11-20: in `push-docker-image.yml`, the tag line is empty for other branches, and `.github/workflows/README.md` lists the tags. Workflow checks pass (actionlint, zizmor).
+2. **Terraform written 2026-11-20, not yet applied** (the user runs `plan` and `apply`):
+   * `reference-cloud`: `refcloud-nextflow` and `refcloud-setup` in `ecr_repos`, their push policies, and their attachments to the monorepo's CI role. The attachments now take the policy's ARN from the policy resource (the same ARN), so a new policy is created before it's attached. Expected plan: 6 to add, nothing else;
+   * `foundation`: the `amazon-vpc-cni` ConfigMap (`kubernetes_config_map_v1`). Expected plan: 1 to add, nothing else. Its `helm` provider uses the current kube context, so the EKS cluster's must be current.
+
+### Task 2: A setup Job for any environment
+
+`refcloud-setup.sh` prepares a local environment. Remote environments have so far been prepared by hand, from a helper pod. Instead, for a deploy that works in one step, the chart runs setup itself: Jobs that check each resource and create it, or update it in place. Unlike the script, there's no `--reset`, and the Jobs never delete anything. When everything is intact, they change nothing.
+
+What `refcloud-setup.sh` does, and where each step goes remotely:
+
+| Step | Remotely |
+|-|-|
+| databases `kratos`, `hydra` and `refcloudapi`, each owned by a login role of the same name | the setup Job, before the migrations |
+| the `data_connect_reader` role (read-only, 30-second statement timeout) | the setup Job, before the migrations |
+| the Secrets the chart expects | the setup Job, before the migrations: creates missing ones with random values, and never changes an existing one |
+| Liquibase migrations | already a chart hook |
+| the researcher UI's OAuth client in Hydra | the setup Job, once Hydra is up |
+| `refcloud seed` (upserts) | the setup Job, at the end, after Hydra's client |
+| onboarding datasets (slow; existing datasets are skipped) | a documented next step after a first deploy, with the admin CLI pod |
+| compute platforms | admin CLI commands (Task 8) |
+| tools, minikube, the TLS certificate, Docker Compose | local only |
+
+**Decisions (Task 2):**
+
+Agreed 2026-11-20:
+1. **Shell scripts, not the admin CLI.** Setup deploys the refcloud's own infrastructure; the admin CLI stays scoped to what an admin data custodian does.
+2. **Its own image, `refcloud-setup`:** Alpine with `psql`, `curl` and `jq`, plus the script. No single official image has all three, and the restricted security context rules out installing tools when the Job starts. It's built from `deploy/helm/setup/` with the lockstep tag, pushed by its own CI workflow, and built into minikube by the run script. Its ECR repository is in Task 1's Terraform.
+3. **Two Jobs, `setup-predeploy` and `setup-postdeploy`,** each a step of the same script (its argument: `predeploy` or `postdeploy`). A Helm hook runs at one point in a deploy, so one Job can't do both: before the migrations, Hydra doesn't exist yet on a first install; after the install, the migrations would already have failed for lack of databases.
+
+   | Order | Resource | Hook (weight) | Does |
+   |-|-|-|-|
+   | 1 | `setup-predeploy`'s ServiceAccount, Role and RoleBinding | pre-install, pre-upgrade (-20) | let it read and create Secrets. Hooks too, since the release's own resources don't exist yet; deleted once every pre hook succeeds, so nothing keeps that permission between deploys |
+   | 2 | `setup-predeploy` | pre-install, pre-upgrade (-10) | Secrets, databases and roles |
+   | 3 | the Kratos, Hydra and Liquibase migrations | pre-install, pre-upgrade (0, as now) | unchanged |
+   | 4 | the release's resources | | Helm applies them |
+   | 5 | `setup-postdeploy` | post-install, post-upgrade (0) | first container (`refcloud-setup` image): waits for Hydra's admin API to be ready (as `rustfs-setup` waits for RustFS), then the Hydra client. Last container (admin CLI image, the admin CLI pod's settings): `refcloud seed`. Reads Secrets only as environment variables, so it needs no Kubernetes permissions |
+
+   If `setup-predeploy` fails, Helm stops before the migrations, so on an upgrade nothing running changes. If `setup-postdeploy` fails, the release is marked failed after its resources are applied; running the upgrade again repeats both, and `setup-predeploy` finds everything intact.
+4. **Database admin credentials: a dedicated `refcloud_admin` login, created with a one-time bootstrap login** (revised 2026-11-20; at first, the master credentials in `refcloud-db-admin`). Staging and production each have their own RDS instance (Postgres 18.3), and set no master password in Terraform. With the `terraform-aws-modules/rds` module, that normally means RDS manages it in Secrets Manager and rotates it (every 7 days by default; to confirm with `describe-db-instances` and `describe-secret`), so a copy in a Kubernetes Secret would go stale. Instead:
+   * `setup-predeploy` connects as the admin login in `refcloud-db-admin`. On AWS, that's `refcloud_admin`: `LOGIN CREATEDB CREATEROLE`, not a superuser. On Postgres 16 and later, it manages only the roles it creates or is granted, so not the master user or other projects' roles. Its password is random and lives only in that Secret. Locally, `refcloud-setup.sh` creates the Secret from the local Postgres login;
+   * **bootstrap:** for an environment's first deploy, the operator copies the master user's login from Secrets Manager into `refcloud-db-bootstrap` (one command, so the password never shows in the terminal). Whenever that Secret exists and can connect, `setup-predeploy` connects as the master user. It creates or repairs `refcloud_admin` (its password, its attributes, and `ADMIN` on every app role) and creates `refcloud-db-admin`. The operator then deletes the copy, and can rotate the master password, which setup never needs again. A copy that can't connect (rotated) is ignored, with a reminder to delete it;
+   * the same step repairs a lost `refcloud-db-admin`, or an app role `refcloud_admin` can't manage;
+   * rejected: Pod Identity reading the master password from Secrets Manager on every deploy (the Job could always get the master password); Terraform's `postgresql` provider (RDS is in private subnets, and the password would be in the state); copying the master password before each deploy.
+5. **Setup doesn't onboard datasets.** The docs give it as the next step after a first deploy, with the admin CLI pod.
+6. **Helm mode runs the Jobs locally too,** against host Postgres. `refcloud-setup.sh` has already prepared everything, so they report every check passing and change nothing, which also confirms the two agree. `refcloud-setup.sh` keeps `--reset` and native mode.
+7. **"Intact" means these checks, and only a failing one changes anything.** The script logs each check.
+
+   | Check | If it fails |
+   |-|-|
+   | a Secret is missing | create it with random values, except the three below |
+   | `kratos-secrets`, `hydra-secrets` or `refcloud-ui-hydra-researcher-client` is missing, and its database already has tables | stop with an error saying to restore it. Kratos and Hydra encrypt stored data with the first two, and Hydra keeps the client's secret, so a new random value would break what's stored. Each is created only with its new database |
+   | a Secret is missing a key | stop with an error rather than guess. Existing Secrets are never changed |
+   | a database is missing, or has the wrong owner | create it, or fix its owner. Each app's database and role are named after its Secret's `username`, as the chart's connection strings are |
+   | a role is missing | create it with its Secret's password |
+   | a role can't log in with its Secret's password | set the role's password from the Secret |
+   | the reader role isn't read-only, lacks its 30-second statement timeout, or can create databases or roles | set them, or remove them. A reader that's a superuser stops with an error: only a superuser can change that, and RDS's master user isn't one |
+   | the Hydra client doesn't exist | create it from its Secret. An existing client is kept as it is: its secret isn't checked (Hydra doesn't return it), and a changed setting, such as the redirect URI after a hostname change, is updated by hand |
+   | `refcloud seed` | always runs. It upserts the Data Connect table types and platform tables that ship with each admin CLI version, so it's the one step that rewrites rows (their `updated_at`) when nothing has changed |
+8. **The Jobs follow the chart's rules:** the restricted security context; a network policy rule so Hydra's admin API accepts `setup-postdeploy`; pre-install hooks depend only on Secrets that exist before the release (`setup-predeploy` mounts none: it reads them through the Kubernetes API, so it starts and explains what's missing); Kubernetes permissions limited to reading and creating the release namespace's Secrets.
+
+Implemented 2026-11-20:
+* **Files:**
+  * the image: `deploy/helm/setup/Dockerfile` (Alpine 3.24.4: bash, curl, jq, psql 18; user 10001) and `deploy/helm/setup/refcloud-setup` (bash);
+  * the Jobs: `charts/app/templates/apps/setup/predeploy.yaml` (ServiceAccount, Role, RoleBinding and Job) and `postdeploy.yaml`; Hydra's admin rule in `network-policies.yaml`;
+  * CI: `push-docker-image-setup.yml`. Static analysis: a `shellcheck` check in `refcloud-static-analysis-helm.sh` (and its CI step), and the setup Dockerfile in `refcloud-static-analysis-deploy-local.sh`'s hadolint and Trivy checks (and its CI path filter);
+  * local scripts (`scripts/lib/common.sh`, `refcloud-run-helm.sh`): the image in `REFCLOUD_IMAGES`; `refcloud-db-admin` in `K8S_SECRETS`, created by `apply_k8s_secrets`; the run script prints the Jobs' last lines; `--down` and `--reset` delete the Jobs (`delete_setup_jobs`);
+  * docs: the helm README (a "Setup Jobs" section, Secrets, the run steps, static analysis), `deploy/helm/CLAUDE.md` and the root `CLAUDE.md`.
+* **Choices made while implementing:**
+  * the Jobs keep only `before-hook-creation`, so they and their logs stay until the next deploy; the RBAC hooks also have `hook-succeeded`, so they're gone once the pre hooks have run;
+  * on Postgres 16 and later, an admin that isn't a superuser (RDS's master user) can make a role a database's owner only after granting itself the role, so setup does that when it's needed, and logs it as a change;
+  * apps read Secrets only when they start, so when predeploy changes anything it says to restart the apps that use what changed;
+  * secrets never appear in process arguments: the token reaches curl through a config file descriptor, values go through stdin or the environment (psql's `\getenv`), and names go as psql variables;
+  * the RustFS accounts and `refcloud-tls` stay local-only: `refcloud-setup.sh` creates them, and predeploy doesn't check them;
+  * locally, `refcloud-db-admin` is the Postgres user setup's own `psql` commands connect as, with `PGPASSWORD` if it's set (local Postgres usually trusts `127.0.0.1`);
+  * the bootstrap (decision 4): the Role reads `refcloud-db-bootstrap` too. With the bootstrap login, predeploy runs every check as the master user, then grants each app role to `refcloud_admin` `WITH ADMIN OPTION`. With either login, it stops with an error naming any existing app role the login can't manage. On Postgres 16 and later that needs `ADMIN` on the role; before 16, `CREATEROLE` was enough.
+* **Tested 2026-11-20** in minikube, in a throwaway namespace with its own Postgres 17 and an admin like RDS's master user (not a superuser, with `CREATEROLE` and `CREATEDB`). Everything was deleted afterwards:
+  1. **A first install from nothing:** predeploy created 9 Secrets, 3 databases and 4 roles, and granted itself the 3 app roles. The migrations ran next, and postdeploy created the Hydra client and ran the seed. The RBAC hooks were gone afterwards. The install took 44 seconds;
+  2. **an upgrade with nothing changed:** predeploy's 23 checks and postdeploy's 1 passed, and nothing changed;
+  3. **after breaking things on purpose** (a wrong role password, the reader's timeout removed and `CREATEDB` added, a database's owner changed, the Hydra client deleted), the next upgrade fixed all five;
+  4. **errors:** each of these stopped predeploy with a message saying what to do. `kratos-secrets` missing while Kratos's database has data; a Secret missing a key; no `refcloud-db-admin`; a wrong admin password. Once restored, it changed nothing;
+  5. **static analysis passes:** helm (lint, kubeconform, Trivy, shellcheck), the Dockerfile checks (hadolint, Trivy) and the workflows (actionlint, zizmor);
+  6. **the bootstrap (decision 4),** in a new throwaway namespace and Postgres 17, with a stand-in for the master user (not a superuser, `CREATEROLE` and `CREATEDB`):
+     * a first install with only `refcloud-db-bootstrap` created `refcloud_admin` (not a superuser), its Secret and everything else, and granted it the 4 app roles;
+     * once the copy was deleted, deploys connected as `refcloud_admin`, changed nothing, and fixed a broken app password and a database's owner on their own;
+     * these were each repaired by a deploy with a bootstrap copy: a broken `refcloud_admin` password (without a copy, the error names the fix), and an app role it no longer managed;
+     * a stale copy was ignored, with a reminder to delete it. A valid leftover copy changed nothing;
+     * a final fresh install, then an upgrade without the copy, changed nothing.
+* **Still to do:** the user runs local helm mode against host Postgres. That's `./scripts/refcloud-setup.sh` (which creates `refcloud-db-admin`), then `./scripts/refcloud-run-helm.sh`, which should report nothing changed. Then CI's first build of the image, once the ECR repository exists and this branch is in the workflow's triggers.
+
+### Task 3: Staging on the current chart, without compute
+
+Bring staging up to this branch's chart and images with compute off, as spec 0010 will do for production. This gives compute a working base, and rehearses the rollout on AWS.
+
+* **Staging's values** (private values repo):
+  * `image.registry`, `image.tag` (this branch's build), `image.pullPolicy: IfNotPresent`, and no pull secrets;
+  * `networkPolicy.ingressFrom`: the VPC's CIDR;
+  * the setup Job's settings (Task 2);
+  * the service-info settings (DRS, service registry, compute);
+  * drop the old chart's values;
+  * the values repo's README: deploy from this repo's `deploy/helm/charts/app`.
+* **Secrets:** create `refcloud-db-bootstrap` from staging's master user secret (the helm README's "The bootstrap login"), and check that the existing Secrets have the keys the chart expects (key names only). `setup-predeploy` creates `refcloud_admin` and `refcloud-db-admin`, grants it staging's existing roles, and creates what's missing, including the reader role's Secret. Then delete `refcloud-db-bootstrap`, and rotate the master password.
+* **Before deploying** (spec 0010, Task 4): a snapshot of staging's database, the UTC migration's checks, and the one-time `Recreate` patch.
+* **Deploy** with `helm upgrade`, and watch the hooks: `setup-predeploy`, then Liquibase, Kratos (from `v0.9.0-alpha.2` to `v26.2.0`) and Hydra, and `setup-postdeploy` after the install.
+* **Check** (spec 0010, Task 6, without compute):
+  * register, log in, view the passport token, request and approve a visa, use DRS;
+  * every pod is ready, kubelet probes included, now that the policies are enforced;
+  * the network policy checks.
+* **Remove the helper pod** (see Decisions).
+* **Write back to spec 0010** whatever its rollout missed: the reader role, and the setup Job.
+
+**Decisions (Task 3):**
+
+Agreed 2026-11-20:
+1. **Staging goes onto the current chart first,** with compute off, before any compute work.
+2. **Snapshot staging's database before the deploy,** as spec 0010 plans for production.
+3. **The helper pod goes once the admin CLI pod runs.** Staging and production each have a hand-made helper pod, used for one-off commands from before the admin CLI was in the chart. It's removed once the chart's admin CLI pod runs: in staging after this task's deploy, and in production at the rollout (spec 0010).
+
+### Task 4: AWS resources (Terraform)
+
+In the private Terraform repo, each change reviewed first:
+
+* **`foundation`** (shared and cluster-wide):
+  * **an S3 gateway endpoint** on the VPC's route tables. S3 traffic within the region then stops going through NAT, which is cheaper, and bucket policies can require the endpoint. Check that no other project's bucket policy depends on the NAT gateways' addresses;
+  * **an EBS storage class** (`ebs.csi.eks.amazonaws.com`, gp3, encrypted, `WaitForFirstConsumer`). It isn't made the cluster's default.
+* **`reference-cloud`, for staging and production:**
+  * **a bucket each,** with:
+    * public access blocked, encryption and TLS only;
+    * a lifecycle rule: incomplete uploads, and how long runs' files are kept;
+    * possibly, requests only through the VPC endpoint;
+  * **three roles each, with Pod Identity associations** (policies as in spec 0010, Task 2):
+    * core-api's, for `refcloud-api` in the release namespace;
+    * the run role, which trusts only core-api's role;
+    * Funnel's workers', for `funnel-worker` in the compute namespace;
+  * **a node pool for compute pods** (an Auto Mode `NodePool`):
+    * a taint, so other pods stay off it;
+    * on-demand amd64 instances of chosen types, with limits on total CPU and memory;
+    * nodes are removed only when empty, so running tasks aren't moved.
+
+    Either one per environment or one shared;
+  * **a budget with alarms.**
+* **Values from Terraform:** each environment's bucket and role ARNs come from Terraform's outputs and go into the private values files.
+
+**Decisions (Task 4):**
+
+### Task 5: Spike: EKS networking and identity
+
+Run this in staging's cluster before the chart work, with throwaway pods in a throwaway namespace that enforces the restricted Pod Security level. The user runs the commands, and the results go under Decisions.
+
+* **DNS:** in a default-deny namespace, pods allowed only the CoreDNS address on port 53 can resolve names.
+* **DNS-based policy:** an `ApplicationNetworkPolicy` that allows only staging's bucket name. Check that:
+  * the bucket's objects can be read with temporary credentials;
+  * other names don't resolve (or the lookups don't leave the cluster);
+  * other buckets and addresses can't be reached;
+  * whether the policy also needs the CoreDNS rule.
+* **Pod Identity:** a pod with no ServiceAccount token mounted (`automountServiceAccountToken: false`), and egress only to the Pod Identity agent (`169.254.170.23`, port 80) and S3:
+  * its credentials arrive;
+  * Funnel's image can use them, through the SDK's default chain.
+* **The node pool:**
+  * a pod with the toleration lands on it, and one without doesn't;
+  * a node starts, and is removed once it's empty.
+* **EBS per-task claims:** a first pod binds a claim from the new storage class, and a second pod on the same node shares it through `podAffinity`, as Funnel's worker and executor do.
+* **The Kubernetes API's addresses on EKS,** from the EndpointSlice the chart looks up: whether they change (e.g. on control-plane updates). If they do, a policy pinned at deploy time would break.
+
+**Decisions (Task 5):**
+
+### Task 6: The chart's compute on AWS
+
+* **The compute namespace's name:** a new value, defaulting to `<release name>-compute`, so local stays `refcloud-compute`. Each environment's values set its own.
+* **The AWS connection,** defined by the chart from values:
+  * `s3` storage with the bucket, region and run role, and no endpoint or keys (Pod Identity);
+  * limits sized for the node pool;
+  * `max-run-duration-seconds` of 2700 (spec 0012).
+
+  The quota and the LimitRange follow from it.
+* **Funnel on AWS:**
+  * `AmazonS3` with no endpoint and no keys: the workers use Pod Identity, so there's no `funnel-s3` Secret;
+  * task claims and `funnel-db` come from the new storage class (a value).
+* **Compute pods on the node pool:**
+  * tolerations and node selection for Funnel's workers and executors (`files/funnel/`);
+  * the same for the Nextflow Jobs, which core-api creates, so this is a connection setting (`NextflowKubernetesEngine`);
+  * whether Funnel's server goes there too;
+  * pods that mustn't be moved mid-run carry `karpenter.sh/do-not-disrupt`.
+* **RustFS stays local only.**
+* **Static analysis:** render and check the chart with sample AWS values too, not only the local defaults.
+
+**Decisions (Task 6):**
+
+### Task 7: Network policies on EKS
+
+The compute namespace's policies on AWS, from Task 5's findings:
+
+* **DNS:** through the node's CoreDNS address (a value, or derived), wherever pods get DNS today;
+* **S3 by name** for the Nextflow Jobs and Funnel's workers: the bucket's virtual-hosted name. Ideally this goes through an `ApplicationNetworkPolicy`, so workflow pods still can't look up other names. The fallback is S3's published address ranges;
+* **the Pod Identity agent** for Funnel's workers;
+* **the Kubernetes API,** as Task 5 found;
+* **the table in the template's header,** updated for both modes.
+
+Nothing changes locally.
+
+**Decisions (Task 7):**
+
+### Task 8: Compute in staging, end to end
+
+* **Deploy:** staging's values get the AWS connection, the compute namespace and the compute service info.
+* **Set up the platform:**
+  * register and enable a staging demo platform with the admin CLI, with the demo workflow on its allowlist and limits set;
+  * approve a test account's visas.
+* **The end-to-end checks,** adapted from spec 0012, Task 8:
+  * the demo through WES, then `REFCLOUD_DEMO_BASE_URL=<staging> ./scripts/refcloud-compute-demo.sh <token>`;
+  * outputs download, and the files are under the run's prefix in the bucket;
+  * the credential check: own run 200, another run 403, bucket listing 403;
+  * cancel;
+  * a core-api restart mid-run, which fails the run on nf-ga4gh 1.5.0 (D23);
+  * the network policy checks from stand-in pods;
+  * task pods ran on the compute node pool, and its nodes went away afterwards;
+  * the cost shows up where the budget expects it.
+* **The kill switch** works: `refcloud compute-platform disable`.
+
+**Decisions (Task 8):**
+
+### Task 9: Docs and the rollout spec
+
+* `deploy/helm/README.md` (Remote Deployment: the setup Job, compute on AWS, the new values) and `deploy/helm/CLAUDE.md`.
+* Spec 0010, what's left for production:
+  * its Task 2 shrinks to what wasn't applied;
+  * its Task 3 gets the new values;
+  * registering production's platform.
+* The milestones doc (item 3), and the discussion doc's To Verify list.
+* The docs site: nothing until production has compute (spec 0010, Task 6), except anything staging's tests show is wrong.
+
+**Decisions (Task 9):**
+
+## Future Directions
+
+* **A one-click AWS deploy: Terraform, then Helm, with nothing by hand in between** (raised 2026-11-20). Today, an environment's first deploy needs `refcloud-db-bootstrap` created by hand (Task 2, decision 4), and Helm's AWS values copied from Terraform. Terraform can't create the Postgres role itself, because RDS is in private subnets. Proposed:
+  * **the bootstrap through Pod Identity:**
+    * Terraform creates an IAM role per environment, allowed only `secretsmanager:GetSecretValue` on that RDS instance's master user secret, and associated with the `setup-predeploy` ServiceAccount in the release namespace;
+    * the chart takes the secret's ARN and the database's endpoint as values;
+    * when `refcloud-db-admin` is missing or can't connect, and there's no `refcloud-db-bootstrap`, `setup-predeploy` reads the master password from Secrets Manager (the AWS CLI in the image, or curl's SigV4 signing) and bootstraps as it does today;
+    * the master password then never sits in the cluster or in Terraform's state. But the IAM permission is permanent: anyone who can run a pod as `setup-predeploy` in the namespace could read the master password. Weigh that, especially if other projects share the RDS instance;
+    * `refcloud-db-bootstrap` stays, for minikube tests and clusters without Pod Identity;
+    * it can only be tested on EKS: delete `refcloud-db-admin` in staging, and deploy;
+  * **Helm's AWS values from Terraform's outputs:** the database endpoint, the certificate ARN, the VPC CIDR, and the compute bucket and IAM roles (Task 4). For example, a values file Terraform writes, or `helm upgrade` run with `-f` on Terraform's output.
