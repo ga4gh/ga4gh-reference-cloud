@@ -115,9 +115,12 @@ Also:
 **Decisions (Task 1):**
 
 1. **Only `develop` builds move the `develop` tag.** Done 2026-11-20: in `push-docker-image.yml`, the tag line is empty for other branches, and `.github/workflows/README.md` lists the tags. Workflow checks pass (actionlint, zizmor).
-2. **Terraform written 2026-11-20, not yet applied** (the user runs `plan` and `apply`):
+2. **Terraform written and applied 2026-11-20** (the user ran `plan` and `apply`; after the Argo CD removal below, no Argo CD resources remained in either refcloud namespace):
    * `reference-cloud`: `refcloud-nextflow` and `refcloud-setup` in `ecr_repos`, their push policies, and their attachments to the monorepo's CI role. The attachments now take the policy's ARN from the policy resource (the same ARN), so a new policy is created before it's attached. Expected plan: 6 to add, nothing else;
    * `foundation`: the `amazon-vpc-cni` ConfigMap (`kubernetes_config_map_v1`). Expected plan: 1 to add, nothing else. Its `helm` provider uses the current kube context, so the EKS cluster's must be current.
+3. **`foundation` no longer has Argo CD, or a `helm` provider** (2026-11-20). The first `foundation` apply ran from the `minikube` context (the local run script switches to it). The `helm` provider followed that context, and installed a new Argo CD into minikube. Argo CD wasn't used for deployments, so the user had it removed:
+   * Terraform: its release, certificate, validation records, DNS record and data source, and the `helm` provider, which only it used. So `foundation` now reaches the cluster only through its `kubernetes` provider, which targets EKS explicitly, and no longer depends on the kube context;
+   * the release, namespace and CRDs: removed from minikube by me, and from EKS by the user with `helm` and `kubectl`. Terraform's state no longer recorded the release after the failed apply.
 
 ### Task 2: A setup Job for any environment
 
