@@ -20,34 +20,21 @@ ga4gh:
   referenceCloud:
     baseURL: refcloud.ga4gh.localhost
     cloudEnvironment: local
-    drs:
-      serviceInfo:
-        id: org.ga4gh.refcloud.drs.local.helm
-        name: GA4GH Reference Cloud DRS Service (Local Helm Environment)
-        description: GA4GH reference implementation of the Data Repository Service (DRS) specification
-        organization:
-          name: Global Alliance for Genomics and Health
-          url: https://ga4gh.org
-        contactUrl: mailto:info@ga4gh.org
-        documentationUrl: https://github.com/ga4gh/ga4gh-reference-cloud
-        createdAt: 2026-07-20T12:00:00Z
-        updatedAt: 2026-07-20T12:00:00Z
-        environment: local
-        version: 0.1.0
-    serviceRegistry:
-      serviceInfo:
-        id: org.ga4gh.refcloud.serviceregistry.local.helm
-        name: GA4GH Reference Cloud Service Registry (Local Helm Environment)
-        description: GA4GH reference implementation of the Service Registry specification, listing the GA4GH services this reference cloud provides
-        organization:
-          name: Global Alliance for Genomics and Health
-          url: https://ga4gh.org
-        contactUrl: mailto:info@ga4gh.org
-        documentationUrl: https://github.com/ga4gh/ga4gh-reference-cloud
-        createdAt: 2026-11-09T12:00:00Z
-        updatedAt: 2026-11-09T12:00:00Z
-        environment: local
-        version: 0.1.0
+    # service-info shared by every GA4GH service: DRS, refget, Data Connect, the service registry, and each compute
+    # platform's WES and TES (templates/_helpers.tpl, refcloud.serviceInfoEnv). A service's id is
+    # org.ga4gh.refcloud.<service>.<idSuffix> (WES and TES: org.ga4gh.refcloud.<wes|tes>.<platform id>.<idSuffix>), its
+    # name ends with "(<environmentName>)", and its version is image.tag. Descriptions and timestamps are each service's
+    # own (core-api's application.yml)
+    serviceInfo:
+      # give each deployment its own, so no two deployments' ids clash
+      idSuffix: local.helm
+      environmentName: Local Helm Environment
+      environment: local
+      organization:
+        name: Global Alliance for Genomics and Health
+        url: https://ga4gh.org
+      contactUrl: mailto:info@ga4gh.org
+      documentationUrl: https://github.com/ga4gh/ga4gh-reference-cloud
     # compute (WES/TES). compute platforms themselves are registered with the admin CLI (refcloud compute-platform init)
     compute:
       # compute connections, written as in deploy/local/compute/connections.yml (kebab-case keys; credentials named by
@@ -65,11 +52,6 @@ ga4gh:
       # takes the space its files use
       localObjectStorage:
         size: 10Gi
-      # shared by every compute platform's WES and TES service-info
-      serviceInfo:
-        # ids are org.ga4gh.refcloud.{wes|tes}.{platform id}.{idSuffix}: give each deployment its own
-        idSuffix: local.helm
-        environment: local
 
 # NetworkPolicies (templates/common/network-policies.yaml): each pod accepts only the traffic it needs, and the Kratos
 # and Hydra admin APIs only from the pods that use them. They take effect only where the cluster's network plugin

@@ -106,3 +106,39 @@ The local S3 bucket compute runs are kept in (runs/<run id>/ under it), on RustF
 {{- define "refcloud.localComputeBucket" -}}
 refcloud-compute
 {{- end -}}
+
+{{/*
+Service-info for core-api's GA4GH services, from ga4gh.referenceCloud.serviceInfo, which they all share (values.yaml):
+DRS, refget, Data Connect, the service registry, and each compute platform's WES and TES. A service's id is
+org.ga4gh.refcloud.<id>.<idSuffix>, its name "<name> (<environmentName>)", and its version the lockstep image tag.
+Descriptions, types and timestamps stay each service's own (core-api's application.yml).
+Usage: {{- include "refcloud.serviceInfoEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_DRS_SERVICEINFO" "id" "drs" "name" "GA4GH Reference Cloud DRS Service") | nindent 12 }}
+*/}}
+{{- define "refcloud.serviceInfoEnv" -}}
+{{- $info := .root.Values.ga4gh.referenceCloud.serviceInfo -}}
+- name: {{ .prefix }}_ID
+  value: {{ printf "org.ga4gh.refcloud.%s.%s" .id (required "ga4gh.referenceCloud.serviceInfo.idSuffix is required" $info.idSuffix) | quote }}
+- name: {{ .prefix }}_NAME
+  value: {{ printf "%s (%s)" .name (required "ga4gh.referenceCloud.serviceInfo.environmentName is required" $info.environmentName) | quote }}
+{{ include "refcloud.serviceInfoSharedEnv" . }}
+{{- end -}}
+
+{{/*
+The service-info settings every service shares, for services whose ids and names are built elsewhere (compute's WES and
+TES, from each platform). Usage: as refcloud.serviceInfoEnv, without "id" and "name"
+*/}}
+{{- define "refcloud.serviceInfoSharedEnv" -}}
+{{- $info := .root.Values.ga4gh.referenceCloud.serviceInfo -}}
+- name: {{ .prefix }}_ORGANIZATION_NAME
+  value: {{ $info.organization.name | quote }}
+- name: {{ .prefix }}_ORGANIZATION_URL
+  value: {{ $info.organization.url | quote }}
+- name: {{ .prefix }}_CONTACTURL
+  value: {{ $info.contactUrl | quote }}
+- name: {{ .prefix }}_DOCUMENTATIONURL
+  value: {{ $info.documentationUrl | quote }}
+- name: {{ .prefix }}_ENVIRONMENT
+  value: {{ required "ga4gh.referenceCloud.serviceInfo.environment is required" $info.environment | quote }}
+- name: {{ .prefix }}_VERSION
+  value: {{ .root.Values.image.tag | quote }}
+{{- end -}}

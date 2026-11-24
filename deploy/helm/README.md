@@ -228,8 +228,10 @@ The chart's defaults target local minikube. For AWS, supply overrides at deploy 
 | `ga4gh.referenceCloud.cloudEnvironment` | `local` | `aws` |
 | `ga4gh.referenceCloud.aws.certificateARN` | n/a | ACM certificate ARN for the ALB |
 | `ga4gh.referenceCloud.compute.connections` | `{}` (compute is off) | the deployment's compute connections, written as in `deploy/local/compute/connections.yml` (credentials named by environment variable, never inline) |
-| `ga4gh.referenceCloud.compute.serviceInfo.idSuffix` | `local.helm` | the deployment's own, so WES and TES service-info IDs differ from local ones |
-| `ga4gh.referenceCloud.compute.serviceInfo.environment` | `local` | e.g. `prod` |
+| `ga4gh.referenceCloud.serviceInfo.idSuffix` | `local.helm` | the deployment's own, e.g. `staging`: every GA4GH service's service-info ID is `org.ga4gh.refcloud.<service>.<idSuffix>` (DRS, refget, Data Connect, the service registry, and each compute platform's WES and TES) |
+| `ga4gh.referenceCloud.serviceInfo.environmentName` | `Local Helm Environment` | ends every service's name, e.g. `Staging Environment` |
+| `ga4gh.referenceCloud.serviceInfo.environment` | `local` | e.g. `staging`, `prod` |
+| `ga4gh.referenceCloud.serviceInfo.organization`, `.contactUrl`, `.documentationUrl` | GA4GH, `mailto:info@ga4gh.org`, this repo | shared by every service. Each service's version is `image.tag` |
 | `networkPolicy.ingressFrom` | `[]` (the `ingress-nginx` namespace) | **required**: where the ALB connects from. It targets pod IPs from its subnets, e.g. `[{ipBlock: {cidr: <VPC CIDR>}}]` |
 
 **NetworkPolicies on AWS:** the chart's policies only take effect if the cluster enforces them. On EKS Auto Mode, turn on its Network Policy Controller once, with the ConfigMap from [AWS's guide](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html) (`amazon-vpc-cni` in `kube-system`, `enable-network-policy-controller: "true"`). Deploy the chart (with `networkPolicy.ingressFrom`) before or after; then check that the site still works and the pods stay ready. If something breaks, `--set networkPolicy.enabled=false` removes the policies.

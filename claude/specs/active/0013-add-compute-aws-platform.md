@@ -251,14 +251,60 @@ Agreed 2026-11-24:
 5. **Service-info:** the service registry's and compute's follow DRS's pattern in staging's values (IDs ending in `.staging`, `environment: staging`, the same contact).
 6. **`networkPolicy.ingressFrom`: only the VPC's public subnets,** where the internet-facing ALB sits (its ingress class sets `scheme: internet-facing`), rather than the whole VPC. On EKS, pods get VPC addresses, so the whole VPC would let every pod in the cluster reach the refcloud's UI, API and Ory public ports. The CIDRs are in the private values repo. This depends on the node's own traffic getting through policies, for kubelet probes, which AWS doesn't document, so it was tested first:
    * **probe test (the user, 2026-11-24):** in a throwaway namespace on staging's cluster, a pod behind a deny-all ingress policy stayed ready on its HTTP readiness probe (106 seconds), while another pod's request to it timed out. So enforcement is on, and kubelet probes pass, as with Calico locally. Kratos's and Hydra's probes on their admin ports, which no rule opens, will work. Task 5's spike can rely on it too;
-   * if some nodes run in the public subnets (the cluster's subnets include them), pods on them would also be inside the range. That would weaken the isolation, without breaking anything. The nodes' addresses show which.
+   * if some nodes run in the public subnets (the cluster's subnets include them), pods on them would also be inside the range. That would weaken the isolation, without breaking anything. **Checked 2026-11-24:** the cluster's only node is in a private subnet. Auto Mode's default node class may still pick a public subnet for a later node; Task 4's node class for compute can select private subnets only.
 7. **The values repo's README** deploys staging from this repo's `deploy/helm/charts/app`, with `--kube-context`, `--namespace`, `--wait` and `--timeout 10m`, so the command never depends on the current kubectl context. Production's section stays on the old chart until the rollout.
 8. **Pre-flight checks on staging (the user, 2026-11-24; read-only):**
    * **Secrets:** every one the chart expects exists, with its keys, except Data Connect's reader's. `setup-predeploy` creates that, and the `data_connect_reader` role, which doesn't exist yet;
    * **databases:** the old chart's connection strings already name each database after its Secret's `username`, as the new chart does. `kratos`, `hydra` and `refcloudapi` exist, each owned by its role, so setup has no owners to change;
    * **UTC:** the database's time zone is UTC, and the two visa rows' `current_status_at` look right, so the timestamp migration needs no fixes;
-   * **the RDS instance is shared:** it also holds other projects' databases and roles. That's what `refcloud_admin`'s limited reach is for (Task 2, decision 4). It also means the bootstrap needs the master user to have `ADMIN` on the refcloud's roles, checked with a query before the deploy. And the master password is rotated afterwards only if RDS already rotates it: another project might connect with the master login.
+   * **the RDS instance is shared:** it also holds other projects' databases and roles. That's what `refcloud_admin`'s limited reach is for (Task 2, decision 4). It also means the bootstrap needs the master user to have `ADMIN` on the refcloud's roles, checked with a query before the deploy. And the master password is rotated afterwards only if RDS already rotates it: another project might connect with the master login. **Checked 2026-11-24:** RDS rotates it, so one more rotation after the bootstrap retires the copy that was in `refcloud-db-bootstrap`.
 9. **Staging's values drop** `replicaCount`, `livenessProbe` and `readinessProbe`, which the new chart doesn't read. A render with the draft values gives 30 resources, valid against Kubernetes 1.35 (kubeconform): every Service ClusterIP, both setup Jobs and the migrations, the policies, and nothing for compute.
+
+Found by the deploy (2026-11-24), both of which production's rollout (spec 0010) would have hit too:
+
+10. **The bootstrap worked as planned on RDS** (`v0.1.0-66-g6268e39`), connected as the master user. Its changes:
+    * it created the reader's Secret, `refcloud-db-admin`, `refcloud_admin` (`CREATEDB CREATEROLE`) and `data_connect_reader` (read-only, with the 30-second timeout);
+    * it granted the four app roles to `refcloud_admin`, `WITH ADMIN OPTION`;
+    * every existing role logged in with its Secret's password, and every database already had the right owner.
+11. **The hand-made Hydra client had redirect URIs the new chart doesn't use,** and the existence-only check kept them. `setup-postdeploy` now updates the settings the chart decides (Task 2, revised 2026-11-24). The redeploy with `v0.1.0-67-g538762b` fixed staging's client, and the passport token page then worked.
+12. **core-api couldn't validate tokens on AWS** (Data Connect's queries failed with a 500: `I/O error on GET request for "http://127.0.0.1:4444/.well-known/jwks.json": Connection refused`):
+    * since the chart's first version, it set core-api's signing-key URL (`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`, `http://hydra:4444/...`) only when `cloudEnvironment` is `local`. Elsewhere, core-api fell back to `application.yml`'s native-mode default, `127.0.0.1:4444`;
+    * it's now set in every environment. Hydra's policy already accepts core-api on 4444;
+    * every other native-mode default in `application.yml` (the database, issuer, CORS, Kratos, DRS, Data Connect, the service registry and compute's URLs) has an override in every environment. This was the only gap;
+    * the change is only in the chart, so it's redeployed from the checkout with the same images. Confirmed on staging: the Explore Data page's platform table loads.
+13. **Datasets onboarded before per-dataset Data Connect tables existed don't appear on the Explore Data page.** Its dataset dropdown lists only datasets with a Data Connect table the user can read, and `dataset onboard` is what registers them. Staging's 1000 Genomes was onboarded in July, so it had none. The fix, with the admin CLI pod:
+    * `refcloud dataset reset`, which keeps the dataset, its tags and its visas, so approvals survive;
+    * then `refcloud dataset onboard`.
+
+    Production's datasets will need the same after the rollout. For spec 0010, that's alongside `refcloud seed`, which `setup-postdeploy` now runs itself.
+14. **Staging's datasets and visas still had their old dot-and-hyphen IDs**, e.g. `aws.opendata.registry.1000-genomes` and `ga4gh-visa:...`. Spec 0002 (Task 5) moved to snake case (`aws_opendata_registry_1000_genomes`, `ga4gh_visa:...`), because Data Connect table names can't contain hyphens:
+    * its in-place migration, `apps/admin-cli/migrations/0001-snake-case-dataset-ids.sql`, was written for production. A later reorganization (`7dcaaab`) deleted it, but it's still in git (`git show d8c5faf:apps/admin-cli/migrations/0001-snake-case-dataset-ids.sql`);
+    * it still fits the schema. It moves exactly the five foreign keys that point at datasets and visas (tags, DRS objects, visas, Data Connect tables, visa assertions), and neither table has gained columns. Compute's tables reference only `compute_platform`;
+    * it runs as one transaction, skips datasets already renamed, and keeps every approval;
+    * **run by hand (the user's choice, 2026-11-24), not as a Liquibase changeset:** from the helper pod, as `refcloudapi` (the tables' owner), with the password piped in on stdin rather than in a command line. Then `dataset reset` and `dataset onboard` under the new ID (decision 13);
+    * production's rollout needs the same steps, so they go into spec 0010.
+15. **The UI works end to end on staging (the user, 2026-11-24):** after the migration, and onboarding 1000 Genomes and the refget conformance dataset under their new IDs:
+    * login, and the passport token;
+    * Explore Data, with the platform table and both datasets.
+16. **The service registry listed Data Connect and refget as `local`.** The chart set only DRS's and the registry's service-info, and compute's ID suffix. Data Connect and refget kept `application.yml`'s native-mode defaults (`org.ga4gh.refcloud.dataconnect.local`, `...refget.sequence.local`). Consolidated (the user's request, 2026-11-24):
+    * one shared value, `ga4gh.referenceCloud.serviceInfo`, replaces the per-service `drs.serviceInfo`, `serviceRegistry.serviceInfo` and `compute.serviceInfo`. It holds `idSuffix`, `environmentName`, `environment`, `organization`, `contactUrl` and `documentationUrl`;
+    * a helper (`refcloud.serviceInfoEnv` in `_helpers.tpl`) gives every service its ID (`org.ga4gh.refcloud.<service>.<idSuffix>`), its name (`<service name> (<environmentName>)`), the shared settings, and `image.tag` as its version. That covers DRS, refget, Data Connect and the service registry. Compute's WES and TES get the suffix and the shared settings, since each platform builds its own IDs and names;
+    * descriptions, types and timestamps stay each service's own, in core-api. A new service needs one line in the Deployment, and no new values;
+    * the environment variables use Spring's canonical names (`..._SERVICEINFO_...`). DRS's had used the legacy `_SERVICE_INFO_` form, which also binds;
+    * a guard fails the render if the values still use the old per-service keys, as production's do, rather than ignoring them silently;
+    * staging's values now set the shared block. Renders: the local defaults give `.local.helm` IDs and staging's give `.staging`, for all four services. kubeconform and the helm checks pass. Native mode keeps `application.yml`'s defaults.
+17. **The after-deploy checks pass on staging (the user, 2026-11-24):**
+    * the service registry lists every service with `.staging` IDs, staging names and the image tag as version;
+    * every pod is ready, the Services are all ClusterIP, and the six policies exist;
+    * from a throwaway pod, Kratos's and Hydra's admin APIs time out;
+    * registering a new account works, which also tests Kratos's webhook to core-api through the policies, and so does DRS with a token.
+18. **Written back to spec 0010 (2026-11-24),** each finding marked "(staging)" in the task where production needs it, with no private details:
+    * Task 2: the policy enforcement and ECR repositories, done;
+    * Task 3: values written as staging's (the chart path, `ingressFrom` on the public subnets, the shared service-info, the dropped keys, the setup Jobs' Secrets);
+    * Task 4: the read-only checks, the snapshot on a shared instance, the bootstrap login, and the dry run;
+    * Task 5: what the setup Jobs' logs should show;
+    * Task 6: the bootstrap clean-up and conditional rotation, the seed running by itself, the dataset ID migration with its commands, re-onboarding both datasets, removing the helper pod, then the browser checks, including Explore Data;
+    * spec 0010's Future Direction for a staging environment is marked done.
 
 ### Task 4: AWS resources (Terraform)
 

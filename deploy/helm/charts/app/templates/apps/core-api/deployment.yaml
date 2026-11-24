@@ -1,3 +1,8 @@
+{{- /* service-info used to be set per service; values that still do would otherwise be ignored silently */ -}}
+{{- $referenceCloud := .Values.ga4gh.referenceCloud }}
+{{- if or $referenceCloud.drs $referenceCloud.serviceRegistry (and $referenceCloud.compute $referenceCloud.compute.serviceInfo) }}
+{{- fail "ga4gh.referenceCloud.drs.serviceInfo, serviceRegistry.serviceInfo and compute.serviceInfo were replaced by ga4gh.referenceCloud.serviceInfo, which every service shares (see the chart's values.yaml)" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -93,9 +98,12 @@ spec:
               value: "false"
             - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
               value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
-            {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+            # Hydra's signing keys, from its internal URL in every environment: application.yml's default
+            # (127.0.0.1:4444) is native mode's, and nothing listens there in a pod. core-api's tokens fail to validate
+            # without it (hydra's NetworkPolicy accepts core-api on 4444)
             - name: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
               value: http://hydra:4444/.well-known/jwks.json
+            {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
             # core-api's own RustFS user, for the local compute connection's S3 storage (spec 0012); the connection names
             # these variables (access-key-id-env, secret-access-key-env)
             - name: REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID
@@ -143,59 +151,20 @@ spec:
               value: https
             - name: GA4GH_REFCLOUD_DRS_HOST_DOMAIN
               value: {{ .Values.ga4gh.referenceCloud.baseURL }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ID
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.id }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_NAME
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.name }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_DESCRIPTION
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.description }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ORGANIZATION_NAME
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.organization.name }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ORGANIZATION_URL
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.organization.url }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_CONTACT_URL
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.contactUrl }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_DOCUMENTATION_URL
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.documentationUrl }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_CREATED_AT
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.createdAt }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_UPDATED_AT
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.updatedAt }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_ENVIRONMENT
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.environment }}
-            - name: GA4GH_REFCLOUD_DRS_SERVICE_INFO_VERSION
-              value: {{ .Values.ga4gh.referenceCloud.drs.serviceInfo.version }}
+            # service-info, for every GA4GH service: from ga4gh.referenceCloud.serviceInfo, which they share
+            {{- include "refcloud.serviceInfoEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_DRS_SERVICEINFO" "id" "drs" "name" "GA4GH Reference Cloud DRS Service") | nindent 12 }}
+            {{- include "refcloud.serviceInfoEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_REFGET_SEQUENCE_SERVICEINFO" "id" "refget.sequence" "name" "GA4GH Reference Cloud Refget Sequence Service") | nindent 12 }}
+            {{- include "refcloud.serviceInfoEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_DATACONNECT_SERVICEINFO" "id" "dataconnect" "name" "GA4GH Reference Cloud Data Connect Service") | nindent 12 }}
             - name: GA4GH_REFCLOUD_SERVICEREGISTRY_BASEURL
               value: https://{{ .Values.ga4gh.referenceCloud.baseURL }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ID
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.id | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_NAME
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.name | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_DESCRIPTION
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.description | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ORGANIZATION_NAME
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.organization.name | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ORGANIZATION_URL
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.organization.url | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_CONTACTURL
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.contactUrl | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_DOCUMENTATIONURL
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.documentationUrl | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_CREATEDAT
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.createdAt | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_UPDATEDAT
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.updatedAt | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_ENVIRONMENT
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.environment | quote }}
-            - name: GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO_VERSION
-              value: {{ .Values.ga4gh.referenceCloud.serviceRegistry.serviceInfo.version | quote }}
+            {{- include "refcloud.serviceInfoEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_SERVICEREGISTRY_SERVICEINFO" "id" "serviceregistry" "name" "GA4GH Reference Cloud Service Registry") | nindent 12 }}
             # compute (WES/TES). connections come only from the connections file, never from env vars
             - name: REFCLOUD_COMPUTE_CONNECTIONS_FILE
               value: /etc/refcloud/compute/connections.yml
+            # each compute platform's WES and TES ids are org.ga4gh.refcloud.<wes|tes>.<platform id>.<idSuffix>
             - name: GA4GH_REFCLOUD_COMPUTE_SERVICEINFO_IDSUFFIX
-              value: {{ .Values.ga4gh.referenceCloud.compute.serviceInfo.idSuffix | quote }}
-            - name: GA4GH_REFCLOUD_COMPUTE_SERVICEINFO_ENVIRONMENT
-              value: {{ .Values.ga4gh.referenceCloud.compute.serviceInfo.environment | quote }}
+              value: {{ .Values.ga4gh.referenceCloud.serviceInfo.idSuffix | quote }}
+            {{- include "refcloud.serviceInfoSharedEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_COMPUTE_SERVICEINFO") | nindent 12 }}
             # the docs page on requesting compute access (apps/docs/docs/compute/access.mdx)
             - name: GA4GH_REFCLOUD_COMPUTE_SERVICEINFO_AUTHINSTRUCTIONSURL
               value: https://docs.{{ .Values.ga4gh.referenceCloud.baseURL }}/docs/compute/access
