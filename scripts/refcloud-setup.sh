@@ -39,6 +39,12 @@ if kubernetes_dependencies_installed; then
   KUBERNETES_ENABLED=true
 fi
 
+# nextflow is optional: without it, setup registers no compute platform (native-mode compute)
+COMPUTE_ENABLED=false
+if nextflow_installed; then
+  COMPUTE_ENABLED=true
+fi
+
 # RESET SEQUENCE IF RESET FLAG DETECTED
 
 if (( ${+opts[-r]} || ${+opts[--reset]} )); then
@@ -61,6 +67,7 @@ if (( ${+opts[-r]} || ${+opts[--reset]} )); then
     destroy_db "hydra"
     destroy_db "refcloudapi"
     destroy_data_connect_reader_role
+    reset_compute_storage
 else
     log_info "reset flag not detected, running script normally"
 fi
@@ -144,6 +151,13 @@ uv run refcloud seed > /dev/null 2>&1 || { log_error "failed to seed refcloud da
 
 init_and_onboard_dataset "aws_opendata_registry_1000_genomes"
 init_and_onboard_dataset "ga4gh_refget_sequences_v2_conformance"
+
+# COMPUTE (NATIVE MODE)
+
+if [[ "$COMPUTE_ENABLED" == true ]]; then
+  log_info "setting up compute (native mode)"
+  init_default_compute_platform
+fi
 
 cd ../..
 

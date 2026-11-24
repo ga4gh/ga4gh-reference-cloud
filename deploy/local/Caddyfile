@@ -39,6 +39,15 @@ refcloud.ga4gh.localhost {
 		reverse_proxy * 127.0.0.1:8080
 	}
 
+	# compute: one WES and one TES service per compute platform (/ga4gh/{wes,tes}/{platformId}/v1/...)
+	handle /ga4gh/wes/* {
+		reverse_proxy * 127.0.0.1:8080
+	}
+
+	handle /ga4gh/tes/* {
+		reverse_proxy * 127.0.0.1:8080
+	}
+
 	reverse_proxy * 127.0.0.1:3000
 }
 

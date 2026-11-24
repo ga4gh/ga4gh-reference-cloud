@@ -1,0 +1,228 @@
+import HttpsCurlCodeBlock from '@site/src/components/HttpsCurlCodeBlock';
+
+# Run a Workflow Via WES
+
+In this demo, you will run a workflow on the reference cloud through its **WES API**, with a 1000 Genomes file as its input, given as a **DRS URI**. You will follow the run, inspect its tasks through the **TES API**, download its report, and check the report against the file's DRS metadata.
+
+The workflow is `drs-checksum`, a small demo bundled with the reference cloud. It takes one file and reports the file's name, size, MD5 and SHA-256.
+
+:::note Runs on a local reference cloud
+Compute is currently available when you run the reference cloud on your own machine in native mode (see `deploy/local/README.md` in the [repository](https://github.com/ga4gh/ga4gh-reference-cloud)), so this demo uses https://refcloud.ga4gh.localhost rather than the hosted instance. The local setup registers a compute platform called `nextflow-demo`, with `drs-checksum` on its allowlist.
+:::
+
+This demo assumes you have familiarity with:
+* Your local machine's command line
+* HTTP
+* REST APIs
+
+You will need `curl` and `jq` on your machine. Read the [Compute Overview](../compute/compute-overview) first for how compute fits together.
+
+## Obtaining Access
+
+You need two approved visas, and a passport token. [Accessing Compute Platforms](../compute/access) covers the details.
+
+* **The compute platform:** request access to **Nextflow Demo** on the **Browse Compute Platforms** page.
+* **The input data:** the input file is in the **1000 Genomes** dataset, so request access to it on the **Browse Datasets** page.
+* **A passport token:** copy one from the **View Passport Token** page, and keep it in a shell variable:
+
+```bash
+TOKEN=<your passport token>
+```
+
+## WES Part 1: Service Info
+
+The compute platform's WES base URL is:
+
+> `https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1`
+
+Its **Service Info** is public:
+
+<HttpsCurlCodeBlock
+  curlCommand="curl -s https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/service-info | jq"
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/service-info HTTP/2"
+/>
+
+The response describes what the platform can run, and its health (shortened here):
+
+```json
+{
+  "id": "org.ga4gh.refcloud.wes.nextflow-demo.local",
+  "name": "Nextflow Demo (WES)",
+  "type": { "group": "org.ga4gh", "artifact": "wes", "version": "1.1.0" },
+  "workflow_type_versions": { "NFL": { "workflow_type_version": ["DSL2"] } },
+  "supported_wes_versions": ["1.1.0"],
+  "supported_filesystem_protocols": ["drs"],
+  "workflow_engine_versions": { "nextflow": { "workflow_engine_version": ["26.10.5"] } },
+  "system_state_counts": { "COMPLETE": 0, "QUEUED": 0, "RUNNING": 0, ... },
+  "auth_instructions_url": "https://docs.refcloud.ga4gh.localhost/docs/compute/access",
+  "tags": { "platform_type": "nextflow-funnel-docker" },
+  "health": { "status": "healthy", "checkedAt": "2026-11-13T14:30:07Z" }
+}
+```
+
+* `workflow_type_versions`: the workflow languages its allowlist covers, here Nextflow DSL2 (`NFL`).
+* `supported_filesystem_protocols`: inputs are `drs://` URIs.
+* `health`: a reference cloud extension. Runs can only be submitted while the platform is `healthy`.
+
+## WES Part 2: Submitting a Run
+
+A WES run request is a `multipart/form-data` form. `workflow_url` must match an allowlisted workflow exactly. `workflow_params` holds the workflow's parameters, here its one input, as the DRS URI of the 1000 Genomes BAM index for sample HG00096:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" \\
+  -F workflow_url=refcloud:bundled/drs-checksum \\
+  -F workflow_type=NFL \\
+  -F workflow_type_version=DSL2 \\
+  -F 'workflow_params={"input": "drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai"}' \\
+  https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs | jq`}
+  httpsRequest={`POST https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs HTTP/2
+Authorization: Bearer <your passport token>
+Content-Type: multipart/form-data; boundary=...
+
+workflow_url=refcloud:bundled/drs-checksum
+workflow_type=NFL
+workflow_type_version=DSL2
+workflow_params={"input": "drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai"}`}
+/>
+
+The reference cloud checks the request before accepting it: your visa, the allowlist, your limits, and your access to every DRS object in `workflow_params`. If anything fails, you get a `400` or `403` with a message saying what to change. Otherwise you get the run's ID:
+
+```json
+{ "run_id": "62d2d04b-15ec-460a-863e-2c44d3bda715" }
+```
+
+Keep it in a variable for the next steps:
+
+```bash
+RUN=<your run_id>
+```
+
+## WES Part 3: Following the Run
+
+Check the run's state:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/$RUN/status | jq`}
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/{run_id}/status HTTP/2"
+/>
+
+A run is `QUEUED` while the reference cloud downloads its input and waits for room on the platform. Then it's `INITIALIZING` and `RUNNING` while Nextflow runs it, and finally `COMPLETE`. A failed run ends `EXECUTOR_ERROR` (the workflow failed) or `SYSTEM_ERROR` (the platform failed). The demo takes about 20 seconds once Nextflow is cached.
+
+The full **Run Log** has the request, timings, the engine's log URLs, and the run's outputs:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/$RUN | jq`}
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/{run_id} HTTP/2"
+/>
+
+```json
+{
+  "run_id": "62d2d04b-15ec-460a-863e-2c44d3bda715",
+  "request": {
+    "workflow_url": "refcloud:bundled/drs-checksum",
+    "workflow_type": "NFL",
+    "workflow_type_version": "DSL2",
+    "workflow_params": { "input": "drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai" },
+    "tags": {}
+  },
+  "state": "COMPLETE",
+  "run_log": {
+    "name": "DRS checksum",
+    "start_time": "2026-11-13T14:30:12Z",
+    "end_time": "2026-11-13T14:30:27Z",
+    "stdout": "https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/62d2d04b-.../logs/stdout",
+    "stderr": "https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/62d2d04b-.../logs/stderr",
+    "exit_code": 0,
+    "system_logs": []
+  },
+  "task_logs_url": "https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/62d2d04b-.../tasks",
+  "outputs": {
+    "files": [
+      {
+        "path": "checksum-report.json",
+        "size": 215,
+        "url": "https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/62d2d04b-.../outputs/checksum-report.json"
+      }
+    ]
+  }
+}
+```
+
+* `run_log.stdout` and `run_log.stderr` link to Nextflow's console output.
+* `outputs.files` lists the run's output files, with download URLs. This, and the download endpoint, are reference cloud extensions (see [Output Downloads](../compute/compute-overview#output-downloads)).
+* `system_logs` explains a run that ended `SYSTEM_ERROR` or was cancelled.
+
+## TES: The Run's Tasks
+
+Nextflow turned each step of the workflow into a TES task. The run's tasks are at `task_logs_url`:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/$RUN/tasks | jq`}
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/{run_id}/tasks HTTP/2"
+/>
+
+`drs-checksum` has one step, `CHECKSUM`. Its `tes_uri` is the task in the platform's TES API, which you can read with the same token:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" "https://refcloud.ga4gh.localhost/ga4gh/tes/nextflow-demo/v1/tasks/<task id>?view=FULL" | jq`}
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/tes/nextflow-demo/v1/tasks/{task id}?view=FULL HTTP/2"
+/>
+
+The TES task shows the container image (`ubuntu:24.04`), the command, the resources it ran with, and its executor's output.
+
+## Downloading the Report
+
+Download the report from its URL in `outputs.files`:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/$RUN/outputs/checksum-report.json | jq`}
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/{run_id}/outputs/checksum-report.json HTTP/2"
+/>
+
+```json
+{
+  "name": "HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai",
+  "size": 6842584,
+  "md5": "a8a1f1ba420f7d75c7955b04b5972c54",
+  "sha256": "89d6677f9e8d54fd3d771177ab352fb5d7435cf4ad1fb5dec33e5a508612f5c0"
+}
+```
+
+Compare it with what DRS says about the same file:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/drs/v1/objects/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai | jq '{name, size, checksums}'`}
+  httpsRequest="GET https://refcloud.ga4gh.localhost/ga4gh/drs/v1/objects/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai HTTP/2"
+/>
+
+The size matches, and so does the checksum: DRS reports the file's S3 ETag (`type` `etag`), which for this file is its MD5.
+
+## Cancelling a Run
+
+To stop a run that's queued or running, cancel it. It moves to `CANCELING`, then `CANCELED`, and its tasks are cancelled too:
+
+<HttpsCurlCodeBlock
+  curlCommand={`curl -s -X POST -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/$RUN/cancel | jq`}
+  httpsRequest="POST https://refcloud.ga4gh.localhost/ga4gh/wes/nextflow-demo/v1/runs/{run_id}/cancel HTTP/2"
+/>
+
+## The Whole Demo in One Command
+
+From the repository's root, `./scripts/refcloud-compute-demo.sh <your passport token>` runs the steps above. It submits the run, follows it, downloads the report, and checks it against DRS.
+
+## Conclusion
+
+In this demo, you learned how to:
+
+* use WES **Service Info** to find out what a compute platform can run, and whether it's healthy
+* submit a workflow run with a **DRS URI** as its input
+* follow a run through its **status** and **run log**
+* inspect the run's **TES tasks**
+* download a run's outputs, and check them against **DRS** metadata
+
+## Additional Reading
+
+* [Compute Overview](../compute/compute-overview)
+* [Accessing Compute Platforms](../compute/access)
+* [WES 1.1.0 specification](https://github.com/ga4gh/workflow-execution-service-schemas/tree/1.1.0)
+* [TES 1.1 specification](https://github.com/ga4gh/task-execution-schemas/tree/v1.1)

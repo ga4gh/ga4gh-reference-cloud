@@ -34,6 +34,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | Requirement | Install (macOS) |
 |---|---|
 | Docker Desktop | visit [docs.docker.com](https://docs.docker.com/desktop/setup/install/mac-install/) and follow instructions |
+| git 2+ | `brew install git` (or install via the Xcode Command Line Tools) |
 | PostgreSQL 18+ | `brew install postgresql@18` |
 | Liquibase 4+ | `brew install liquibase` |
 | SDKMAN | visit [sdkman.io](https://sdkman.io) and follow instructions
@@ -42,6 +43,7 @@ To run the reference cloud locally, you will need the following tools installed 
 | Node Version Manager (nvm) | visit [nodejs.org](https://nodejs.org/en/download) and follow instructions |
 | Node.js v24+ | Install through nvm using `nvm install v24.15.0` then activate with `nvm use v24.15.0` |
 | uv 0.11+ | `brew install uv` |
+| Nextflow launcher (optional: compute) | `curl -s https://get.nextflow.io \| bash`, followed by `chmod +x nextflow && mv nextflow ~/.local/bin/`, and finally `rehash`. **NOTE:** Do not use `brew install nextflow` as Homebrew's build cannot run the pinned version |
 | ory hydra client v26+ | `brew install ory-hydra` |
 | ory kratos client v26+ | `brew install ory/tap/kratos` |
 | kubectl v1.36+ | `brew install kubectl` |
@@ -68,6 +70,8 @@ When running the refcloud natively, all apps in the `apps/` folder will run dire
 All dependency services (i.e. Ory Kratos, Ory, Hydra, etc.) will be run via docker-compose.
 
 To start all services in native mode, run `./scripts/refcloud-run-native.sh`. Follow the links provided in the terminal to access the various services.
+
+Native mode can also run workflows (WES and TES) when Nextflow is installed: see [compute in native mode](./deploy/local/README.md#compute-native-mode).
 
 ### Running the Reference Cloud via Helm
 

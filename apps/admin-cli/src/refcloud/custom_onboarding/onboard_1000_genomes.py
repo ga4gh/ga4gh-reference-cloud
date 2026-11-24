@@ -109,11 +109,11 @@ def process_subject_level_exome_directory(s3_client, exome_directory):
                     "drs_object": {
                         "id": file_name,
                         "description": f"{subject} whole-exome {suffix} file",
-                        "created_time": obj["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
+                        "created_time": obj["LastModified"],
                         "mime_type": "application/octet-stream",
                         "name": file_name,
                         "size": obj["Size"],
-                        "updated_time": obj["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
+                        "updated_time": obj["LastModified"],
                         "version": "v1",
                     },
                     "aliases": [f"{subject} whole-exome {suffix} file"],
@@ -128,13 +128,9 @@ def process_subject_level_exome_directory(s3_client, exome_directory):
                 if suffix == "bam":
                     drs_object_set["manifest_obj"]["drs_object"]["id"] = f"{file_name}.manifest"
                     drs_object_set["manifest_obj"]["drs_object"]["description"] = f"{subject} whole-exome file manifest"
-                    drs_object_set["manifest_obj"]["drs_object"]["created_time"] = obj["LastModified"].strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                    drs_object_set["manifest_obj"]["drs_object"]["created_time"] = obj["LastModified"]
                     drs_object_set["manifest_obj"]["drs_object"]["name"] = f"{file_name}.manifest"
-                    drs_object_set["manifest_obj"]["drs_object"]["updated_time"] = obj["LastModified"].strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+                    drs_object_set["manifest_obj"]["drs_object"]["updated_time"] = obj["LastModified"]
                     drs_object_set["manifest_obj"]["aliases"].append(f"{subject} whole-exome file manifest")
 
     # finalize manifest metadata

@@ -20,6 +20,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.14-slim AS runner
 
+# git: `compute-platform allowlist add` resolves tags to commit shas with `git ls-remote`
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # run as a non-root system user (python images default to root)
 RUN useradd --system --no-log-init --uid 10001 refcloud
 
