@@ -1,7 +1,9 @@
 {{- /*
 setup-postdeploy (spec 0013, Task 2): after every install and upgrade, once the release is applied. Its first container
 (refcloud-setup postdeploy, deploy/helm/setup/refcloud-setup) waits for Hydra's admin API, then creates the researcher
-UI's OAuth client if it doesn't exist; an existing one is kept as it is. Its last container runs `refcloud seed` with the
+UI's OAuth client if it doesn't exist. For an existing one, it updates the settings the chart decides (the redirect URI,
+from baseURL; grant and response types; scope; auth method) where they differ, and leaves everything else, its secret
+included. Its last container runs `refcloud seed` with the
 admin CLI image, which upserts the Data Connect table types and platform tables that ship with it. Hydra's admin API
 accepts this Job (network-policies.yaml). The Job stays until the next deploy replaces it, so its log can be read:
 kubectl logs job/setup-postdeploy --all-containers

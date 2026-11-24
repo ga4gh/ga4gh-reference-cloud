@@ -5,7 +5,8 @@
 #
 #   refcloud-setup predeploy    before the migrations, on every install and upgrade: the Secrets the chart expects,
 #                               each app's database and the login role that owns it, and Data Connect's read-only role
-#   refcloud-setup postdeploy   once the release is applied: the researcher UI's OAuth client in Hydra. The same Job
+#   refcloud-setup postdeploy   once the release is applied: the researcher UI's OAuth client in Hydra, created if
+#                               it's missing, its settings updated where they differ from the chart's. The same Job
 #                               then runs `refcloud seed` with the admin CLI image
 #
 # A check changes something only when it fails, so on a deployment where everything is intact nothing changes. It
@@ -491,8 +492,35 @@ predeploy() {
   summary predeploy
 }
 
+# the researcher UI's OAuth client settings the chart decides, as scripts/refcloud-setup.sh creates the client. The
+# secret isn't one of them: Hydra never returns it, so it's set only when the client is created
+hydra_client_settings() {
+  jq -n '{
+    redirect_uris: [env.HYDRA_CLIENT_REDIRECT_URI],
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    scope: "openid offline_access profile",
+    token_endpoint_auth_method: "client_secret_post"
+  }'
+}
+
+# the settings (one per line) where the client (JSON, on stdin) differs from <settings>. Lists compare as sets, and the
+# scope as a set of words, so order doesn't count as a difference
+hydra_client_differences() {
+  jq -r --argjson settings "$1" '
+    def normal($key): if $key == "scope" then (. // "" | split(" ") | map(select(. != "")) | sort)
+      elif type == "array" then sort else . end;
+    . as $client | $settings | keys_unsorted[] as $key
+    | select(($client[$key] | normal($key)) != ($settings[$key] | normal($key))) | $key'
+}
+
+# GET on Hydra's admin API: prints the response body, then the HTTP status on a line of its own
+hydra_get() {
+  curl --silent --show-error --max-time 30 --write-out '\n%{http_code}' "$HYDRA_ADMIN_URL$1"
+}
+
 postdeploy() {
-  local name waited=0 client_path status body
+  local name waited=0 client_path response status body settings client changed field differences=()
 
   info "postdeploy: checking the researcher UI's OAuth client in Hydra"
   for name in HYDRA_ADMIN_URL HYDRA_CLIENT_ID HYDRA_CLIENT_SECRET HYDRA_CLIENT_REDIRECT_URI; do
@@ -510,27 +538,18 @@ postdeploy() {
     waited=$((waited + 5))
   done
 
+  settings=$(hydra_client_settings)
   client_path="/admin/clients/$(jq -rn 'env.HYDRA_CLIENT_ID | @uri')"
-  status=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' "$HYDRA_ADMIN_URL$client_path") \
-    || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  response=$(hydra_get "$client_path") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  status=${response##*$'\n'}
+  client=${response%$'\n'*}
   case "$status" in
     200)
-      # only its existence is checked: Hydra never returns a client's secret, and settings changed since (e.g. the
-      # redirect URI after a hostname change) are updated by hand
-      ok "Hydra client '$HYDRA_CLIENT_ID' exists (kept as it is)"
+      ok "Hydra client '$HYDRA_CLIENT_ID' exists"
       ;;
     404)
-      # the settings scripts/refcloud-setup.sh creates it with. The secret goes to curl on stdin, and the response,
-      # which repeats it, is discarded
-      body=$(jq -n '{
-        client_id: env.HYDRA_CLIENT_ID,
-        client_secret: env.HYDRA_CLIENT_SECRET,
-        grant_types: ["authorization_code", "refresh_token"],
-        response_types: ["code"],
-        scope: "openid offline_access profile",
-        redirect_uris: [env.HYDRA_CLIENT_REDIRECT_URI],
-        token_endpoint_auth_method: "client_secret_post"
-      }')
+      # the secret comes from the environment and goes to curl on stdin; the response, which repeats it, is discarded
+      body=$(jq '. + {client_id: env.HYDRA_CLIENT_ID, client_secret: env.HYDRA_CLIENT_SECRET}' <<< "$settings")
       status=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' \
         --request POST --header 'Content-Type: application/json' --data-binary @- \
         "$HYDRA_ADMIN_URL/admin/clients" <<< "$body") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
@@ -538,11 +557,41 @@ postdeploy() {
         fail "creating Hydra client '$HYDRA_CLIENT_ID' failed (HTTP $status)"
       fi
       change "created Hydra client '$HYDRA_CLIENT_ID' (redirect URI $HYDRA_CLIENT_REDIRECT_URI)"
+      summary postdeploy
+      return
       ;;
     *)
       fail "checking Hydra client '$HYDRA_CLIENT_ID' failed (HTTP $status)"
       ;;
   esac
+
+  # an existing client: the settings the chart decides (e.g. the redirect URI, which follows the hostname) are updated
+  # where they differ, with a JSON Patch, so whatever else was set on the client stays. Its secret isn't checked
+  changed=$(hydra_client_differences "$settings" <<< "$client") || fail "can't compare Hydra client '$HYDRA_CLIENT_ID' with the chart's settings"
+  if [[ -n "$changed" ]]; then
+    mapfile -t differences <<< "$changed"
+  fi
+  if [[ ${#differences[@]} -eq 0 ]]; then
+    ok "Hydra client '$HYDRA_CLIENT_ID' has the chart's settings ($(jq -r 'keys_unsorted | join(", ")' <<< "$settings"))"
+    summary postdeploy
+    return
+  fi
+  body=$(jq -n --argjson settings "$settings" --args '[$ARGS.positional[] | {op: "add", path: "/\(.)", value: $settings[.]}]' "${differences[@]}")
+  status=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' \
+    --request PATCH --header 'Content-Type: application/json' --data-binary @- \
+    "$HYDRA_ADMIN_URL$client_path" <<< "$body") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  if [[ "$status" != 200 ]]; then
+    fail "updating Hydra client '$HYDRA_CLIENT_ID' failed (HTTP $status)"
+  fi
+  for field in "${differences[@]}"; do
+    change "updated Hydra client '$HYDRA_CLIENT_ID': $field from $(jq -c --arg f "$field" '.[$f]' <<< "$client") to $(jq -c --arg f "$field" '.[$f]' <<< "$settings")"
+  done
+
+  # read it back: every setting should now match
+  response=$(hydra_get "$client_path") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  if [[ "${response##*$'\n'}" != 200 || -n "$(hydra_client_differences "$settings" <<< "${response%$'\n'*}")" ]]; then
+    fail "Hydra client '$HYDRA_CLIENT_ID' still differs from the chart's settings after the update"
+  fi
 
   summary postdeploy
 }

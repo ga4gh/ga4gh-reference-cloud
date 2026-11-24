@@ -174,7 +174,7 @@ Agreed 2026-11-20:
    | a role is missing | create it with its Secret's password |
    | a role can't log in with its Secret's password | set the role's password from the Secret |
    | the reader role isn't read-only, lacks its 30-second statement timeout, or can create databases or roles | set them, or remove them. A reader that's a superuser stops with an error: only a superuser can change that, and RDS's master user isn't one |
-   | the Hydra client doesn't exist | create it from its Secret. An existing client is kept as it is: its secret isn't checked (Hydra doesn't return it), and a changed setting, such as the redirect URI after a hostname change, is updated by hand |
+   | the Hydra client doesn't exist, or the settings the chart decides differ | create it from its Secret, or update those settings (revised 2026-11-24, see below; at first, only its existence was checked) |
    | `refcloud seed` | always runs. It upserts the Data Connect table types and platform tables that ship with each admin CLI version, so it's the one step that rewrites rows (their `updated_at`) when nothing has changed |
 8. **The Jobs follow the chart's rules:** the restricted security context; a network policy rule so Hydra's admin API accepts `setup-postdeploy`; pre-install hooks depend only on Secrets that exist before the release (`setup-predeploy` mounts none: it reads them through the Kubernetes API, so it starts and explains what's missing); Kubernetes permissions limited to reading and creating the release namespace's Secrets.
 
@@ -206,7 +206,17 @@ Implemented 2026-11-20:
      * a stale copy was ignored, with a reminder to delete it. A valid leftover copy changed nothing;
      * a final fresh install, then an upgrade without the copy, changed nothing.
 * **Local helm mode, against host Postgres (the user, 2026-11-24):** after `./scripts/refcloud-setup.sh` (which creates `refcloud-db-admin`) and `./scripts/refcloud-run-helm.sh`, `setup-predeploy` passed its 23 checks and the Hydra client check passed, with nothing changed; the seed ran. `kubectl logs job/setup-postdeploy` shows only the `seed` container: add `--all-containers` (or `-c hydra-client`) to see the Hydra check too.
-* **Still to do:** CI's first build of the image, with this branch in the workflow's triggers.
+* **CI built the image** (2026-11-24, `v0.1.0-66-g6268e39`), with this branch in the image workflows' triggers.
+* **Revised 2026-11-24: `setup-postdeploy` updates an existing Hydra client's settings** (the user chose this over deleting and recreating it by hand). Staging's first deploy on the new chart (Task 3) found its hand-made client with redirect URIs the new chart doesn't use, which the existence-only check left as they were. Now:
+  * the settings the chart decides (`hydra_client_settings`): the redirect URI (from `baseURL`), the grant and response types, the scope and the auth method, matching `scripts/refcloud-setup.sh`;
+  * where an existing client differs, those fields alone are updated, with a JSON Patch (`PATCH /admin/clients/<id>`). Anything else set on the client stays, as does its secret, which still isn't checked (Hydra never returns it). A `PUT` would have reset the rest;
+  * lists and the scope compare as sets, so order doesn't count as a difference. Each updated field is logged with its old and new values, and the client is read back to confirm;
+  * **tested** with the setup image against a throwaway in-memory Hydra `v26.2.0`:
+    * a missing client was created, and a rerun changed nothing;
+    * a client like staging's (an old redirect URI, plus `skip_consent` set by hand) got only its redirect URI updated, and `skip_consent` stayed;
+    * the same values in another order changed nothing;
+    * three differing fields were updated in one patch;
+    * the secret still authenticated after the update (`unauthorized_client` for an unallowed grant, against `invalid_client` for a wrong secret). shellcheck and the helm checks pass.
 
 ### Task 3: Staging on the current chart, without compute
 
@@ -219,7 +229,7 @@ Bring staging up to this branch's chart and images with compute off, as spec 001
   * the service-info settings (DRS, service registry, compute);
   * drop the old chart's values;
   * the values repo's README: deploy from this repo's `deploy/helm/charts/app`.
-* **Secrets:** create `refcloud-db-bootstrap` from staging's master user secret (the helm README's "The bootstrap login"), and check that the existing Secrets have the keys the chart expects (key names only). `setup-predeploy` creates `refcloud_admin` and `refcloud-db-admin`, grants it staging's existing roles, and creates what's missing, including the reader role's Secret. Then delete `refcloud-db-bootstrap`, and rotate the master password.
+* **Secrets:** create `refcloud-db-bootstrap` from staging's master user secret (the helm README's "The bootstrap login"), and check that the existing Secrets have the keys the chart expects (key names only). `setup-predeploy` creates `refcloud_admin` and `refcloud-db-admin`, grants it staging's existing roles, and creates what's missing, including the reader role's Secret. Then delete `refcloud-db-bootstrap`, and rotate the master password only if RDS already rotates it (decision 8).
 * **Before deploying** (spec 0010, Task 4): a snapshot of staging's database, the UTC migration's checks, and the one-time `Recreate` patch.
 * **Deploy** with `helm upgrade`, and watch the hooks: `setup-predeploy`, then Liquibase, Kratos (from `v0.9.0-alpha.2` to `v26.2.0`) and Hydra, and `setup-postdeploy` after the install.
 * **Check** (spec 0010, Task 6, without compute):
@@ -235,6 +245,20 @@ Agreed 2026-11-20:
 1. **Staging goes onto the current chart first,** with compute off, before any compute work.
 2. **Snapshot staging's database before the deploy,** as spec 0010 plans for production.
 3. **The helper pod goes once the admin CLI pod runs.** Staging and production each have a hand-made helper pod, used for one-off commands from before the admin CLI was in the chart. It's removed once the chart's admin CLI pod runs: in staging after this task's deploy, and in production at the rollout (spec 0010).
+
+Agreed 2026-11-24:
+4. **Images:** CI's build of the branch commit the user pushes (the seven image workflows have this branch in their triggers), with its lockstep tag in staging's values.
+5. **Service-info:** the service registry's and compute's follow DRS's pattern in staging's values (IDs ending in `.staging`, `environment: staging`, the same contact).
+6. **`networkPolicy.ingressFrom`: only the VPC's public subnets,** where the internet-facing ALB sits (its ingress class sets `scheme: internet-facing`), rather than the whole VPC. On EKS, pods get VPC addresses, so the whole VPC would let every pod in the cluster reach the refcloud's UI, API and Ory public ports. The CIDRs are in the private values repo. This depends on the node's own traffic getting through policies, for kubelet probes, which AWS doesn't document, so it was tested first:
+   * **probe test (the user, 2026-11-24):** in a throwaway namespace on staging's cluster, a pod behind a deny-all ingress policy stayed ready on its HTTP readiness probe (106 seconds), while another pod's request to it timed out. So enforcement is on, and kubelet probes pass, as with Calico locally. Kratos's and Hydra's probes on their admin ports, which no rule opens, will work. Task 5's spike can rely on it too;
+   * if some nodes run in the public subnets (the cluster's subnets include them), pods on them would also be inside the range. That would weaken the isolation, without breaking anything. The nodes' addresses show which.
+7. **The values repo's README** deploys staging from this repo's `deploy/helm/charts/app`, with `--kube-context`, `--namespace`, `--wait` and `--timeout 10m`, so the command never depends on the current kubectl context. Production's section stays on the old chart until the rollout.
+8. **Pre-flight checks on staging (the user, 2026-11-24; read-only):**
+   * **Secrets:** every one the chart expects exists, with its keys, except Data Connect's reader's. `setup-predeploy` creates that, and the `data_connect_reader` role, which doesn't exist yet;
+   * **databases:** the old chart's connection strings already name each database after its Secret's `username`, as the new chart does. `kratos`, `hydra` and `refcloudapi` exist, each owned by its role, so setup has no owners to change;
+   * **UTC:** the database's time zone is UTC, and the two visa rows' `current_status_at` look right, so the timestamp migration needs no fixes;
+   * **the RDS instance is shared:** it also holds other projects' databases and roles. That's what `refcloud_admin`'s limited reach is for (Task 2, decision 4). It also means the bootstrap needs the master user to have `ADMIN` on the refcloud's roles, checked with a query before the deploy. And the master password is rotated afterwards only if RDS already rotates it: another project might connect with the master login.
+9. **Staging's values drop** `replicaCount`, `livenessProbe` and `readinessProbe`, which the new chart doesn't read. A render with the draft values gives 30 resources, valid against Kubernetes 1.35 (kubeconform): every Service ClusterIP, both setup Jobs and the migrations, the policies, and nothing for compute.
 
 ### Task 4: AWS resources (Terraform)
 

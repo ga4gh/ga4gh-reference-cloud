@@ -174,7 +174,7 @@ Each check changes something only when it fails, so on a deployment where everyt
 * a missing Secret is created with random values. An existing Secret is never changed: one that's missing a key stops the Job, with the key named;
 * `kratos-secrets`, `hydra-secrets` and `refcloud-ui-hydra-researcher-client` are created only with a new database. If one is missing while Kratos's or Hydra's database has data, the Job stops and asks for it to be restored: Kratos and Hydra encrypt what they store with the first two, and Hydra keeps the OAuth client's secret;
 * a missing database or role is created; a database with another owner gets its role as owner; a role that can't log in with its Secret's password gets that password;
-* an existing Hydra client is kept as it is. Its secret and settings aren't checked, so after a change (e.g. the redirect URI, with a new hostname), update the client by hand.
+* a missing Hydra client is created from its Secret. For an existing one, the settings the chart decides are updated where they differ (with a JSON Patch, so nothing else on the client changes): the redirect URI, which follows `baseURL` (e.g. after a hostname change), the grant and response types, the scope and the auth method. Lists and the scope compare as sets, so order doesn't count. Its secret isn't checked: Hydra never returns it.
 
 Nothing is ever deleted. Each check is logged as `[OK]` or `[CHANGE]`, a problem setup can't fix as `[ERROR]` (and the deploy fails, before the migrations if it's `setup-predeploy`), and the last line sums up. The Jobs stay until the next deploy replaces them, so their logs can be read:
 
@@ -301,6 +301,6 @@ Deploy, check `setup-predeploy`'s log (`kubectl logs job/setup-predeploy`: it en
 kubectl delete secret refcloud-db-bootstrap --namespace=<namespace>
 ```
 
-Setup never needs the master password again, so you can also rotate it now (`aws secretsmanager rotate-secret --secret-id <master user secret ARN>`), which makes any copy useless.
+Setup never needs the master password again, so rotating it now (`aws secretsmanager rotate-secret --secret-id <master user secret ARN>`) makes any copy useless. Do that only if nothing else connects with the master login, e.g. another project's app on the same instance: check that RDS already rotates it (`aws secretsmanager describe-secret --secret-id <ARN> --query RotationEnabled`), since then anything using it reads it from Secrets Manager.
 
 The admin CLI pod in AWS is connected to the production database. Follow the guardrails in [`apps/admin-cli/CLAUDE.md`](../../apps/admin-cli/CLAUDE.md) before running destructive commands.
