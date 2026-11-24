@@ -331,6 +331,25 @@ In the private Terraform repo, each change reviewed first:
   * **a budget with alarms.**
 * **Values from Terraform:** each environment's bucket and role ARNs come from Terraform's outputs and go into the private values files.
 
+**To settle (raised 2026-11-24; the user's answers pending):**
+* **Read-only checks for the user:**
+  * whether any bucket policy in the account allows by `aws:SourceIp` or `aws:SourceVpc`. The gateway endpoint moves the VPC's S3 traffic off the NAT gateways;
+  * the node role Auto Mode's `default` node class uses (`kubectl get nodeclass default -o jsonpath='{.spec.role}'`).
+1. **Node pools:**
+   * one per environment (proposed), on-demand amd64, the `c` and `m` families up to `xlarge`;
+   * caps of 4 vCPU / 16 GiB for staging and 16 vCPU / 64 GiB for production (the user's numbers to choose);
+   * a node is removed after 5 minutes empty;
+   * their own node class: private subnets only (by their `kubernetes.io/role/internal-elb` tag), tags on instances, and the default node role.
+2. **Compute namespaces:** `reference-cloud-staging-compute` and `reference-cloud-prod-compute`, set by a new chart value (Task 6) and created by the chart, as locally. The Pod Identity associations name them.
+3. **Run buckets:**
+   * `ga4gh-refcloud-compute-runs-staging` and `-prod`;
+   * public access blocked, encryption, TLS only;
+   * lifecycle: incomplete uploads and `health/` after 1 day, runs' files after 30 days (to confirm);
+   * no VPC-endpoint-only rule, which would lock out operators' CLI and console.
+4. **Budget:** skip a refcloud-only one (proposed). It needs a cost-allocation tag activated in the Organization's payer account, and the node pools' caps are the hard limit. Otherwise: per environment, alerts at 50, 80 and 100% and on forecast, with amounts and recipients to choose.
+5. **S3 gateway endpoint** (`foundation`): on every route table, with the default full-access policy, assuming the bucket-policy check is clean.
+6. **Remove `reference-cloud`'s unused `helm` provider:** it reads `~/.kube/config`, like `foundation`'s did (Task 1, decision 3).
+
 **Decisions (Task 4):**
 
 ### Task 5: Spike: EKS networking and identity
