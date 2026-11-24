@@ -205,7 +205,8 @@ Implemented 2026-11-20:
      * these were each repaired by a deploy with a bootstrap copy: a broken `refcloud_admin` password (without a copy, the error names the fix), and an app role it no longer managed;
      * a stale copy was ignored, with a reminder to delete it. A valid leftover copy changed nothing;
      * a final fresh install, then an upgrade without the copy, changed nothing.
-* **Still to do:** the user runs local helm mode against host Postgres. That's `./scripts/refcloud-setup.sh` (which creates `refcloud-db-admin`), then `./scripts/refcloud-run-helm.sh`, which should report nothing changed. Then CI's first build of the image, once the ECR repository exists and this branch is in the workflow's triggers.
+* **Local helm mode, against host Postgres (the user, 2026-11-24):** after `./scripts/refcloud-setup.sh` (which creates `refcloud-db-admin`) and `./scripts/refcloud-run-helm.sh`, `setup-predeploy` passed its 23 checks and the Hydra client check passed, with nothing changed; the seed ran. `kubectl logs job/setup-postdeploy` shows only the `seed` container: add `--all-containers` (or `-c hydra-client`) to see the Hydra check too.
+* **Still to do:** CI's first build of the image, with this branch in the workflow's triggers.
 
 ### Task 3: Staging on the current chart, without compute
 
