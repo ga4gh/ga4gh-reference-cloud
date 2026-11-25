@@ -121,12 +121,13 @@ public class RunStorages {
     }
 
     // STS for the run credentials: an S3-compatible server takes STS requests at its S3 endpoint (RustFS does); AWS's
-    // regional STS endpoint otherwise
+    // regional STS endpoint otherwise. Never the storage endpoint itself: on AWS that's an S3 endpoint (spec 0013's
+    // interface endpoint), which answers STS requests with errors
     static StsClient stsClient(ComputeConfig.Storage storage) {
         StsClientBuilder builder =
                 StsClient.builder().region(Region.of(storage.region())).credentialsProvider(credentials(storage));
-        if (storage.endpoint() != null) {
-            builder.endpointOverride(storage.endpoint());
+        if (storage.stsEndpoint() != null) {
+            builder.endpointOverride(storage.stsEndpoint());
         }
         return builder.build();
     }

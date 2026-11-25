@@ -215,6 +215,7 @@ public class ConnectionCheckerTest {
                         null,
                         null,
                         null,
+                        null,
                         null),
                 new ComputeConfig.Limits(
                         1,

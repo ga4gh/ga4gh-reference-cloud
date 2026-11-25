@@ -146,6 +146,7 @@ public class RunPreparationServiceTest {
                         "",
                         "us-east-1",
                         null,
+                        null,
                         true,
                         null,
                         null,

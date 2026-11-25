@@ -45,6 +45,7 @@ public class S3RunStorageTest {
                 prefix,
                 "us-east-1",
                 null,
+                null,
                 true,
                 null,
                 null,

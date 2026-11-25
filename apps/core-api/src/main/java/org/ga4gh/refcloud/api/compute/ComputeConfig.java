@@ -169,13 +169,15 @@ public record ComputeConfig(
 
     // where runs keep their files (D15, D18). shared-filesystem: root, a directory every component mounts at the same
     // path (relative resolves from the connections file's directory, see ComputeConnections). s3 (spec 0012): a bucket
-    // and an optional key prefix (e.g. "refcloud/"); endpoint and pathStyleAccess for S3-compatible servers (none for
-    // AWS); credentials from the environment variables named by accessKeyIdEnv and secretAccessKeyEnv, or the AWS SDK's
-    // default chain (e.g. EKS Pod Identity) when they're not set.
+    // and an optional key prefix (e.g. "refcloud/"); endpoint and pathStyleAccess for S3-compatible servers, or an
+    // S3 interface endpoint on AWS (spec 0013); stsEndpoint for a server that issues the run credentials below at its
+    // own address (RustFS: its S3 endpoint), and otherwise AWS's regional STS (never the storage endpoint, which on AWS
+    // only serves S3); credentials from the environment variables named by accessKeyIdEnv and secretAccessKeyEnv, or
+    // the AWS SDK's default chain (e.g. EKS Pod Identity) when they're not set.
     // each run's engine gets its own temporary credentials, limited to the run's prefix (Task 3): STS AssumeRole of
     // runRoleArn (on AWS, a role core-api's own may assume; S3-compatible servers such as RustFS issue them for
-    // core-api's
-    // own user and ignore the ARN, which is still required), lasting up to runCredentialsMaxSeconds (default 3600: on
+    // core-api's own user and ignore the ARN, which is still required), lasting up to runCredentialsMaxSeconds (default
+    // 3600: on
     // AWS, credentials assumed from core-api's own role session last at most an hour; RustFS allows 43200)
     public record Storage(
             @NotNull StorageType type,
@@ -184,6 +186,7 @@ public record ComputeConfig(
             @Pattern(regexp = S3_PREFIX_PATTERN) String prefix,
             String region,
             URI endpoint,
+            URI stsEndpoint,
             Boolean pathStyleAccess,
             @Pattern(regexp = ENVIRONMENT_VARIABLE_PATTERN) String accessKeyIdEnv,
             @Pattern(regexp = ENVIRONMENT_VARIABLE_PATTERN) String secretAccessKeyEnv,
@@ -220,6 +223,7 @@ public record ComputeConfig(
                     || !prefix.isEmpty()
                     || region != null
                     || endpoint != null
+                    || stsEndpoint != null
                     || pathStyleAccess
                     || accessKeyIdEnv != null
                     || secretAccessKeyEnv != null

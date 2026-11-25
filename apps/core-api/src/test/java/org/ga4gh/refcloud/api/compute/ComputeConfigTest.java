@@ -162,6 +162,7 @@ public class ComputeConfigTest {
         properties.put(PREFIX + "storage.prefix", "refcloud/");
         properties.put(PREFIX + "storage.region", "us-east-1");
         properties.put(PREFIX + "storage.endpoint", "http://rustfs.refcloud-compute.svc:9000");
+        properties.put(PREFIX + "storage.sts-endpoint", "http://rustfs.refcloud-compute.svc:9000");
         properties.put(PREFIX + "storage.path-style-access", "true");
         properties.put(PREFIX + "storage.access-key-id-env", "REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID");
         properties.put(PREFIX + "storage.secret-access-key-env", "REFCLOUD_COMPUTE_S3_SECRET_ACCESS_KEY");
@@ -179,6 +180,7 @@ public class ComputeConfigTest {
         assertEquals(storage.bucket(), "refcloud-compute");
         assertEquals(storage.prefix(), "refcloud/");
         assertEquals(storage.endpoint(), URI.create("http://rustfs.refcloud-compute.svc:9000"));
+        assertEquals(storage.stsEndpoint(), URI.create("http://rustfs.refcloud-compute.svc:9000"));
         assertTrue(storage.pathStyleAccess());
         assertEquals(storage.runRoleArn(), "arn:aws:iam::000000000000:role/refcloud-compute-run");
         assertEquals(storage.runCredentialsMaxSeconds(), Integer.valueOf(43200));
@@ -195,6 +197,7 @@ public class ComputeConfigTest {
         for (String setting : List.of(
                 "prefix",
                 "endpoint",
+                "sts-endpoint",
                 "path-style-access",
                 "access-key-id-env",
                 "secret-access-key-env",
@@ -206,7 +209,22 @@ public class ComputeConfigTest {
         ComputeConfig.Storage storage = config.connections().get("c1").storage();
         assertEquals(storage.prefix(), "");
         assertFalse(storage.pathStyleAccess());
+        assertEquals(storage.stsEndpoint(), null);
         assertEquals(storage.runCredentialsMaxSeconds(), Integer.valueOf(3600));
+        assertTrue(validator.validate(config).isEmpty());
+    }
+
+    // through compute's S3 interface endpoint on AWS (spec 0013): an endpoint for S3, and AWS's own STS
+    @Test
+    public void s3StorageOnAwsThroughAnInterfaceEndpoint() {
+        Map<String, Object> properties = validS3Connection();
+        properties.remove(PREFIX + "storage.sts-endpoint");
+        properties.remove(PREFIX + "storage.access-key-id-env");
+        properties.remove(PREFIX + "storage.secret-access-key-env");
+        properties.put(PREFIX + "storage.endpoint", "https://bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com");
+        ComputeConfig config = bind(properties);
+
+        assertEquals(config.connections().get("c1").storage().stsEndpoint(), null);
         assertTrue(validator.validate(config).isEmpty());
     }
 

@@ -2,8 +2,8 @@
 The local compute connection (nextflow-funnel-kubernetes-local), as YAML: Nextflow Jobs and Funnel in this
 release's compute namespace, with run storage in the S3-compatible RustFS (templates/apps/rustfs/, spec 0012):
 core-api's own RustFS user, from refcloud-compute-s3-core-api in its environment, and STS credentials limited to each
-run's prefix for its Nextflow Job. RustFS issues those for core-api's user itself and ignores the role ARN (any
-well-formed one does), for up to 12 hours. Read with fromYaml by templates/common/compute-connections.yaml (the
+run's prefix for its Nextflow Job. RustFS issues those at its own address (sts-endpoint), for core-api's user itself,
+and ignores the role ARN (any well-formed one does), for up to 12 hours. Read with fromYaml by templates/common/compute-connections.yaml (the
 connections file), templates/common/compute-resource-quota.yaml (the quota is computed from its limits),
 templates/common/compute-limit-range.yaml and Funnel's config.
 
@@ -27,6 +27,7 @@ platform registered on it (scripts/refcloud-run-helm.sh) sets no per-user limits
         "bucket" (include "refcloud.localComputeBucket" .)
         "region" "us-east-1"
         "endpoint" (printf "http://rustfs.%s.svc.cluster.local:9000" .Release.Namespace)
+        "sts-endpoint" (printf "http://rustfs.%s.svc.cluster.local:9000" .Release.Namespace)
         "path-style-access" true
         "access-key-id-env" "REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID"
         "secret-access-key-env" "REFCLOUD_COMPUTE_S3_SECRET_ACCESS_KEY"
@@ -81,8 +82,9 @@ The versions must match the Nextflow image's (compute/images/nextflow/Dockerfile
 The AWS compute connection (nextflow-funnel-kubernetes-aws; spec 0013), as YAML, from ga4gh.referenceCloud.compute.aws
 (values the infra repo's Terraform outputs): Nextflow Jobs and Funnel in this release's compute namespace, with run
 storage in an S3 bucket, reached through compute's private S3 endpoint (path-style). core-api uses its own role through
-EKS Pod Identity (no keys), and gives each run's Nextflow Job credentials limited to its prefix from the run role: on
-AWS, roles assumed from core-api's own session last at most an hour. The engine's size and the limits are the values'
+EKS Pod Identity (no keys), and gives each run's Nextflow Job credentials limited to its prefix from the run role,
+through AWS's regional STS (no sts-endpoint: the S3 endpoint serves only S3): on AWS, roles assumed from core-api's own
+session last at most an hour. The engine's size and the limits are the values'
 (kebab-case, as in a connection), the rest as the local connection.
 */}}
 {{- define "refcloud.awsComputeConnection" -}}

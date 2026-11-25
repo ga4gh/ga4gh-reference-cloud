@@ -672,6 +672,48 @@ Built 2026-11-25:
 
 **Decisions (Task 8):**
 
+Agreed 2026-11-25:
+1. **The platform is `nextflow-aws-us-east-2`, named "Nextflow on AWS (us-east-2)"** (the user, 2026-11-25). There's no "demo" in it, since it will be production's too.
+   * It's a `nextflow-funnel-kubernetes` platform: a platform record on the `nextflow-funnel-kubernetes-aws` connection, which gives it its type.
+   * **Visas are named after the ID, so it's permanent once researchers hold them.** It names only what stays true for the platform's life:
+     * the workflow engine researchers choose (Nextflow);
+     * the cloud and region, which say where runs happen and their files sit, and leave room for platforms elsewhere. Moving region would be a new platform anyway.
+   * **Left out:**
+     * Funnel, an implementation choice behind the platform's TES API (researchers submit through WES and only read TES), so replacing it wouldn't change the platform;
+     * Kubernetes;
+     * the owning organization, already in the URL's domain, in service-info's IDs (`org.ga4gh.refcloud.wes.<id>.<suffix>`) and in its `organization`. Platforms run by other organizations, if the catalog ever lists them (discussion 0001), could carry their own prefix.
+   * Production registers the same ID, so WES URLs (`/ga4gh/wes/nextflow-aws-us-east-2/v1`) and visa names (`ga4gh_visa:compute_platform:nextflow-aws-us-east-2`) match across environments.
+2. **Per-user limits:** only a monthly cap of 10 core-hours per researcher, as helm mode's demo platform has. Everything else follows the connection's limits.
+3. **The platform stays enabled after Task 8.** Access needs an approved visa.
+   * **Idle cost:** compute nodes exist only while a run's pods need them. Auto Mode starts one only for a pod tolerating the compute pool's taint, and the spike saw it go about 5 minutes after the last pod ended. A run's deadline bounds a stuck pod, and the pool's cap the worst case.
+   * **Always-on costs:** the private S3 endpoint (about $22 a month), Funnel's server (a small pod on the general pool), its 1 GiB database volume, and core-api's health check objects.
+4. **Planned:**
+   * staging's values get the new image tag and the compute block (namespace, storage class, node pool, and the Terraform output's bucket, run role and endpoint);
+   * a server-side dry run, then the upgrade;
+   * the platform registered with the bundled `drs-checksum` allowlisted; the user's staging account requests access, and it's approved with the admin CLI;
+   * the demo script builds its DRS input from the target deployment's host (it used the local one), and also tries the AWS platform's ID;
+   * the end-to-end checks as a runbook. The budget check becomes a check that the compute nodes carry the `Project` and `Component` tags (Task 4, decision 6: no refcloud-only budget).
+5. **Written 2026-11-25:**
+   * **staging's values** (private values repo): image tag `v0.1.0-71-g4901114`, and the compute block: the compute namespace, `ebs-gp3`, the staging node pool's label and toleration, and the bucket, region, run role and private endpoint (URL and addresses) from the Terraform output. The engine's size and the limits are the chart's defaults. The chart renders with it;
+   * **the demo script:** pointed at another deployment, it now submits that deployment's own copy of the demo object (`drs://<its host>/…`; it used the local host), and without `-p` it also tries `nextflow-aws-us-east-2` (`AWS_COMPUTE_PLATFORM_ID` in `scripts/lib/common.sh`);
+   * **the runbook,** in my session's scratchpad, run by the user:
+     * deploy (server-side dry run first) and check the compute namespace;
+     * register and enable the platform; the user's access;
+     * the demo, the bucket's files and the compute nodes' tags;
+     * a run's credentials from inside its Job (a script that waits for the Job; status codes only);
+     * cancel, and a core-api restart mid-run;
+     * the network policies from stand-in pods: each component's label and none, every allowed and refused connection, including Service addresses (decision 2 of Task 7);
+     * the kill switch, and the compute node going away.
+
+Staging, 2026-11-25:
+
+6. **Found on the first deploy: the platform was unhealthy, because core-api sent STS requests to the S3 endpoint.**
+   * **What happened:** the deploy and the registration went through, but the connection's health check failed: `could not issue the run's storage credentials: (Service: Sts, Status Code: 400)`, with no message. The S3 half of the check had passed: the probe object was written, read and deleted through the private endpoint, with core-api's Pod Identity role.
+   * **The cause:** `RunStorages.stsClient` overrode STS's endpoint with the storage `endpoint` whenever a connection named one. That was right for RustFS, which takes STS requests at its S3 address. On AWS the endpoint is now the S3 interface endpoint (decision 5), which answers an AssumeRole request with an S3 error the SDK can't read.
+   * **Fixed:** a separate, optional `sts-endpoint` connection setting. STS goes there when it's set, and otherwise to AWS's regional STS; never to the storage endpoint. The chart's local connection sets it to RustFS's address, so local behaviour is unchanged; the AWS connection leaves it unset.
+   * **Tests:** a connection through an interface endpoint binds and validates, with no `sts-endpoint`. The S3 client goes to the endpoint and the STS client to AWS's own, or to RustFS's when it's named. 329 tests and `./gradlew staticAnalysis` pass; the chart renders and passes lint and kubeconform with both sets of values.
+   * **Next:** a new image (commit and push), staging's image tag, and the runbook again from the deploy. The platform is already registered.
+
 ### Task 9: Docs and the rollout spec
 
 * `deploy/helm/README.md` (Remote Deployment: the setup Job, compute on AWS, the new values) and `deploy/helm/CLAUDE.md`.

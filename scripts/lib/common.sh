@@ -38,6 +38,8 @@ TLS_CERT_DIR="./deploy/helm/.certs"
 KUBERNETES_COMPUTE_NAMESPACE="$HELM_RELEASE-compute"
 KUBERNETES_COMPUTE_CONNECTION_KEY="nextflow-funnel-kubernetes-local"
 KUBERNETES_COMPUTE_PLATFORM_ID="nextflow-demo-kubernetes"
+# the AWS deployments' platform (staging and production register it by hand, spec 0013): the demo script tries it too
+AWS_COMPUTE_PLATFORM_ID="nextflow-aws-us-east-2"
 # secrets the helm chart expects, deleted on --reset. refcloud-db-admin is Postgres's admin login, which the chart's
 # setup Jobs use to check the databases and roles (deploy/helm/setup)
 K8S_SECRETS=(
