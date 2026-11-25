@@ -622,6 +622,37 @@ Nothing changes locally.
 
 **Decisions (Task 7):**
 
+Agreed 2026-11-25:
+* **Not questions** (settled by the spike, Task 5, and Task 6):
+  * the Nextflow Jobs: core-api's TES API, and the S3 endpoint's addresses on 443; no DNS;
+  * Funnel's workers: Funnel's server (RPC), the endpoint's addresses, the Pod Identity agent (`169.254.170.23:80`), the Kubernetes API and DNS;
+  * Funnel's server: the Kubernetes API and DNS;
+  * the executors: nothing;
+  * the Kubernetes API and DNS rules name both address forms, so they work under Calico and EKS alike: the `kubernetes` Service's cluster IP and the API server's own addresses, and CoreDNS's address next to kube-dns's pods;
+  * core-api accepts the Nextflow Jobs whenever compute is on. RustFS's rules stay local only;
+  * the outgoing allowlist works the same on AWS;
+  * the template's header table covers both modes.
+1. **CoreDNS's address is derived when the chart is deployed:** the `.10` of the `kubernetes` Service's cluster IP, the service range's `.1`, which the chart already looks up. It's right in minikube too (kube-dns is `10.96.0.10`), and needs no new value.
+2. **Whether rules on pods also cover traffic to their Service's address** (Nextflow → core-api, workers → Funnel's server) is checked in Task 8, which deploys these policies to staging anyway. If it fails, the fallback is a rule on each Service's cluster IP, looked up when the chart is deployed: a chart change only, no new images.
+
+Built 2026-11-25:
+
+3. **The compute namespace's policies render whenever compute is on** (`networkPolicy.enabled` and `refcloud.computeEnabled`), not only locally:
+   * **`refcloud.computeClusterAddresses`** looks up, when the chart is deployed, the `kubernetes` Service's cluster IP and port, the API server's own addresses and ports (its EndpointSlices, as before), and CoreDNS's address (the cluster IP's `.10`; IPv4 only). A deploy that reaches a cluster but finds no API server fails, as before;
+   * **the API and DNS rules name both forms** (`refcloud.computeEgressToKubernetesApi`, `refcloud.computeEgressToDns`): the Service's address and the API server's, kube-dns's pods and CoreDNS's address;
+   * **`refcloud.computeEgressToRunStorage`:** RustFS locally, or the endpoint's addresses on 443 on AWS, for the Nextflow Jobs and the workers;
+   * **the workers** may also reach the Pod Identity agent on AWS;
+   * **core-api** accepts the Nextflow Jobs whenever compute is on;
+   * **the header table** covers both modes.
+4. **Checked:**
+   * **against minikube:** rendered with real lookups (`helm template --dry-run=server`), the derived DNS address is kube-dns's actual address (`10.96.0.10`). The API rules name the Service (`10.96.0.1:443`) and the API server (`192.168.49.2:8443`);
+   * **locally:** without lookups, the policies are identical to before, comments aside. With lookups they only gain the extra address forms, so local behaviour can only allow more;
+   * **the AWS render:** the Nextflow Jobs reach only core-api and the endpoint's three addresses (no DNS); the workers reach Funnel's server, the endpoint, the Pod Identity agent, the API and DNS;
+   * **static analysis:** `./scripts/refcloud-static-analysis-helm.sh` passes with both sets of values (the AWS render now has 49 resources);
+   * **docs:** `deploy/helm/CLAUDE.md`.
+
+   Still to check on EKS, in Task 8: decision 2, and the whole compute stack under these policies.
+
 ### Task 8: Compute in staging, end to end
 
 * **Deploy:** staging's values get the AWS connection, the compute namespace and the compute service info.

@@ -6,8 +6,8 @@ isn't restricted.
   to                          from
   refcloud-ui :3000           the ingress
   refcloud-docs :8080         the ingress
-  refcloud-api :8080          the ingress, refcloud-ui, kratos (registration webhook), and locally the Nextflow
-                              Jobs in the compute namespace (its TES API, through the engine callback URL)
+  refcloud-api :8080          the ingress, refcloud-ui, kratos (registration webhook), and when compute is on the
+                              Nextflow Jobs in the compute namespace (its TES API, through the engine callback URL)
   kratos :4433 (public)       the ingress, refcloud-ui, refcloud-api
   kratos :4434 (admin)        nothing (health probes only)
   hydra :4444 (public)        the ingress, refcloud-ui, refcloud-api (signing keys)
@@ -82,7 +82,7 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: kratos
-        {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+        {{- if include "refcloud.computeEnabled" . }}
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ include "refcloud.computeNamespace" . }}

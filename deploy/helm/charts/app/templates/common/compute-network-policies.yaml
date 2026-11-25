@@ -1,53 +1,41 @@
 {{- /*
-The compute namespace's NetworkPolicies (local only, like the namespace): everything is denied, in and out, then each
-part of the compute stack gets only what it needs (spec 0011, Tasks 1 and 6).
+The compute namespace's NetworkPolicies, whenever compute is on (refcloud.computeEnabled): everything is denied, in
+and out, then each part of the compute stack gets only what it needs (spec 0011, Tasks 1 and 6; on AWS, spec 0013).
 
   pod (app.kubernetes.io/name)   accepts                                    sends to
   funnel                         core-api (TES, 8000), workers (RPC, 9090)  the Kubernetes API, DNS
-  funnel-worker                  nothing                                    funnel (RPC, 9090), RustFS (9000), the
-                                                                            Kubernetes API, DNS
-  refcloud-nextflow              nothing                                    core-api (8080) and RustFS (9000): no
-                                                                            DNS
+  funnel-worker                  nothing                                    funnel (RPC, 9090), the run storage, the
+                                                                            Kubernetes API, DNS; on AWS the Pod
+                                                                            Identity agent
+  refcloud-nextflow              nothing                                    core-api (8080) and the run storage: no DNS
   funnel-executor                nothing                                    nothing
   anything else                  nothing                                    nothing
 
-RustFS (run storage, spec 0012) is in the release namespace; its own policy, accepting these, is in
-network-policies.yaml.
+The run storage is RustFS locally (spec 0012), in the release namespace: its own policy, accepting these, is in
+network-policies.yaml. On AWS it's compute's private S3 endpoint (spec 0013), at its fixed addresses
+(ga4gh.referenceCloud.compute.aws.s3EndpointIps). The Nextflow Jobs reach it by its name, pinned in their /etc/hosts;
+the workers look it up.
 
 The workflow pods (refcloud-nextflow and funnel-executor, where workflow code runs) can also reach the destinations in
 ga4gh.referenceCloud.compute.outgoingAllowlist, and DNS, when it isn't empty. Otherwise they get no DNS: lookups of
-made-up names would carry data out through kube-dns, which passes them to the internet. core-api gives Nextflow its
-own address rather than its name, and pins the run storage endpoint's name in the Job's /etc/hosts
-(NextflowKubernetesEngine), so Nextflow needs none.
+made-up names would carry data out through the cluster's DNS, which passes them to the internet (on EKS too: its
+DNS-based policies limit connections, not lookups; spec 0013, Task 5). core-api gives Nextflow its own address rather
+than its name, and pins the run storage endpoint's name in the Job's /etc/hosts (NextflowKubernetesEngine), so Nextflow
+needs none. Funnel's workers keep DNS: they find Funnel's server by its name, and look up only names Funnel chooses.
 
-Policies see the Kubernetes API at the API server's own address and port (after the kubernetes Service's
-translation), which the chart looks up when it's deployed. `helm template` can't look anything up, so it renders no
-API rule; a deploy that finds no API server fails.
+The Kubernetes API and DNS rules name each destination in both forms network plugins match (refcloud.computeEgressTo*
+in _compute.tpl): Calico, minikube's, matches a Service's traffic after its translation; EKS's policy agent matches the
+address the pod connects to. Their addresses are looked up when the chart is deployed
+(refcloud.computeClusterAddresses): `helm template` can't look anything up, so it renders them without addresses, and a
+deploy that reaches a cluster but finds no API server fails.
 
 Traffic from the node (kubelet health probes) is always allowed. core-api's side, accepting the Nextflow Jobs, is in
 network-policies.yaml.
 */}}
-{{- if and .Values.networkPolicy.enabled (eq .Values.ga4gh.referenceCloud.cloudEnvironment "local") }}
+{{- if and .Values.networkPolicy.enabled (include "refcloud.computeEnabled" .) }}
 {{- $namespace := include "refcloud.computeNamespace" . }}
 {{- $allowlist := .Values.ga4gh.referenceCloud.compute.outgoingAllowlist }}
-{{- /* the API server's addresses and ports, from the kubernetes Service's EndpointSlices */}}
-{{- $apiPeers := list }}
-{{- $apiPorts := list }}
-{{- range (lookup "discovery.k8s.io/v1" "EndpointSlice" "default" "").items }}
-{{- if eq (dig "metadata" "labels" "kubernetes.io/service-name" "" .) "kubernetes" }}
-{{- range .endpoints }}
-{{- range .addresses }}
-{{- $apiPeers = append $apiPeers (dict "ipBlock" (dict "cidr" (printf "%s/%s" . (ternary "128" "32" (contains ":" .))))) }}
-{{- end }}
-{{- end }}
-{{- range .ports }}
-{{- $apiPorts = append $apiPorts (dict "protocol" (.protocol | default "TCP") "port" .port) }}
-{{- end }}
-{{- end }}
-{{- end }}
-{{- if and (not $apiPeers) (lookup "v1" "Namespace" "" "default") }}
-{{- fail "the Kubernetes API server's address wasn't found (EndpointSlices of the kubernetes Service in the default namespace): the compute namespace's NetworkPolicies need it" }}
-{{- end }}
+{{- $addresses := include "refcloud.computeClusterAddresses" . | fromYaml }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -92,10 +80,10 @@ spec:
         - protocol: TCP
           port: 9090
   egress:
-    {{- with include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPeers "ports" $apiPorts) }}
-    {{- . | nindent 4 }}
+    {{- with include "refcloud.computeEgressToKubernetesApi" $addresses }}
+    {{- . | trim | nindent 4 }}
     {{- end }}
-    {{- include "refcloud.computeEgressToDns" . | nindent 4 }}
+    {{- include "refcloud.computeEgressToDns" $addresses | trim | nindent 4 }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -116,11 +104,20 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
-    {{- include "refcloud.computeEgressToRustfs" . | nindent 4 }}
-    {{- with include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPeers "ports" $apiPorts) }}
-    {{- . | nindent 4 }}
+    {{- include "refcloud.computeEgressToRunStorage" . | trim | nindent 4 }}
+    {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
+    # the EKS Pod Identity agent on the node: the credentials of Funnel's workers' role (spec 0013)
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80
     {{- end }}
-    {{- include "refcloud.computeEgressToDns" . | nindent 4 }}
+    {{- with include "refcloud.computeEgressToKubernetesApi" $addresses }}
+    {{- . | trim | nindent 4 }}
+    {{- end }}
+    {{- include "refcloud.computeEgressToDns" $addresses | trim | nindent 4 }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -145,7 +142,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    {{- include "refcloud.computeEgressToRustfs" . | nindent 4 }}
+    {{- include "refcloud.computeEgressToRunStorage" . | trim | nindent 4 }}
 {{- if $allowlist }}
 ---
 # the outgoing allowlist, for the workflow pods
@@ -166,6 +163,6 @@ spec:
     - Egress
   egress:
     {{- toYaml $allowlist | nindent 4 }}
-    {{- include "refcloud.computeEgressToDns" . | nindent 4 }}
+    {{- include "refcloud.computeEgressToDns" $addresses | trim | nindent 4 }}
 {{- end }}
 {{- end }}

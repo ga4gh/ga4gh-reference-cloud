@@ -164,21 +164,89 @@ the compute namespace's ResourceQuota and LimitRange, and Funnel's config. Only 
 
 {{/*
 Egress rules for the compute namespace's NetworkPolicies (templates/common/compute-network-policies.yaml), as YAML
-list items. The Kubernetes API rule renders nothing without peers (helm template).
-Usage: {{- include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPeers "ports" $apiPorts) | nindent 4 }}
+list items.
+
+The Kubernetes API and DNS rules name each destination in both of the forms network plugins match, so the same rules
+work everywhere: Calico (minikube) matches traffic to a Service after its translation, at the pods or addresses behind
+it; EKS's policy agent matches the address the pod connects to (spec 0013, Task 5). Their addresses are looked up when
+the chart is deployed ("addresses": refcloud.computeClusterAddresses); `helm template` can't look anything up, so it
+renders the rules without them.
+*/}}
+
+{{/*
+The cluster addresses the rules below need, looked up when the chart is deployed, as YAML:
+  * apiService, apiServicePorts: the kubernetes Service's cluster IP (as NetworkPolicy peers) and ports;
+  * apiServer, apiServerPorts: the API server's own addresses and ports, from that Service's EndpointSlices;
+  * coreDns: CoreDNS's address on EKS Auto Mode, the .10 of the service range (the kubernetes Service is its .1), which
+    is also kube-dns's address in minikube. IPv4 clusters only.
+Fails on a deploy that reaches a cluster but finds no API server: the compute pods that need it couldn't reach it.
+*/}}
+{{- define "refcloud.computeClusterAddresses" -}}
+{{- $addresses := dict "apiService" (list) "apiServicePorts" (list) "apiServer" (list) "apiServerPorts" (list) "coreDns" (list) }}
+{{- with lookup "v1" "Service" "default" "kubernetes" }}
+{{- $clusterIP := .spec.clusterIP }}
+{{- $ipv6 := contains ":" $clusterIP }}
+{{- $_ := set $addresses "apiService" (list (dict "ipBlock" (dict "cidr" (printf "%s/%s" $clusterIP (ternary "128" "32" $ipv6))))) }}
+{{- $ports := list }}
+{{- range .spec.ports }}
+{{- $ports = append $ports (dict "protocol" (.protocol | default "TCP") "port" .port) }}
+{{- end }}
+{{- $_ := set $addresses "apiServicePorts" $ports }}
+{{- if not $ipv6 }}
+{{- $_ := set $addresses "coreDns" (list (dict "ipBlock" (dict "cidr" (printf "%s.10/32" (regexReplaceAll "\\.[0-9]+$" $clusterIP ""))))) }}
+{{- end }}
+{{- end }}
+{{- $servers := list }}
+{{- $serverPorts := list }}
+{{- range (lookup "discovery.k8s.io/v1" "EndpointSlice" "default" "").items }}
+{{- if eq (dig "metadata" "labels" "kubernetes.io/service-name" "" .) "kubernetes" }}
+{{- range .endpoints }}
+{{- range .addresses }}
+{{- $servers = append $servers (dict "ipBlock" (dict "cidr" (printf "%s/%s" . (ternary "128" "32" (contains ":" .))))) }}
+{{- end }}
+{{- end }}
+{{- range .ports }}
+{{- $serverPorts = append $serverPorts (dict "protocol" (.protocol | default "TCP") "port" .port) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $_ := set $addresses "apiServer" $servers }}
+{{- $_ := set $addresses "apiServerPorts" $serverPorts }}
+{{- if and (not (and $addresses.apiService $servers)) (lookup "v1" "Namespace" "" "default") }}
+{{- fail "the Kubernetes API's addresses weren't found (the kubernetes Service in the default namespace, and its EndpointSlices): the compute namespace's NetworkPolicies need them" }}
+{{- end }}
+{{- toYaml $addresses }}
+{{- end -}}
+
+{{/*
+The Kubernetes API, at the kubernetes Service's address (EKS) and at the API server's own (Calico). Nothing without
+addresses (helm template).
+Usage: {{- include "refcloud.computeEgressToKubernetesApi" $addresses | nindent 4 }}
 */}}
 {{- define "refcloud.computeEgressToKubernetesApi" -}}
-{{- if .peers }}
-# the Kubernetes API server
+{{- if .apiService }}
+# the Kubernetes API, at the kubernetes Service's address
 - to:
-    {{- toYaml .peers | nindent 4 }}
+    {{- toYaml .apiService | nindent 4 }}
   ports:
-    {{- toYaml .ports | nindent 4 }}
+    {{- toYaml .apiServicePorts | nindent 4 }}
+{{- end }}
+{{- if .apiServer }}
+# the Kubernetes API, at the API server's own addresses
+- to:
+    {{- toYaml .apiServer | nindent 4 }}
+  ports:
+    {{- toYaml .apiServerPorts | nindent 4 }}
 {{- end }}
 {{- end -}}
 
+{{/*
+DNS: kube-dns's pods (minikube), and CoreDNS's address (EKS Auto Mode runs CoreDNS on every node, with no kube-dns pods
+or Service; the address is left out without a cluster to look it up in).
+Usage: {{- include "refcloud.computeEgressToDns" $addresses | nindent 4 }}
+*/}}
 {{- define "refcloud.computeEgressToDns" -}}
-# DNS (kube-dns)
+# DNS
 - to:
     - namespaceSelector:
         matchLabels:
@@ -186,6 +254,9 @@ Usage: {{- include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPee
       podSelector:
         matchLabels:
           k8s-app: kube-dns
+    {{- with .coreDns }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   ports:
     - protocol: UDP
       port: 53
@@ -193,8 +264,24 @@ Usage: {{- include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPee
       port: 53
 {{- end -}}
 
-{{- define "refcloud.computeEgressToRustfs" -}}
-# RustFS, the run storage, in the release namespace (spec 0012)
+{{/*
+The run storage: RustFS in the release namespace locally (spec 0012); on AWS, compute's private S3 endpoint at its
+fixed addresses (ga4gh.referenceCloud.compute.aws.s3EndpointIps; spec 0013).
+Usage: {{- include "refcloud.computeEgressToRunStorage" . | nindent 4 }}
+*/}}
+{{- define "refcloud.computeEgressToRunStorage" -}}
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "aws" }}
+# the run storage: compute's private S3 endpoint
+- to:
+    {{- range .Values.ga4gh.referenceCloud.compute.aws.s3EndpointIps }}
+    - ipBlock:
+        cidr: {{ . }}/32
+    {{- end }}
+  ports:
+    - protocol: TCP
+      port: 443
+{{- else }}
+# the run storage: RustFS, in the release namespace
 - to:
     - namespaceSelector:
         matchLabels:
@@ -205,4 +292,5 @@ Usage: {{- include "refcloud.computeEgressToKubernetesApi" (dict "peers" $apiPee
   ports:
     - protocol: TCP
       port: 9000
+{{- end }}
 {{- end -}}
