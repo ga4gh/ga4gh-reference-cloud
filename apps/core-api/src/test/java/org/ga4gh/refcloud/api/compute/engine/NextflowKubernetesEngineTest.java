@@ -46,7 +46,10 @@ public class NextflowKubernetesEngineTest {
             ComputeConfig.ImagePullPolicy.NEVER,
             "refcloud-compute",
             2,
-            new BigDecimal("1.5"));
+            new BigDecimal("1.5"),
+            null,
+            null,
+            null);
 
     private static final ComputeConfig.Connection CONNECTION =
             new ComputeConfig.Connection(ComputePlatformType.NEXTFLOW_FUNNEL_KUBERNETES, ENGINE, null, null, null);
@@ -67,7 +70,8 @@ public class NextflowKubernetesEngineTest {
         return NextflowKubernetesEngine.job(run(), CONNECTION, Duration.ofMinutes(2));
     }
 
-    // a run on S3 storage (spec 0012): its location is a prefix, and RustFS's endpoint is reached by its address
+    // a run on S3 storage (spec 0012): its location is a prefix, and RustFS's endpoint keeps its name, which the Job's
+    // /etc/hosts pins to the address core-api resolves it to
     private static final String S3_RUN = "s3://refcloud-compute/ref/runs/" + RUN_ID;
 
     private static final ComputeConfig.Storage RUSTFS = new ComputeConfig.Storage(
@@ -97,10 +101,13 @@ public class NextflowKubernetesEngineTest {
     }
 
     @Test
-    public void s3RunsReachTheirPrefixByAddress() throws IOException {
+    public void s3RunsReachTheirEndpointByItsPinnedName() throws IOException {
         NextflowKubernetesEngine.S3Access access = s3Access(RUSTFS);
 
-        assertEquals(access.runUrl(), "http://10.96.0.9:9000/refcloud-compute/ref/runs/" + RUN_ID);
+        assertEquals(access.runUrl(), "http://rustfs.refcloud-compute.svc:9000/refcloud-compute/ref/runs/" + RUN_ID);
+        assertEquals(
+                access.hostAlias(),
+                Optional.of(new NextflowKubernetesEngine.HostAlias("10.96.0.9", "rustfs.refcloud-compute.svc")));
         assertEquals(access.files().directory(), "/refcloud/run");
         assertEquals(access.files().workflow(), "/refcloud/run/workflow");
         assertEquals(access.files().workDir(), S3_RUN + "/work");
@@ -108,7 +115,7 @@ public class NextflowKubernetesEngineTest {
         assertEquals(
                 access.nextflowConfig(),
                 "aws.region = 'us-east-1'\n"
-                        + "aws.client.endpoint = 'http://10.96.0.9:9000'\n"
+                        + "aws.client.endpoint = 'http://rustfs.refcloud-compute.svc:9000'\n"
                         + "aws.client.s3PathStyleAccess = true\n");
         // a run on a shared filesystem has none
         assertTrue(
@@ -135,6 +142,57 @@ public class NextflowKubernetesEngineTest {
 
         assertEquals(access.runUrl(), "https://refcloud-compute.s3.ca-central-1.amazonaws.com/ref/runs/" + RUN_ID);
         assertEquals(access.nextflowConfig(), "aws.region = 'ca-central-1'\n");
+        assertEquals(access.hostAlias(), Optional.empty());
+    }
+
+    // through an S3 interface endpoint (spec 0013): its name stays in every URL, since its TLS certificate names it,
+    // and the Job's /etc/hosts pins it to one of its addresses. path-style, as Funnel's workers reach it
+    @Test
+    public void s3RunsThroughAnInterfaceEndpointKeepItsNameForTls() throws IOException {
+        ComputeConfig.Storage endpoint = new ComputeConfig.Storage(
+                ComputeConfig.StorageType.S3,
+                null,
+                "refcloud-compute",
+                null,
+                "us-east-2",
+                java.net.URI.create("https://bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com"),
+                true,
+                null,
+                null,
+                "arn:aws:iam::123456789012:role/refcloud-compute-run",
+                null);
+        ComputeRun run = s3Run();
+        run.setRunDirectory("s3://refcloud-compute/runs/" + RUN_ID);
+        run.setWorkflowPath("s3://refcloud-compute/runs/" + RUN_ID + "/workflow");
+
+        NextflowKubernetesEngine.S3Access access = NextflowKubernetesEngine.s3Access(
+                        run, endpoint, host -> InetAddress.getByAddress(host, new byte[] {10, 0, 11, (byte) 250}))
+                .orElseThrow();
+
+        assertEquals(
+                access.runUrl(),
+                "https://bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com/refcloud-compute/runs/" + RUN_ID);
+        assertEquals(
+                access.hostAlias(),
+                Optional.of(new NextflowKubernetesEngine.HostAlias(
+                        "10.0.11.250", "bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com")));
+        assertEquals(
+                access.nextflowConfig(),
+                "aws.region = 'us-east-2'\n"
+                        + "aws.client.endpoint = 'https://bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com'\n"
+                        + "aws.client.s3PathStyleAccess = true\n");
+    }
+
+    // an endpoint given as an address needs no /etc/hosts entry, nor a lookup
+    @Test
+    public void s3EndpointGivenAsAnAddressNeedsNoAlias() throws IOException {
+        NextflowKubernetesEngine.Resolver unused = host -> {
+            throw new UnknownHostException(host);
+        };
+
+        assertEquals(NextflowKubernetesEngine.hostAlias("10.96.0.9", unused), Optional.empty());
+        assertEquals(NextflowKubernetesEngine.hostAlias("[fd00::9]", unused), Optional.empty());
+        expectThrows(UnknownHostException.class, () -> NextflowKubernetesEngine.hostAlias("rustfs.nowhere", unused));
     }
 
     @Test
@@ -168,7 +226,13 @@ public class NextflowKubernetesEngineTest {
                         variable.at("/valueFrom/secretKeyRef/key").asString());
             }
         }
-        assertEquals(values.get("REFCLOUD_RUN_URL"), "http://10.96.0.9:9000/refcloud-compute/ref/runs/" + RUN_ID);
+        assertEquals(
+                values.get("REFCLOUD_RUN_URL"),
+                "http://rustfs.refcloud-compute.svc:9000/refcloud-compute/ref/runs/" + RUN_ID);
+        // the endpoint's name, pinned: the Job has no DNS
+        assertEquals(pod.at("/hostAliases/0/ip").asString(), "10.96.0.9");
+        assertEquals(pod.at("/hostAliases/0/hostnames/0").asString(), "rustfs.refcloud-compute.svc");
+        assertEquals(pod.path("hostAliases").size(), 1);
         assertEquals(values.get("REFCLOUD_LOG_SYNC_SECONDS"), "15");
         assertEquals(values.get("AWS_REGION"), "us-east-1");
         assertEquals(values.get("AWS_EC2_METADATA_DISABLED"), "true");
@@ -246,6 +310,62 @@ public class NextflowKubernetesEngineTest {
         assertFalse(container.at("/securityContext/allowPrivilegeEscalation").asBoolean(true));
         assertTrue(container.at("/securityContext/readOnlyRootFilesystem").asBoolean());
         assertEquals(container.at("/securityContext/capabilities/drop/0").asString(), "ALL");
+    }
+
+    // a connection that names no nodes or SELinux level: the Job may run anywhere, but is never moved once running
+    @Test
+    public void jobWithoutPlacementRunsAnywhereButIsNeverMoved() {
+        JsonNode template = job().at("/spec/template");
+        JsonNode pod = template.path("spec");
+
+        assertEquals(
+                template.at("/metadata/annotations/karpenter.sh~1do-not-disrupt")
+                        .asString(),
+                "true");
+        assertTrue(pod.path("nodeSelector").isMissingNode());
+        assertTrue(pod.path("tolerations").isMissingNode());
+        assertTrue(pod.at("/securityContext/seLinuxOptions").isMissingNode());
+        // and on a shared filesystem, no storage endpoint to pin
+        assertTrue(pod.path("hostAliases").isMissingNode());
+    }
+
+    // a connection kept to a node pool (spec 0013): the Job goes only there, with the level its task pods share
+    @Test
+    public void jobRunsOnTheConnectionsNodesWithItsSelinuxLevel() {
+        ComputeConfig.Engine placed = new ComputeConfig.Engine(
+                null,
+                "26.10.5",
+                "1.5.0",
+                "refcloud-nextflow:v1",
+                null,
+                "refcloud-compute",
+                null,
+                null,
+                List.of(new ComputeConfig.NodeLabel("refcloud.ga4gh.org/compute", "staging")),
+                List.of(
+                        new ComputeConfig.Toleration("refcloud.ga4gh.org/compute", "Equal", "staging", "NoSchedule"),
+                        new ComputeConfig.Toleration("example.com/any", "Exists", null, null)),
+                "s0:c123,c456");
+        JsonNode pod = NextflowKubernetesEngine.job(
+                        run(),
+                        new ComputeConfig.Connection(
+                                ComputePlatformType.NEXTFLOW_FUNNEL_KUBERNETES, placed, null, null, null),
+                        Duration.ofMinutes(2))
+                .at("/spec/template/spec");
+
+        assertEquals(pod.path("nodeSelector").size(), 1);
+        assertEquals(pod.at("/nodeSelector/refcloud.ga4gh.org~1compute").asString(), "staging");
+        assertEquals(pod.path("tolerations").size(), 2);
+        assertEquals(pod.at("/tolerations/0/key").asString(), "refcloud.ga4gh.org/compute");
+        assertEquals(pod.at("/tolerations/0/operator").asString(), "Equal");
+        assertEquals(pod.at("/tolerations/0/value").asString(), "staging");
+        assertEquals(pod.at("/tolerations/0/effect").asString(), "NoSchedule");
+        // unset fields are left out, as kubernetes reads them
+        assertEquals(pod.at("/tolerations/1/operator").asString(), "Exists");
+        assertTrue(pod.at("/tolerations/1/value").isMissingNode());
+        assertTrue(pod.at("/tolerations/1/effect").isMissingNode());
+        assertEquals(pod.at("/securityContext/seLinuxOptions/level").asString(), "s0:c123,c456");
+        assertEquals(pod.at("/securityContext/seLinuxOptions").size(), 1);
     }
 
     @Test
@@ -449,10 +569,10 @@ public class NextflowKubernetesEngineTest {
 
     @Test
     public void engineSettingsMustMatchTheType() {
-        ComputeConfig.Engine docker =
-                new ComputeConfig.Engine("nextflow", "26.10.5", "1.5.0", null, null, null, null, null);
-        ComputeConfig.Engine noNamespace =
-                new ComputeConfig.Engine(null, "26.10.5", "1.5.0", "image:v1", null, null, null, null);
+        ComputeConfig.Engine docker = new ComputeConfig.Engine(
+                "nextflow", "26.10.5", "1.5.0", null, null, null, null, null, null, null, null);
+        ComputeConfig.Engine noNamespace = new ComputeConfig.Engine(
+                null, "26.10.5", "1.5.0", "image:v1", null, null, null, null, null, null, null);
 
         assertTrue(connection(ComputePlatformType.NEXTFLOW_FUNNEL_KUBERNETES, ENGINE)
                 .isEngineValidForType());
@@ -468,8 +588,8 @@ public class NextflowKubernetesEngineTest {
 
     @Test
     public void engineDefaultsSizeTheJob() {
-        ComputeConfig.Engine defaults =
-                new ComputeConfig.Engine(null, "26.10.5", "1.5.0", "image:v1", null, "ns", null, null);
+        ComputeConfig.Engine defaults = new ComputeConfig.Engine(
+                null, "26.10.5", "1.5.0", "image:v1", null, "ns", null, null, null, null, null);
 
         assertEquals(defaults.cpuCores(), Integer.valueOf(1));
         assertEquals(defaults.memoryGb(), BigDecimal.ONE);

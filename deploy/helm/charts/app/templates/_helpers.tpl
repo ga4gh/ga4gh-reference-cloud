@@ -69,10 +69,57 @@ securityContext:
 
 {{/*
 The compute namespace: one per release, created by the chart (templates/common/compute-namespace.yaml), so several
-installations can share a cluster. Funnel, its workers and the task pods run there.
+installations can share a cluster. Funnel, its workers and the task pods run there. Its name is
+ga4gh.referenceCloud.compute.namespace, or <release name>-compute: releases with the same name in one cluster (e.g.
+staging and production in their own namespaces) set their own (spec 0013).
 */}}
 {{- define "refcloud.computeNamespace" -}}
-{{ .Release.Name }}-compute
+{{- .Values.ga4gh.referenceCloud.compute.namespace | default (printf "%s-compute" .Release.Name) -}}
+{{- end -}}
+
+{{/*
+The SELinux level every compute pod shares: the Nextflow Jobs, Funnel's workers and executors. On nodes that enforce
+SELinux (EKS Auto Mode's), each pod otherwise gets random categories, and a volume can be used only by the pod that
+mounted it last: a task's worker and executors could not share its workspace claim (spec 0013, Task 5). Nodes without
+SELinux (minikube's) ignore it.
+
+ga4gh.referenceCloud.compute.seLinuxLevel, or derived from the compute namespace's name: two categories from its
+checksums, so each environment gets its own level with nothing to configure. Tasks stay apart from each other because
+each task's claim is mounted only into its own pods.
+*/}}
+{{- define "refcloud.computeSelinuxLevel" -}}
+{{- $level := .Values.ga4gh.referenceCloud.compute.seLinuxLevel }}
+{{- if $level }}
+{{- if not (regexMatch "^s0(:c[0-9]{1,4}(,c[0-9]{1,4})*)?$" $level) }}
+{{- fail (printf "ga4gh.referenceCloud.compute.seLinuxLevel must be an SELinux level such as s0:c123,c456, not %q" $level) }}
+{{- end }}
+{{- $level -}}
+{{- else }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+{{- $first := mod (adler32sum $namespace | atoi) 1024 }}
+{{- $second := mod (adler32sum (printf "%s/selinux" $namespace) | atoi) 1024 }}
+{{- if eq $first $second }}
+{{- $second = mod (add $second 1) 1024 }}
+{{- end }}
+{{- printf "s0:c%d,c%d" (min $first $second) (max $first $second) -}}
+{{- end }}
+{{- end -}}
+
+{{/*
+Where the compute pods run (the Nextflow Jobs, Funnel's workers and executors; not Funnel's server): the node selector
+and tolerations from ga4gh.referenceCloud.compute, as YAML for a pod spec. Empty when they're empty: any node.
+Usage: {{ include "refcloud.computePodPlacement" . | indent 6 }}
+*/}}
+{{- define "refcloud.computePodPlacement" -}}
+{{- $compute := .Values.ga4gh.referenceCloud.compute }}
+{{- with $compute.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $compute.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end -}}
 
 {{/*

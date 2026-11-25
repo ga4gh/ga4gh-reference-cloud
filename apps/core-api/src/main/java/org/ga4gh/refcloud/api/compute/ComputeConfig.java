@@ -10,6 +10,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -69,7 +72,11 @@ public record ComputeConfig(
 
     // nextflow engines. the versions are pinned for every type. nextflow-funnel-docker runs nextflowExecutable on the
     // host; nextflow-funnel-kubernetes runs a Job per run from image, in namespace (where the connection's task Jobs
-    // run too), sized by cpuCores and memoryGb (defaults: 1 core, 1 GB)
+    // run too), sized by cpuCores and memoryGb (defaults: 1 core, 1 GB). On kubernetes, the Job's pod can also be
+    // placed on particular nodes (nodeSelector, tolerations: e.g. a node pool kept for compute, spec 0013) and given
+    // an SELinux level (selinuxLevel, e.g. s0:c123,c456: on nodes that enforce SELinux, the level the connection's task
+    // pods share, so they can share their volumes). None are set by default. The node selector is a list of key and
+    // value pairs rather than a map: spring drops a map key's slashes unless it's written in brackets
     public record Engine(
             String nextflowExecutable,
             @NotBlank String nextflowVersion,
@@ -78,17 +85,66 @@ public record ComputeConfig(
             ImagePullPolicy imagePullPolicy,
             @Pattern(regexp = KUBERNETES_NAME_PATTERN) String namespace,
             @Positive Integer cpuCores,
-            @Positive BigDecimal memoryGb) {
+            @Positive BigDecimal memoryGb,
+            List<@NotNull @Valid NodeLabel> nodeSelector,
+            List<@NotNull @Valid Toleration> tolerations,
+            @Pattern(regexp = SELINUX_LEVEL_PATTERN) String selinuxLevel) {
 
         public Engine {
             imagePullPolicy = imagePullPolicy == null ? ImagePullPolicy.IF_NOT_PRESENT : imagePullPolicy;
             cpuCores = cpuCores == null ? Integer.valueOf(1) : cpuCores;
             memoryGb = memoryGb == null ? BigDecimal.ONE : memoryGb;
+            // copies keep the record immutable (List.copyOf would reject a null element before validation reports it)
+            nodeSelector =
+                    nodeSelector == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(nodeSelector));
+            tolerations = tolerations == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(tolerations));
+        }
+
+        @AssertTrue(message = "the node selector names a label more than once")
+        public boolean isNodeSelectorUnique() {
+            return nodeSelector.stream()
+                            .filter(label -> label != null)
+                            .map(NodeLabel::key)
+                            .distinct()
+                            .count()
+                    == nodeSelector.stream().filter(label -> label != null).count();
+        }
+    }
+
+    // a node label the engine's pods require (a node selector's entry)
+    public record NodeLabel(
+            @NotBlank @Pattern(regexp = LABEL_KEY_PATTERN) String key,
+            @NotNull @Pattern(regexp = LABEL_VALUE_PATTERN) String value) {}
+
+    // a kubernetes toleration, written as in a pod spec (operator Equal or Exists; effect NoSchedule, PreferNoSchedule
+    // or NoExecute; no effect tolerates them all). The key is required: a toleration of every taint would defeat them
+    public record Toleration(
+            @NotBlank @Pattern(regexp = LABEL_KEY_PATTERN) String key,
+            @NotNull @Pattern(regexp = "^(Equal|Exists)$") String operator,
+            @Pattern(regexp = LABEL_VALUE_PATTERN) String value,
+
+            @Pattern(regexp = "^(NoSchedule|PreferNoSchedule|NoExecute)$")
+            String effect) {
+
+        @AssertTrue(message = "a toleration with operator Exists takes no value")
+        public boolean isValueValidForOperator() {
+            return !"Exists".equals(operator) || value == null || value.isEmpty();
         }
     }
 
     // a kubernetes namespace name (DNS label)
     public static final String KUBERNETES_NAME_PATTERN = "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$";
+
+    // a kubernetes label key: an optional DNS-subdomain prefix and a slash, then a name of up to 63 characters
+    public static final String LABEL_KEY_PATTERN =
+            "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?"
+                    + "[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$";
+
+    // a kubernetes label value: empty, or up to 63 characters
+    public static final String LABEL_VALUE_PATTERN = "^([A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?)?$";
+
+    // an SELinux MCS level, as container runtimes take it: the sensitivity s0, and optionally categories
+    public static final String SELINUX_LEVEL_PATTERN = "^s0(:c[0-9]{1,4}(,c[0-9]{1,4})*)?$";
 
     // kubernetes imagePullPolicy values, written in kebab-case in the connections file (if-not-present, always, never)
     public enum ImagePullPolicy {

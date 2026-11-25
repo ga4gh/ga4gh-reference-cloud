@@ -12,6 +12,11 @@
 #
 # The app and task-id labels match Funnel's default template, which Funnel may select its Jobs by: keep them. The
 # executors' podAffinity finds the worker by them too.
+#
+# Like the executors, the worker runs on the compute pods' nodes (from the chart's values; any node when they name
+# none), with the SELinux level every compute pod shares, so it and its executors can share the task's claim on nodes
+# that enforce SELinux (spec 0013). Node autoscalers never move it once running (do-not-disrupt). Its S3 credentials:
+# locally, Funnel's RustFS user from the environment; on AWS, its ServiceAccount's role, through EKS Pod Identity.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -29,15 +34,20 @@ spec:
         app: funnel-worker
         task-id: {{.TaskId}}
         app.kubernetes.io/name: funnel-worker
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
     spec:
       # creates and watches its task's executor Jobs (templates/apps/funnel/rbac.yaml)
       serviceAccountName: funnel-worker
       restartPolicy: Never
+      REFCLOUD_POD_PLACEMENT
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+        seLinuxOptions:
+          level: "REFCLOUD_SELINUX_LEVEL"
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -45,11 +55,7 @@ spec:
           image: REFCLOUD_FUNNEL_IMAGE
           imagePullPolicy: IfNotPresent
           args: ["worker", "run", "--config", "/etc/funnel/funnel.yml", "--taskID", "{{.TaskId}}"]
-          # its S3 credentials (Funnel's user, for every run's files: the refcloud's TES has already checked that the
-          # task's files are its own run's)
-          envFrom:
-            - secretRef:
-                name: funnel-s3
+          REFCLOUD_WORKER_S3_CREDENTIALS
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false

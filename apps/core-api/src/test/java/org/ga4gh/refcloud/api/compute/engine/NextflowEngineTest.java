@@ -16,8 +16,8 @@ import org.testng.annotations.Test;
 
 public class NextflowEngineTest {
 
-    private static final ComputeConfig.Engine ENGINE =
-            new ComputeConfig.Engine("/usr/local/bin/nextflow", "26.10.5", "1.5.0", null, null, null, null, null);
+    private static final ComputeConfig.Engine ENGINE = new ComputeConfig.Engine(
+            "/usr/local/bin/nextflow", "26.10.5", "1.5.0", null, null, null, null, null, null, null, null);
 
     private static ComputeRun run(List<String> profiles, Map<String, String> engineEnv) {
         return ComputeRun.builder()

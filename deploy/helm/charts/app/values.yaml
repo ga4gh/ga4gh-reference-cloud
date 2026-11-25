@@ -52,6 +52,54 @@ ga4gh:
       # takes the space its files use
       localObjectStorage:
         size: 10Gi
+      # the compute namespace's name (Funnel, its workers, the Nextflow Jobs and the task pods). empty: <release
+      # name>-compute. On AWS, each environment's must match its Pod Identity association for Funnel's workers (the
+      # infra repo's Terraform, compute_environments)
+      namespace: ""
+      # the StorageClass for each task's workspace claim and Funnel's database (funnel-db). empty: the cluster's default
+      # (minikube's standard). On EKS Auto Mode: ebs-gp3 (the infra repo's foundation)
+      storageClass: ""
+      # the nodes the compute pods run on (the Nextflow Jobs, Funnel's workers and executors; not Funnel's server): a
+      # node selector and tolerations, as in a pod spec. empty: any node. On AWS, the environment's compute node pool:
+      #   nodeSelector: {refcloud.ga4gh.org/compute: staging}
+      #   tolerations: [{key: refcloud.ga4gh.org/compute, operator: Equal, value: staging, effect: NoSchedule}]
+      nodeSelector: {}
+      tolerations: []
+      # the SELinux level every compute pod shares, so a task's pods can share its workspace claim on nodes that enforce
+      # SELinux (EKS Auto Mode's). empty: derived from the compute namespace's name (refcloud.computeSelinuxLevel), so
+      # each environment has its own. Nodes without SELinux (minikube's) ignore it. e.g. s0:c123,c456
+      seLinuxLevel: ""
+      # the AWS connection (nextflow-funnel-kubernetes-aws, when cloudEnvironment is aws; spec 0013): runs keep their
+      # files in an S3 bucket, reached through compute's private S3 endpoint; core-api and Funnel's workers use EKS Pod
+      # Identity. The first five come from the infra repo's Terraform output (compute, per environment). empty bucket:
+      # compute is off on AWS
+      aws:
+        bucket: ""
+        region: ""
+        # the role each run's credentials come from (limited by core-api to the run's prefix)
+        runRoleArn: ""
+        # compute's S3 interface endpoint, https://bucket.vpce-....s3.<region>.vpce.amazonaws.com, and its addresses
+        s3Endpoint: ""
+        s3EndpointIps: []
+        # each run's Nextflow Job, and the connection's limits, written as in a connection (kebab-case; see
+        # deploy/local/compute/connections.yml). Sized for staging's compute node pool (4 vCPU): about 3.1 CPUs at
+        # full load (spec 0013, Task 6)
+        engine:
+          cpu-cores: 1
+          memory-gb: 2
+        limits:
+          max-concurrent-runs: 1
+          max-tasks-in-flight: 2
+          max-cpu-cores-in-flight: 2
+          max-memory-gb-in-flight: 4
+          max-task-cpu-cores: 2
+          max-task-memory-gb: 4
+          max-task-disk-gb: 20
+          # runs' credentials last an hour at most on AWS; core-api refuses a connection whose runs could outlive them
+          max-run-duration-seconds: 2700
+          default-task-cpu-cores: 1
+          default-task-memory-gb: 1
+          max-run-inputs-gb: 10
 
 # NetworkPolicies (templates/common/network-policies.yaml): each pod accepts only the traffic it needs, and the Kratos
 # and Hydra admin APIs only from the pods that use them. They take effect only where the cluster's network plugin

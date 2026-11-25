@@ -331,26 +331,48 @@ In the private Terraform repo, each change reviewed first:
   * **a budget with alarms.**
 * **Values from Terraform:** each environment's bucket and role ARNs come from Terraform's outputs and go into the private values files.
 
-**To settle (raised 2026-11-24; the user's answers pending):**
-* **Read-only checks for the user:**
-  * whether any bucket policy in the account allows by `aws:SourceIp` or `aws:SourceVpc`. The gateway endpoint moves the VPC's S3 traffic off the NAT gateways;
-  * the node role Auto Mode's `default` node class uses (`kubectl get nodeclass default -o jsonpath='{.spec.role}'`).
-1. **Node pools:**
-   * one per environment (proposed), on-demand amd64, the `c` and `m` families up to `xlarge`;
-   * caps of 4 vCPU / 16 GiB for staging and 16 vCPU / 64 GiB for production (the user's numbers to choose);
+**Decisions (Task 4):**
+
+Agreed 2026-11-25:
+1. **Read-only checks (the user):**
+   * no bucket policy in the account allows by `aws:SourceIp` or `aws:SourceVpc`, so the gateway endpoint can't break one;
+   * Auto Mode's `default` node class uses the cluster's Auto Mode node role. Its name is in the private Terraform repo.
+2. **Node pools: one per environment.**
+   * on-demand amd64, the `c` and `m` families up to `xlarge`;
+   * caps of 4 vCPU / 16 GiB for staging and 16 vCPU / 64 GiB for production;
    * a node is removed after 5 minutes empty;
-   * their own node class: private subnets only (by their `kubernetes.io/role/internal-elb` tag), tags on instances, and the default node role.
-2. **Compute namespaces:** `reference-cloud-staging-compute` and `reference-cloud-prod-compute`, set by a new chart value (Task 6) and created by the chart, as locally. The Pod Identity associations name them.
-3. **Run buckets:**
+   * their own node class: private subnets only (by their `kubernetes.io/role/internal-elb` tag), tags on instances, and the default node role. Nodes exist only while compute pods run, so two pools cost no more than one, and staging can't starve production.
+3. **Compute namespaces:** `reference-cloud-staging-compute` and `reference-cloud-prod-compute`, set by a new chart value (Task 6) and created by the chart, as locally. The Pod Identity associations name them.
+4. **Run buckets:**
    * `ga4gh-refcloud-compute-runs-staging` and `-prod`;
    * public access blocked, encryption, TLS only;
-   * lifecycle: incomplete uploads and `health/` after 1 day, runs' files after 30 days (to confirm);
+   * lifecycle: incomplete uploads and `health/` after 1 day, runs' files after 30 days;
    * no VPC-endpoint-only rule, which would lock out operators' CLI and console.
-4. **Budget:** skip a refcloud-only one (proposed). It needs a cost-allocation tag activated in the Organization's payer account, and the node pools' caps are the hard limit. Otherwise: per environment, alerts at 50, 80 and 100% and on forecast, with amounts and recipients to choose.
-5. **S3 gateway endpoint** (`foundation`): on every route table, with the default full-access policy, assuming the bucket-policy check is clean.
-6. **Remove `reference-cloud`'s unused `helm` provider:** it reads `~/.kube/config`, like `foundation`'s did (Task 1, decision 3).
+5. **Remove `reference-cloud`'s unused `helm` provider:** it reads `~/.kube/config`, like `foundation`'s did (Task 1, decision 3).
 
-**Decisions (Task 4):**
+Also agreed 2026-11-25:
+6. **No refcloud-only budget for now.** Compute nodes exist only while compute pods wait for them, so with no runs there's no compute node cost; that holds as long as nothing long-running is scheduled on the compute pools (Task 6 keeps Funnel's server on the general pool). A refcloud-only budget needs a cost-allocation tag that only the Organization's payer account can activate. The node pools' caps bound the worst case: about one `xlarge` node for staging and four for production, plus Auto Mode's per-node fee. Nodes exist only during runs, which need approved visas and are limited by each platform's monthly core-hours. The account-wide budget stays as the backstop.
+7. **The S3 gateway endpoint and the EBS storage class go in `foundation`.** They're shared and cluster-wide: the endpoint attaches to the VPC's route tables, which `foundation` owns, and changes S3 traffic for every workload in the VPC. The node pools and node class, buckets, roles and associations are the refcloud's own, so they go in `reference-cloud`.
+8. **Production's Pod Identity associations are created now** (the user's choice, 2026-11-25). Production's core-api gets its role from its next restart, while it still runs the old chart. The current code reads public buckets (DRS's) anonymously, so a role in the pod doesn't change those reads. Staging shows that first, through DRS after its next restart.
+9. **The node class mirrors Auto Mode's default** (the user pasted its spec): its role, the cluster's security group (by reference), its ephemeral storage (80 GiB, gp3 3000 IOPS, 125 MiB/s), `networkPolicy: DefaultAllow`, event logs off and `snatPolicy: Random`. It differs in two ways:
+   * only the VPC's private subnets, by ID, looked up within the cluster's VPC (a tag selector could match another VPC's subnets);
+   * the instances carry `Project` and `Component` tags.
+10. **Written 2026-11-25** (the user runs `plan` and `apply`):
+    * `foundation/main.tf`: the S3 gateway endpoint on every route table, with the default policy, and the `ebs-gp3` storage class. Expected plan: 2 to add;
+    * `reference-cloud`: a new `compute.tf`, three variables in `variables.tf` (`compute_environments`, `eks_auto_node_role`, `compute_runs_expiration_days`), and the unused `helm` provider removed from `main.tf`. Expected plan: 29 to add:
+      * per environment: 5 bucket resources, 3 roles and their policies, and 2 Pod Identity associations;
+      * the node class, and a node pool per environment;
+      * an output, `compute`, with each environment's bucket, run role ARN and node pool;
+    * both folders pass `terraform validate` (copies with no backend, Terraform 1.15.0). `foundation`'s existing `tags_all` on its Route 53 zone gives a warning, unrelated.
+11. **Applied and checked 2026-11-25** (the user ran `apply` in both folders, then the read-only checks, which all passed):
+    * the node class is Ready. Its security group is the default node class's, and its three subnets are the VPC's private ones (one per zone, checked against the subnets' ranges and that they don't assign public addresses);
+    * both node pools exist, with no nodes;
+    * the `ebs-gp3` storage class exists;
+    * four Pod Identity associations: `refcloud-api` in both release namespaces, and `funnel-worker` in both compute namespaces;
+    * the S3 gateway endpoint is available on all the VPC's route tables;
+    * a second `plan` in `reference-cloud` shows no changes.
+
+    Each environment's core-api gets its role at its next restart (decision 8). Both were restarted on 2026-11-25, production's still on the old chart, and both sites work afterwards.
 
 ### Task 5: Spike: EKS networking and identity
 
@@ -373,6 +395,98 @@ Run this in staging's cluster before the chart work, with throwaway pods in a th
 
 **Decisions (Task 5):**
 
+Agreed 2026-11-25:
+1. **The spike's namespace is the real compute namespace, `reference-cloud-staging-compute`.** The spike creates it, enforcing the restricted level, and deletes it afterwards. Funnel's workers' Pod Identity association names it, so the spike tests the real association and its trust conditions, with no temporary AWS changes. Helm won't install over a namespace it didn't create, and in Task 8 the chart creates it, so the deletion matters.
+2. **Funnel's image and Pod Identity are checked without AWS.** First Funnel 0.12.3's code: how its S3 backend gets credentials when no keys are set. Then its worker runs locally against a stand-in for the Pod Identity agent's credentials endpoint. On EKS, the spike checks Pod Identity with the AWS CLI, and Task 8 confirms Funnel itself. A Funnel server and worker in the spike would cost about as much as Task 6.
+3. **Pod Identity is tested with Funnel's real pod settings.** Funnel's workers mount their ServiceAccount token, because they create the executor Jobs.
+   * The worker's settings (ServiceAccount `funnel-worker`, token mounted, restricted security context): credentials arrive; it can write, read and delete under `runs/`, and is refused `health/` and other buckets.
+   * The executor's settings (the default ServiceAccount, no token): no credentials.
+   * Staging's core-api has Pod Identity's environment variables.
+4. **One worker-like pod tests the DNS-based policy and Pod Identity together:** DNS, the bucket by name and the Pod Identity agent are exactly what a worker needs. It also shows whether the `ApplicationNetworkPolicy` needs a separate rule for the node's CoreDNS. S3 serves every bucket from the same addresses, so the spike also tests whether allowing one bucket's name lets the pod reach another bucket. If it does, Task 7 decides what to do about it.
+5. **The node pool and EBS are tested together, on the compute pool,** where Funnel's pods will run:
+   * a worker-like pod and an executor-like pod share an `ebs-gp3` claim (`podAffinity`, `fsGroup: 10001`);
+   * a pod without the toleration stays off the pool;
+   * after the cleanup, the claim's volume is deleted and the node goes away (about 5 minutes empty).
+6. **The Kubernetes API: both kinds of rule are tested,** the `kubernetes` Service's cluster IP and the EndpointSlice addresses the chart pins today. If the cluster IP works under EKS's policy agent, Task 7 can drop the pinning. The current addresses, and what AWS documents about them changing, are recorded either way.
+7. **How it runs:** manifests and a step-by-step runbook from me, run by the user step by step (setup, DNS, the DNS-based policy with Pod Identity, the node pool with EBS, the API, cleanup). The images come from Public ECR, which avoids Docker Hub's limits on the NAT addresses, and run as user 10001 under the restricted level.
+
+Done 2026-11-25, before the spike:
+
+8. **Funnel 0.12.3 picks up Pod Identity's credentials** (decision 2).
+   * **Its code:** when its `AmazonS3` config has no key and secret, it loads the AWS SDK for Go v2's default configuration (`LoadDefaultConfig`). That configuration's credential chain includes the container credentials provider, which is how Pod Identity delivers credentials.
+   * **Run locally:** `funnel worker run --taskFile`, with no Funnel server, against a throwaway RustFS. The only credentials came from a stand-in for the Pod Identity agent's endpoint: temporary STS credentials served behind an authorization token file, as the agent does. The worker downloaded its input and uploaded its output, and the task ended `COMPLETE`. A stub stood in for `docker`, its default executor.
+   * **Negative control:** without the stand-in, Funnel found no credentials and fell through to instance metadata.
+   * Everything was deleted afterwards.
+   * A token file that ends in a newline is rejected by the SDK. The stand-in's first token had one; Pod Identity's real token file doesn't.
+9. **Found in Funnel's code: on AWS, it looks up each bucket's region through us-east-1.**
+   * With no endpoint configured, Funnel makes an anonymous `HeadBucket` request through a us-east-1 client before using a bucket, to learn the bucket's region.
+   * So workers would also need the bucket's us-east-1 name, reached through NAT: the gateway endpoint covers only the VPC's own region.
+   * Configured with the endpoint `s3.<region>.amazonaws.com/` (the form Funnel treats as AWS) and a region, Funnel skips the lookup. It then sends virtual-hosted requests to the bucket's regional name, the same name the Nextflow Jobs use.
+   * The spike runs Funnel's own image with both configs, as a worker, under the worker's policies (runbook step 3j). Task 6 configures Funnel from the result.
+10. **Also in the spike:** whether a pod that a policy allows to reach instance metadata gets an answer (runbook step 3h). If not, the nodes' hop limit keeps pods away from the node role's credentials, which matters most in namespaces without policies.
+
+Spike results (2026-11-25, the user ran the runbook):
+
+11. **Auto Mode's DNS-based policy limits connections, not lookups.** Tested on a worker-like pod whose `ApplicationNetworkPolicy` allows only staging's bucket by name:
+    * **with DNS allowed by a separate NetworkPolicy:** the bucket's name resolves, and so do every other name tried (an unrelated domain, production's bucket, S3's regional name);
+    * **with DNS allowed inside the same `ApplicationNetworkPolicy`, as in AWS's example:** the same result;
+    * in both cases, a connection to an unrelated name's address is refused (`000`).
+
+    So a pod allowed DNS can look up any name. A lookup can carry data out through the cluster's resolvers, which is why workflow pods get no DNS today (spec 0011). The policy still keeps a pod's connections to the allowed names' addresses, so it fits Funnel's workers, which run Funnel's own code. For the Nextflow Jobs, where workflow code runs, it isn't enough on its own. Task 7 decides how they reach S3.
+12. **Pod Identity works with the worker's settings** (ServiceAccount `funnel-worker`, token mounted).
+    * The role's credentials arrive.
+    * Writing, reading and listing under `runs/` work.
+    * Writing outside `runs/` is refused (`AccessDenied`: no identity-based policy allows it).
+    * Reading a missing key outside `runs/` returns `404`, not `403`: the role may list the bucket, and S3 then reports missing keys as missing. So tests of what the role may not do use writes.
+13. **The executor's settings get no credentials** (the default ServiceAccount, no token): no Pod Identity variables, no `/var/run/secrets`, and the AWS CLI finds no credentials.
+14. **A pod allowed one bucket by name can reach any bucket in the region.** S3 answered a request for production's bucket sent to an address the pod had learned from staging's bucket name. An address the pod never resolved timed out.
+    * So no name-based rule can keep a pod to our bucket.
+    * For Funnel's workers that's acceptable: they transfer only files whose URLs our TES has checked belong to the run.
+    * For the Nextflow Jobs, it's a second reason, after decision 11, to weigh other ways of reaching S3 in Task 7.
+15. **Pods can't get the node role's credentials from instance metadata**, even with a policy that allows the address.
+    * A token request (IMDSv2) times out: the node's hop limit keeps the answer from reaching the pod.
+    * A request without a token (IMDSv1) is refused (`401`).
+    * So this holds in namespaces without policies too.
+16. **Staging's core-api has Pod Identity's variables** (the agent's URL and the token file) since its restart.
+17. **DNS under default-deny (step 2), and the worker's credentials (3b), matched what was expected:**
+    * a pod's nameserver is the `.10` address of the service range;
+    * under default-deny, lookups fail;
+    * with a NetworkPolicy allowing that address on port 53, lookups work, and connections stay blocked;
+    * the worker-like pod has Pod Identity's variables and token file, and the AWS CLI finds its credentials (`container-role`).
+18. **Funnel's own image works as a worker on EKS** with the endpoint `s3.us-east-2.amazonaws.com/` and the region set (decision 9).
+    * Same ServiceAccount and policies as the worker-like pod: Pod Identity, and the bucket's regional name only.
+    * Its task, run from a file, downloaded its input and uploaded its output, and ended `COMPLETE`.
+    * With no endpoint, the run didn't finish and the user interrupted it: its region lookup goes to the bucket's us-east-1 name, whose connections the policy refuses.
+    * So Task 6 configures Funnel with the regional endpoint.
+19. **The compute node pool works.**
+    * Pods with the toleration got a new on-demand node from `refcloud-compute-staging`, a `c6a.large` in another zone, within about a minute. The other spike pods stayed on the general-purpose node.
+    * A pod that selects the pool without tolerating its taint stayed Pending, and Auto Mode started no node for it.
+    * Auto Mode's message for that pod also reported the staging pool as over its limits, while the first node was still starting. To watch in Task 8: whether the 4 vCPU cap holds back a second node while one is starting.
+20. **A per-task EBS claim can be shared by a worker and its executors only with one SELinux level for both.** Found in step 4; this would have failed every Funnel task on EKS.
+    * The claim itself works: `ebs-gp3` bound it once the first pod was scheduled, in that pod's zone, from Auto Mode's EBS driver. `fsGroup: 10001` made it writable for user 10001.
+    * **The problem:** Auto Mode's nodes enforce SELinux, and give each pod random categories (e.g. `s0:c47,c850` and `s0:c535,c959`). Kubernetes relabels a volume for the pod that mounts it, so only the last pod to mount it can use it.
+      * The worker-like pod's first run was refused its own volume, which still carried the executor-like pod's label.
+      * After the worker restarted, the volume carried the worker's label, and the executor was refused even a listing.
+      * Unix permissions allowed both: it was SELinux that refused them.
+    * **The fix, verified:** the same `seLinuxOptions.level` (`s0:c123,c456`) on both pods. The restricted level allows setting it. Both pods then ran without a restart and used the volume together, and the volume was relabelled to that level (same claim, same node).
+    * **For Task 6:** one SELinux level on Funnel's worker and executor templates, per environment.
+      * Every compute pod then shares one level, as OpenShift gives each namespace one. Tasks stay apart because each task's claim is mounted only into its own pods.
+      * Nodes without SELinux, such as minikube's, ignore the setting.
+      * Funnel's server and its own claim (`funnel-db`) are a single pod, so they don't need it.
+21. **On EKS, policies see the Kubernetes API at the `kubernetes` Service's cluster IP, not at the API server's own addresses: the opposite of minikube's Calico.** From a pod with a ServiceAccount token, calling `/version` through the Service:
+    * a rule on the cluster IP (port 443): `200`;
+    * no rule: refused;
+    * a rule on the API server's addresses from the EndpointSlice (the control plane's two network interfaces, port 443), as the chart pins them today: refused.
+
+    The cluster IP is the first address of the service range, fixed for the cluster's lifetime, so on EKS the question of the API server's addresses changing goes away. For Task 7: allow both the cluster IP and the EndpointSlice's addresses. Each environment matches one, and the other does no harm.
+22. **Cleaned up (step 6):**
+    * the namespace is deleted, and with it the claim's PersistentVolume;
+    * the EBS volume itself is gone (`InvalidVolume.NotFound`);
+    * no test files remain in the bucket;
+    * the compute node went away once empty, leaving only the general-purpose node.
+
+    The spike's files stayed in my session's scratchpad, outside every repo. **Task 5 is done.**
+
 ### Task 6: The chart's compute on AWS
 
 * **The compute namespace's name:** a new value, defaulting to `<release name>-compute`, so local stays `refcloud-compute`. Each environment's values set its own.
@@ -394,6 +508,105 @@ Run this in staging's cluster before the chart work, with throwaway pods in a th
 * **Static analysis:** render and check the chart with sample AWS values too, not only the local defaults.
 
 **Decisions (Task 6):**
+
+Agreed 2026-11-25. Not questions:
+* **The AWS connection** (`nextflow-funnel-kubernetes-aws`) is built by the chart from a block of values: bucket, region, run role, limits. With no bucket, compute is off.
+* **New values:**
+  * the compute namespace's name, defaulting to `<release>-compute`. Each environment's must match its Pod Identity association;
+  * a storage class for task claims and `funnel-db` (`ebs-gp3` on AWS).
+* **Funnel on AWS:**
+  * the regional endpoint and no keys, so no `funnel-s3` Secret (Task 5, decision 18);
+  * its server on the general pool;
+  * its workers and executors on the compute pool, with the toleration, node selector, shared SELinux level and Auto Mode's do-not-disrupt annotation.
+* **Unchanged:**
+  * core-api's and Funnel's permissions in the compute namespace carry over to AWS;
+  * RustFS stays local only;
+  * network policies are Task 7;
+  * nothing is deployed to staging until Task 8.
+
+Answers:
+1. **The Nextflow Jobs run on the compute pool too.** Workflow code stays off the nodes running the refcloud's own services, and all compute cost sits in the pool with the cost cap.
+2. **The connection's engine block gets general Kubernetes settings,** which core-api applies to each Job: `node-selector`, `tolerations` and `selinux-level`. Every Job also gets Auto Mode's do-not-disrupt annotation; minikube ignores it. Rejected: a single node-pool setting, which would tie core-api to our pool's label and taint.
+3. **Each environment's SELinux level is derived by the chart from the compute namespace's name,** so staging and production differ with no new required value. Values can override it, and minikube ignores it.
+4. **Staging's limits:**
+   * one run at a time;
+   * the Nextflow Job at 1 CPU / 2 GB;
+   * up to 2 tasks in flight, 2 CPUs / 4 GB in all;
+   * each task up to 2 CPUs / 4 GB / 20 GB of disk, defaulting to 1 CPU / 1 GB;
+   * runs end after 2700 seconds;
+   * up to 10 GB of inputs per run.
+
+   That's about 3.1 CPUs at full load, under the pool's 4 vCPU cap. Production's limits are written in spec 0010.
+5. **How the Nextflow Jobs reach S3** (Task 7's question, settled here because it changes the engine). **Decided 2026-11-25: a private S3 endpoint for compute, in all three zones.** Of the options, it's the only one that closes both gaps the spike found (Task 5, decisions 11 and 14):
+   * **an S3 interface endpoint used only by compute,** in the cluster's private subnets, at fixed addresses. Its private DNS is off, so the VPC's other S3 traffic keeps using the gateway endpoint. Its security group accepts HTTPS only from the cluster's security group;
+   * **its endpoint policy** allows only the run buckets, and only the refcloud's compute roles. No other bucket is reachable through it, whatever the credentials;
+   * **no DNS anywhere in the compute namespace.** The Nextflow Jobs and Funnel's workers get the endpoint's names pinned to its addresses through the pod's `hostAliases` (`/etc/hosts`), which works for Java, Go and curl alike. Their policies allow only those addresses, on port 443;
+   * **the bucket policies refuse the run role's and the workers' role's credentials anywhere but through the endpoint,** so leaked ones are useless outside the VPC. Operators and core-api's own role aren't affected;
+   * **for S3, core-api keeps the endpoint's name and adds `hostAliases`,** instead of swapping the name for an address as it does for RustFS, which would break TLS on AWS.
+
+   What it leaves open is by design: a run's outputs, downloaded by the researcher, and the TES calls to core-api. It costs about $22 a month in three zones, plus $0.01 per GB.
+
+   Rejected:
+   * no DNS but public S3 addresses: closes the DNS leak, not other buckets;
+   * accepting DNS for the Jobs: closes neither, and leaves the workflow allowlist as the only boundary.
+
+   First, a short check on EKS that Nextflow's AWS plugin, Funnel's Go SDK and the AWS CLI work through the endpoint with no DNS. It also settles whether the bucket is addressed in the path or in the host name, which decides the names pinned in `hostAliases`.
+6. **The endpoint's Terraform, written 2026-11-25** (`reference-cloud/compute.tf`, validated; the user runs `plan` and `apply`):
+   * the interface endpoint in the three private subnets, at fixed addresses (each subnet's `.250`, so they're known before it exists, and never change), private DNS off;
+   * its security group (HTTPS from the cluster's security group only);
+   * its policy: the run buckets, for the six compute roles (core-api's, the run role and the workers', per environment);
+   * a second statement in each run bucket's policy, refusing the run role and the workers' role except through the endpoint (`aws:SourceVpce`);
+   * the `compute` output gains the endpoint's URL (`https://bucket.vpce-….s3.us-east-2.vpce.amazonaws.com`) and its addresses.
+
+   Expected plan: 2 to add, 2 to change (the bucket policies, in place). The endpoint check comes next, run by the user: Pod Identity, no DNS, `hostAliases`; the AWS CLI, curl as the launcher signs, Funnel, and Nextflow in each addressing style; and the bucket policy from a pod away from the endpoint.
+7. **Applied, and the endpoint check passed (2026-11-25, the user).** Pods with no DNS, Funnel's workers' role through Pod Identity, and egress only to the endpoint's three addresses and the Pod Identity agent. The endpoint's names were pinned in their `/etc/hosts`:
+   * **the AWS CLI** wrote and read the bucket in both addressing styles. TLS accepted both the endpoint's own name (path-style) and the bucket's name under it (virtual-hosted). Production's bucket was refused (by IAM: the endpoint policy allows it, for production's roles);
+   * **curl, signing as the run's launcher does:** `200` in both styles;
+   * **Funnel's image** (`Endpoint` set to the endpoint's URL, so Funnel uses path-style): `COMPLETE`, input downloaded and output uploaded;
+   * **Nextflow** (staging's image from ECR, nf-amazon, the AWS SDK for Java v2 as in core-api) wrote and read the bucket in both styles;
+   * **away from the endpoint** (a pod with DNS and any address): the workers' role was refused through S3's public name, by the bucket policy's explicit deny, and allowed through the endpoint.
+
+   **Path-style addressing is chosen.** Funnel uses it anyway with an endpoint, core-api's S3 client already uses it when a connection names an endpoint, and it needs only the endpoint's own name pinned. Virtual-hosted works too, if AWS ever retires path-style.
+
+   Cleaned up afterwards: the test files, and the namespace.
+8. **Funnel's workers keep DNS, as they do locally** (the user, 2026-11-25; a refinement of decision 5's "no DNS anywhere").
+   * **The reason:** workers find Funnel's server by its name (`funnel:9090`). Its Service's address isn't known until the Service exists, so it can't be pinned.
+   * **Why the risk is small:** the names workers look up are only ones Funnel chooses: the server, and the endpoint. A workflow can't make them look up anything else, because our TES checks every task's file URLs before Funnel sees them. Their connections stay limited by policy (Task 7) to the endpoint, the server, the Kubernetes API and the Pod Identity agent.
+   * **So:** workers resolve the endpoint's name themselves (it resolves to its private addresses), and need no pinned names.
+   * **Unchanged:** the Nextflow Jobs and the executors, where workflow code runs, get no DNS.
+   * **Rejected:** a fixed cluster IP for Funnel's Service, set per environment. That's brittle: a wrong or taken address fails the deploy.
+
+Built 2026-11-25:
+
+9. **core-api's engine** (`ComputeConfig.Engine`, `NextflowKubernetesEngine`):
+   * **new engine settings:** `node-selector`, `tolerations` and `selinux-level`, all optional and validated (label keys and values, `Equal`/`Exists`, the effects, an SELinux level). A toleration must name a key, and one with `Exists` takes no value.
+     * The node selector is a list of key and value pairs, not a map: Spring drops a map key's slashes unless it's written in brackets, and `refcloud.ga4gh.org/compute` has one.
+     * The admin CLI reads only a connection's type and limits, so it's unaffected.
+   * **the Job's pod** gets the node selector, the tolerations, `seLinuxOptions.level`, and Auto Mode's `karpenter.sh/do-not-disrupt` annotation (always; elsewhere it means nothing);
+   * **a storage endpoint keeps its name**, which the Job's `hostAliases` pins to the address core-api resolves it to at launch. That replaces swapping the name for its address, which works for RustFS's plain HTTP but would break TLS on AWS. An endpoint given as an address gets no alias;
+   * **tests:** 326, all pass, including new ones for the placement, the pinned name (RustFS, and an interface endpoint) and binding and validation. `./gradlew staticAnalysis` passes. SpotBugs logs an internal error in Find Security Bugs' CORS detector on `CorsConfig`, which predates this work and doesn't fail the build.
+10. **The chart:**
+    * **new values** under `ga4gh.referenceCloud.compute`:
+      * `namespace` (default `<release>-compute`);
+      * `storageClass` (the cluster's default when empty);
+      * `nodeSelector` and `tolerations` (the compute pods' nodes);
+      * `seLinuxLevel` (derived when empty: two categories from the compute namespace's name's checksums);
+      * `aws`: bucket, region, run role, endpoint URL and addresses, plus the engine's size and limits, which default to staging's (decision 4).
+    * **`refcloud.computeEnabled`:** compute renders locally, or on AWS when `aws.bucket` is set. The namespace, quota, limit range, Funnel and core-api's Role in the compute namespace all follow it. RustFS, Funnel's RustFS Secret and core-api's RustFS keys stay local only;
+    * **one connection, `refcloud.computeConnection`:** the local one, or the AWS one, `nextflow-funnel-kubernetes-aws`, with `s3` storage through the endpoint, path-style, no keys, and run credentials for up to an hour. Both share `refcloud.computeEngine`: the versions, the image, the namespace, the placement and the SELinux level. The connections file, the quota, the limit range and Funnel's config all read it. On AWS the chart refuses to render without the region, run role, endpoint and its addresses;
+    * **Funnel:**
+      * its `AmazonS3` endpoint and region come from the connection;
+      * its templates gain placeholders, filled by `refcloud.funnelTemplate`, which fails if any is left: the placement and SELinux level on the worker and executors, their do-not-disrupt annotation, the storage class on the task claim, and the workers' RustFS credentials, local only;
+      * `funnel-db` takes the storage class. The server stays on the general pool;
+    * **checked:**
+      * the chart renders with its defaults and with sample AWS values (new: `deploy/helm/static-analysis/aws-values.yaml`, examples only);
+      * `./scripts/refcloud-static-analysis-helm.sh` now lints, validates and scans both, and all checks pass;
+      * Funnel's rendered worker and executor templates (Go expressions filled with sample values) are valid Jobs in both;
+      * minikube accepts a pod with an SELinux level and a host alias (a throwaway namespace, deleted).
+11. **Docs:** `deploy/helm/CLAUDE.md` (compute), `apps/core-api/CLAUDE.md` (engines), and the comments in the compute network policies, the connections and Funnel's templates. The README's values and the AWS deploy are Task 9.
+
+    Staging's values, and its deploy, are Task 8, after Task 7's network policies.
+12. **The local helm-mode demo passed (2026-11-25, the user):** `./scripts/refcloud-compute-demo.sh` on `nextflow-demo-kubernetes`, rebuilt images: submitted, `COMPLETE` in about 20 seconds with one TES task, and the report's MD5 matched the DRS object's checksum. So locally, the Nextflow Job reached RustFS by its pinned name with no DNS, and Funnel's worker and executor ran with the shared SELinux level. **Task 6 is done.**
 
 ### Task 7: Network policies on EKS
 

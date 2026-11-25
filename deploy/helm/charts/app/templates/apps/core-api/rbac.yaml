@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: refcloud-api
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 {{- $namespace := include "refcloud.computeNamespace" . }}
 ---
 # what the Kubernetes engine (NextflowKubernetesEngine) does in the compute namespace: one Job per run, with the run's

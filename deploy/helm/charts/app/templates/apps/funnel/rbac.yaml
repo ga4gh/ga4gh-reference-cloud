@@ -1,4 +1,4 @@
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 {{- $namespace := include "refcloud.computeNamespace" . }}
 # Funnel's server: creates each task's worker Job and its workspace claim (files/funnel/storage.yaml). It needs no
 # permission on PersistentVolumes (spec 0012): the claim's volume comes from the StorageClass, and Kubernetes deletes the

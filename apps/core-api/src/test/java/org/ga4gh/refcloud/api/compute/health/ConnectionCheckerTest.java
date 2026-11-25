@@ -52,7 +52,7 @@ public class ConnectionCheckerTest {
     }
 
     private static final ComputeConfig.Engine KUBERNETES_ENGINE = new ComputeConfig.Engine(
-            null, "26.10.5", "1.5.0", "refcloud-nextflow:v1", null, "refcloud-compute", null, null);
+            null, "26.10.5", "1.5.0", "refcloud-nextflow:v1", null, "refcloud-compute", null, null, null, null, null);
 
     @Test
     public void kubernetesEngineIsHealthyWhenEverythingTheEngineDoesIsAllowed() {
@@ -123,7 +123,8 @@ public class ConnectionCheckerTest {
     }
 
     private static ComputeConfig.Engine engine(Path executable, String version) {
-        return new ComputeConfig.Engine(executable.toString(), version, "1.5.0", null, null, null, null, null);
+        return new ComputeConfig.Engine(
+                executable.toString(), version, "1.5.0", null, null, null, null, null, null, null, null);
     }
 
     @Test

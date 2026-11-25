@@ -314,4 +314,84 @@ public class ComputeConfigTest {
 
         assertFalse(validator.validate(bind(properties)).isEmpty());
     }
+
+    // a kubernetes connection kept to a node pool, with an SELinux level for its pods (spec 0013), as the helm chart
+    // writes it: label keys keep their dots and slashes, since they're values here, not map keys
+    private Map<String, Object> placedConnection() {
+        Map<String, Object> properties = validS3Connection();
+        properties.put(PREFIX + "engine.node-selector[0].key", "refcloud.ga4gh.org/compute");
+        properties.put(PREFIX + "engine.node-selector[0].value", "staging");
+        properties.put(PREFIX + "engine.tolerations[0].key", "refcloud.ga4gh.org/compute");
+        properties.put(PREFIX + "engine.tolerations[0].operator", "Equal");
+        properties.put(PREFIX + "engine.tolerations[0].value", "staging");
+        properties.put(PREFIX + "engine.tolerations[0].effect", "NoSchedule");
+        properties.put(PREFIX + "engine.selinux-level", "s0:c123,c456");
+        return properties;
+    }
+
+    @Test
+    public void enginePlacementBindsAndIsValid() {
+        ComputeConfig config = bind(placedConnection());
+
+        ComputeConfig.Engine engine = config.connections().get("c1").engine();
+        assertEquals(
+                engine.nodeSelector(), List.of(new ComputeConfig.NodeLabel("refcloud.ga4gh.org/compute", "staging")));
+        assertEquals(
+                engine.tolerations(),
+                List.of(new ComputeConfig.Toleration("refcloud.ga4gh.org/compute", "Equal", "staging", "NoSchedule")));
+        assertEquals(engine.selinuxLevel(), "s0:c123,c456");
+        assertTrue(
+                validator.validate(config).isEmpty(), validator.validate(config).toString());
+    }
+
+    @Test
+    public void enginePlacementIsOptional() {
+        ComputeConfig.Engine engine =
+                bind(validS3Connection()).connections().get("c1").engine();
+
+        assertEquals(engine.nodeSelector(), List.of());
+        assertEquals(engine.tolerations(), List.of());
+        assertEquals(engine.selinuxLevel(), null);
+    }
+
+    @Test
+    public void invalidEnginePlacementIsAViolation() {
+        Map<String, String> invalid = Map.of(
+                "engine.node-selector[0].key", "not a label",
+                "engine.node-selector[0].value", "not a value!",
+                "engine.tolerations[0].operator", "Matches",
+                "engine.tolerations[0].effect", "NoRun",
+                "engine.selinux-level", "s0:c123;c456");
+        for (Map.Entry<String, String> setting : invalid.entrySet()) {
+            Map<String, Object> properties = placedConnection();
+            properties.put(PREFIX + setting.getKey(), setting.getValue());
+
+            assertEquals(validator.validate(bind(properties)).size(), 1, setting.toString());
+        }
+    }
+
+    // a toleration with no key would tolerate every taint, and Exists compares no value
+    @Test
+    public void tolerationNeedsAKeyAndExistsTakesNoValue() {
+        Map<String, Object> noKey = placedConnection();
+        noKey.remove(PREFIX + "engine.tolerations[0].key");
+        Map<String, Object> existsWithValue = placedConnection();
+        existsWithValue.put(PREFIX + "engine.tolerations[0].operator", "Exists");
+
+        assertEquals(validator.validate(bind(noKey)).size(), 1);
+        Set<ConstraintViolation<ComputeConfig>> violations = validator.validate(bind(existsWithValue));
+        assertEquals(violations.size(), 1);
+        assertTrue(violations.iterator().next().getMessage().contains("Exists takes no value"));
+    }
+
+    @Test
+    public void nodeSelectorNamingALabelTwiceIsAViolation() {
+        Map<String, Object> properties = placedConnection();
+        properties.put(PREFIX + "engine.node-selector[1].key", "refcloud.ga4gh.org/compute");
+        properties.put(PREFIX + "engine.node-selector[1].value", "prod");
+
+        Set<ConstraintViolation<ComputeConfig>> violations = validator.validate(bind(properties));
+        assertEquals(violations.size(), 1);
+        assertTrue(violations.iterator().next().getMessage().contains("more than once"));
+    }
 }

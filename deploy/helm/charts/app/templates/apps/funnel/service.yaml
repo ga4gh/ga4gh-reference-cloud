@@ -1,4 +1,4 @@
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 # Funnel's TES API (8000), which core-api calls, and its RPC port (9090), which its workers call
 apiVersion: v1
 kind: Service

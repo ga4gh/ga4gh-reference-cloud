@@ -1,5 +1,6 @@
-# Kubernetes.Storage in funnel.yml (spec 0012): each task's workspace is a claim of its own, from the cluster's default
-# StorageClass (minikube's standard locally), which Funnel mounts into the task's worker and executors. The worker Job
+# Kubernetes.Storage in funnel.yml (spec 0012): each task's workspace is a claim of its own, from the chart's storage
+# class (the cluster's default when it names none: minikube's standard locally; ebs-gp3 on EKS Auto Mode), which Funnel
+# mounts into the task's worker and executors. The worker Job
 # owns the claim, so Kubernetes deletes it with the Job, and Funnel never touches PersistentVolumes itself.
 #
 # Funnel renders the string values below as Go templates for each task (after reading its config). The chart embeds
@@ -13,6 +14,7 @@ volumeClaimTemplates:
   - metadata:
       name: workspace
     spec:
+      REFCLOUD_STORAGE_CLASS
       accessModes:
         - ReadWriteOnce
       resources:

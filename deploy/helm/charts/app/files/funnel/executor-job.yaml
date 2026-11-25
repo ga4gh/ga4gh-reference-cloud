@@ -11,6 +11,9 @@
 #
 # Executors run as 10001, like the worker: with every capability dropped, another user couldn't write to the
 # worker's directories. Images that need root aren't supported.
+#
+# They run on the compute pods' nodes, with the SELinux level every compute pod shares (spec 0013): on nodes that
+# enforce SELinux, a pod with another level couldn't use the worker's claim. Node autoscalers never move them.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -28,14 +31,19 @@ spec:
         app: funnel-executor
         task-id: {{.TaskId}}
         app.kubernetes.io/name: funnel-executor
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
     spec:
       automountServiceAccountToken: false
       restartPolicy: Never
+      REFCLOUD_POD_PLACEMENT
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+        seLinuxOptions:
+          level: "REFCLOUD_SELINUX_LEVEL"
         seccompProfile:
           type: RuntimeDefault
       affinity:

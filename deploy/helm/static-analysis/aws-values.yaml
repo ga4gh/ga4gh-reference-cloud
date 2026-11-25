@@ -1,0 +1,42 @@
+# Sample AWS values for the chart's static analysis (scripts/refcloud-static-analysis-helm.sh renders and checks the
+# chart with its defaults, then with these): cloudEnvironment aws with compute on (spec 0013). Every value is an
+# example (AWS's documentation account and VPC endpoint ids, documentation address ranges); a real environment's come
+# from the team's private values repo and infra repo.
+image:
+  registry: 123456789012.dkr.ecr.us-east-2.amazonaws.com
+  pullPolicy: IfNotPresent
+
+ga4gh:
+  referenceCloud:
+    baseURL: refcloud.example.org
+    cloudEnvironment: aws
+    aws:
+      certificateARN: arn:aws:acm:us-east-2:123456789012:certificate/00000000-0000-0000-0000-000000000000
+    serviceInfo:
+      idSuffix: example
+      environmentName: Example Environment
+      environment: example
+    compute:
+      namespace: refcloud-example-compute
+      storageClass: ebs-gp3
+      nodeSelector:
+        refcloud.ga4gh.org/compute: example
+      tolerations:
+        - key: refcloud.ga4gh.org/compute
+          operator: Equal
+          value: example
+          effect: NoSchedule
+      aws:
+        bucket: refcloud-example-compute-runs
+        region: us-east-2
+        runRoleArn: arn:aws:iam::123456789012:role/refcloud-example-compute-run
+        s3Endpoint: https://bucket.vpce-0123456789abcdef0-abcdefgh.s3.us-east-2.vpce.amazonaws.com
+        s3EndpointIps:
+          - 192.0.2.10
+          - 192.0.2.11
+          - 192.0.2.12
+
+networkPolicy:
+  ingressFrom:
+    - ipBlock:
+        cidr: 198.51.100.0/24

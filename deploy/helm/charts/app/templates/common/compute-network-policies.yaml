@@ -6,8 +6,8 @@ part of the compute stack gets only what it needs (spec 0011, Tasks 1 and 6).
   funnel                         core-api (TES, 8000), workers (RPC, 9090)  the Kubernetes API, DNS
   funnel-worker                  nothing                                    funnel (RPC, 9090), RustFS (9000), the
                                                                             Kubernetes API, DNS
-  refcloud-nextflow              nothing                                    core-api (8080) and RustFS (9000), by
-                                                                            address: no DNS
+  refcloud-nextflow              nothing                                    core-api (8080) and RustFS (9000): no
+                                                                            DNS
   funnel-executor                nothing                                    nothing
   anything else                  nothing                                    nothing
 
@@ -17,7 +17,8 @@ network-policies.yaml.
 The workflow pods (refcloud-nextflow and funnel-executor, where workflow code runs) can also reach the destinations in
 ga4gh.referenceCloud.compute.outgoingAllowlist, and DNS, when it isn't empty. Otherwise they get no DNS: lookups of
 made-up names would carry data out through kube-dns, which passes them to the internet. core-api gives Nextflow its
-own address rather than its name (NextflowKubernetesEngine), so Nextflow needs none.
+own address rather than its name, and pins the run storage endpoint's name in the Job's /etc/hosts
+(NextflowKubernetesEngine), so Nextflow needs none.
 
 Policies see the Kubernetes API at the API server's own address and port (after the kubernetes Service's
 translation), which the chart looks up when it's deployed. `helm template` can't look anything up, so it renders no

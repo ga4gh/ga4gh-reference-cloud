@@ -1,21 +1,36 @@
 {{- /*
 Funnel's config (funnel.yml), read by its server and by every worker.
 
-Tasks keep their files in the local connection's S3 storage (RustFS, spec 0012): workers download each task's inputs
-into its workspace (a claim of its own, files/funnel/storage.yaml) and upload its outputs, with Funnel's own RustFS
-user (funnel-s3, from the environment). No other storage is enabled, local files included.
+Tasks keep their files in the chart's connection's S3 storage: workers download each task's inputs into its workspace
+(a claim of its own, files/funnel/storage.yaml, from ga4gh.referenceCloud.compute.storageClass) and upload its outputs.
+  * locally (spec 0012): RustFS, with Funnel's own RustFS user (funnel-s3, in the workers' environment);
+  * on AWS (spec 0013): the run bucket, through compute's private S3 endpoint, with no keys: workers use the
+    funnel-worker ServiceAccount's role, through EKS Pod Identity. With an endpoint and a region, Funnel skips looking
+    up the bucket's region (an anonymous request through us-east-1) and uses path-style requests.
+No other storage is enabled, local files included.
 
 The job and storage templates are Go templates that Funnel renders for each task, kept verbatim in files/funnel/ so
-Helm never interprets their braces. The chart only replaces their capitalized placeholders.
+Helm never interprets their braces. The chart only replaces their capitalized placeholders: the image, the default
+disk, the storage class, the workers' S3 credentials, the compute pods' SELinux level and where they run
+(refcloud.computeSelinuxLevel, refcloud.computePodPlacement).
 
 Kubernetes.Resources: Funnel's own defaults and maximums for a task, from the local connection. Funnel reads these in
 GiB but compares them with a task's TES values (in GB) as plain numbers, so they're written in Gi with the
 connection's GB figures: the numbers then match.
 */}}
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 {{- $namespace := include "refcloud.computeNamespace" . }}
 {{- $image := include "refcloud.funnelImage" . }}
-{{- $connection := include "refcloud.localComputeConnection" . | fromYaml }}
+{{- $connection := include "refcloud.computeConnection" . | fromYaml }}
+{{- $storageClass := .Values.ga4gh.referenceCloud.compute.storageClass }}
+{{- $local := eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- /* full lines of the job and storage templates, replaced with YAML at their indentation or removed */}}
+{{- $placement := include "refcloud.computePodPlacement" . | trim }}
+{{- $credentials := .Files.Get "files/funnel/worker-s3-credentials.yaml" | trim }}
+{{- $placeholders := dict
+      "      REFCLOUD_POD_PLACEMENT\n" (ternary (printf "%s\n" ($placement | indent 6)) "" (ne $placement ""))
+      "      REFCLOUD_STORAGE_CLASS\n" (ternary (printf "      storageClassName: %s\n" $storageClass) "" (ne $storageClass ""))
+      "          REFCLOUD_WORKER_S3_CREDENTIALS\n" (ternary (printf "%s\n" ($credentials | indent 10)) "" $local) }}
 {{- $limits := $connection.limits }}
 {{- $defaultTaskDiskGb := include "refcloud.defaultTaskDiskGb" . }}
 apiVersion: v1
@@ -49,7 +64,7 @@ data:
     AmazonS3:
       Disabled: false
       AWSConfig:
-        Endpoint: http://rustfs.{{ .Release.Namespace }}.svc.cluster.local:9000
+        Endpoint: {{ $connection.storage.endpoint }}
         Region: {{ $connection.storage.region }}
     LocalStorage:
       Disabled: true
@@ -76,9 +91,9 @@ data:
           RamGb: {{ printf "%vGi" (index $limits "max-task-memory-gb") | quote }}
           DiskGb: {{ printf "%vGi" (index $limits "max-task-disk-gb") | quote }}
       Storage:
-        {{- $.Files.Get "files/funnel/storage.yaml" | replace "REFCLOUD_DEFAULT_TASK_DISK" (printf "%sG" $defaultTaskDiskGb) | nindent 8 }}
+        {{- include "refcloud.funnelTemplate" (dict "root" $ "file" "storage.yaml" "placeholders" $placeholders "values" (dict "REFCLOUD_DEFAULT_TASK_DISK" (printf "%sG" $defaultTaskDiskGb))) | nindent 8 }}
       {{- range $key, $file := dict "WorkerTemplate" "worker-job.yaml" "ExecutorTemplate" "executor-job.yaml" }}
       {{ $key }}: |
-        {{- $.Files.Get (printf "files/funnel/%s" $file) | replace "REFCLOUD_FUNNEL_IMAGE" $image | nindent 8 }}
+        {{- include "refcloud.funnelTemplate" (dict "root" $ "file" $file "placeholders" $placeholders "values" (dict "REFCLOUD_FUNNEL_IMAGE" $image "REFCLOUD_SELINUX_LEVEL" (include "refcloud.computeSelinuxLevel" $))) | nindent 8 }}
       {{- end }}
 {{- end }}
