@@ -713,6 +713,35 @@ Staging, 2026-11-25:
    * **Fixed:** a separate, optional `sts-endpoint` connection setting. STS goes there when it's set, and otherwise to AWS's regional STS; never to the storage endpoint. The chart's local connection sets it to RustFS's address, so local behaviour is unchanged; the AWS connection leaves it unset.
    * **Tests:** a connection through an interface endpoint binds and validates, with no `sts-endpoint`. The S3 client goes to the endpoint and the STS client to AWS's own, or to RustFS's when it's named. 329 tests and `./gradlew staticAnalysis` pass; the chart renders and passes lint and kubeconform with both sets of values.
    * **Next:** a new image (commit and push), staging's image tag, and the runbook again from the deploy. The platform is already registered.
+7. **Redeployed with `v0.1.0-72-g210b4c9` (the fix): the platform is healthy** (the user, 2026-11-25). So, on EKS:
+   * core-api can write, read and delete through the private endpoint with its Pod Identity role;
+   * it can issue run credentials from the run role through AWS's STS;
+   * it can reach Funnel's TES API in the compute namespace;
+   * it has its permissions there.
+8. **The first demo run stuck: its executor couldn't be placed.** Fixed in the chart (the user chose it, 2026-11-25).
+   * **What happened:**
+     * Auto Mode started a compute node for the Nextflow Job (1 CPU), a `c6a.large`, about 1.9 vCPUs usable.
+     * Funnel's worker (50m) fit beside it, but its executor (the task's 1 CPU) didn't.
+     * The executor must run on its worker's node, since they share the task's ReadWriteOnce claim. So no new node could take it either (Auto Mode: "unsatisfiable topology constraint for pod affinity").
+     * The run would have waited until its 45-minute deadline. The user cancelled it.
+   * **Also learned, answering Task 7's decision 2:** the Nextflow Job reached core-api's TES API, and the worker reached Funnel's server and created the executor, both through Service addresses. So on EKS a rule on pods does cover traffic to their Service's address, and the fallback isn't needed.
+   * **The fix:**
+     * the worker requests and is limited to the task's CPU and memory (at least 256Mi; the connection's defaults for a task that requests none);
+     * each executor requests 50m and up to 256Mi, limited to the task's resources as before.
+
+     So a node autoscaler sizes or picks the node by the worker, and the executor always fits beside it, within the room the worker reserved. Executors run one at a time per task, and the worker mostly waits while they do.
+   * **The quota** follows: requests count the tasks' resources once, plus each executor's small request; limits count them twice (worker and executor).
+   * **Rejected:** keeping staging's node pool to `xlarge` nodes. That would unblock staging, but production's pool spans several nodes, where a worker could still land beside too little room.
+   * **Checked:**
+     * Funnel's worker and executor templates, rendered with Go's own template engine (Helm's `tpl`) for a normal task, a small one and one with no resources, give valid Jobs with the expected requests and limits, locally and on AWS;
+     * `./scripts/refcloud-static-analysis-helm.sh` passes;
+     * `deploy/helm/CLAUDE.md` describes the reservation.
+   * A chart-only change, deployed to staging with the same image tag; to commit with the rest.
+
+   **Paused 2026-11-25:**
+   * **Done:** the stuck run is cancelled (`CANCELED`), and the platform is registered, enabled and healthy, with the user's access approved.
+   * **Next:** deploy the chart with the worker's reservation (`helm upgrade` from the working tree, same values and image tag), then the runbook from step 4 (the demo) through step 10.
+   * **Uncommitted:** this fix and the spec in the monorepo; staging's values (compute block and image tag) in the values repo.
 
 ### Task 9: Docs and the rollout spec
 

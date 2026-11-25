@@ -94,6 +94,6 @@ data:
         {{- include "refcloud.funnelTemplate" (dict "root" $ "file" "storage.yaml" "placeholders" $placeholders "values" (dict "REFCLOUD_DEFAULT_TASK_DISK" (printf "%sG" $defaultTaskDiskGb))) | nindent 8 }}
       {{- range $key, $file := dict "WorkerTemplate" "worker-job.yaml" "ExecutorTemplate" "executor-job.yaml" }}
       {{ $key }}: |
-        {{- include "refcloud.funnelTemplate" (dict "root" $ "file" $file "placeholders" $placeholders "values" (dict "REFCLOUD_FUNNEL_IMAGE" $image "REFCLOUD_SELINUX_LEVEL" (include "refcloud.computeSelinuxLevel" $))) | nindent 8 }}
+        {{- include "refcloud.funnelTemplate" (dict "root" $ "file" $file "placeholders" $placeholders "values" (dict "REFCLOUD_FUNNEL_IMAGE" $image "REFCLOUD_SELINUX_LEVEL" (include "refcloud.computeSelinuxLevel" $) "REFCLOUD_DEFAULT_TASK_CPU" (index $limits "default-task-cpu-cores" | toString) "REFCLOUD_DEFAULT_TASK_MEMORY" (printf "%vG" (index $limits "default-task-memory-gb")))) | nindent 8 }}
       {{- end }}
 {{- end }}
