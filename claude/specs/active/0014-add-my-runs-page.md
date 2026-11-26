@@ -333,12 +333,18 @@ Built 2026-11-26:
     Every WES and TES call carried the passport, and Semgrep finds nothing (0 findings).
 11. **The real demo, followed from the pages** (the user, with the checklist in decision 4):
     * local native mode: passed 2026-11-26;
-    * local helm mode: pending;
-    * staging: pending.
+    * local helm mode: passed 2026-11-26;
+    * staging: passed 2026-11-26, with `v0.1.0-87-g1d8e4f3`. The only values change was staging's `image.tag`, committed to the private values repo. Spec 0014 changed neither the chart nor the database schema.
 
 ## Future Directions
 
 * **Submitting runs from the UI** (decided out of scope 2026-11-13; revisit later). Each workflow takes its own inputs, and not every workflow describes them in a schema a form could use. A middle ground: offer a form only for allowlisted workflows that ship a parameter schema (e.g. nf-core's `nextflow_schema.json`), starting with the bundled `drs-checksum`, which takes a single DRS input. Every workflow a platform runs is admin-approved (D20), and admins fix how it runs (D21), so the form only needs the parameters.
 * **Filters on the workflow runs list** (Task 3, decision 6): by state, platform or workflow, when researchers have enough runs to need them.
+* **Faster, steadier image builds in CI** (found during Task 5, 2026-11-26). Image build times vary a lot from push to push. Every push rebuilds all seven images (lockstep tags need each image under every tag), and an image runs fast or slow depending on whether its layers are cached. From `push-docker-image.yml` and the Dockerfiles, in order of payoff:
+  1. **Build `linux/amd64` only.** Every image is also built for `linux/arm64`, under QEMU emulation on an x86 runner, usually 5–10 times slower for Gradle, `npm ci`, `next build` and Docusaurus. Nothing seems to use the arm64 images: EKS's node pools are amd64 (spec 0013), and local helm mode builds its own images in minikube. Check first that nobody pulls them on an arm64 machine. The user accepted the slow arm64 builds when the monorepo's CI was set up (2026-10-29). If arm64 images are wanted, the other option is native `ubuntu-24.04-arm` runners, one per architecture, with a manifest merge: no emulation.
+  2. **Dependency layers first.** core-api's Dockerfile copies `src/` before `gradle bootJar`, so any source change downloads every dependency again. The researcher UI's runs `COPY . .` before `npm ci`. Copying the Gradle files and fetching dependencies, or `package.json` and `package-lock.json` with `npm ci`, before the source would let code changes reuse the dependency layer. Check the other Dockerfiles too.
+  3. **A registry cache in ECR** (`type=registry`, a `buildcache` tag per repository, `image-manifest=true`) instead of GitHub Actions' cache (`type=gha`). The Actions cache can be read only from the same branch or the default branch (`main`), and image builds run only on `develop` and feature branches, so each new branch starts cold. It's also limited per repository (10 GB by default) and shared with the static-analysis caches, so entries are evicted. With seven images, two architectures and `mode=max`, that's sooner rather than later.
+
+  Smaller effects: runner queueing (each push starts 7 image builds plus static analysis), `cancel-in-progress` restarting a build after a quick second push, and uploading large layers with `mode=max`. Recent run times (`gh run list` per workflow) would confirm which images miss most.
 * **Large run logs** (Task 4, decision 8): the run's page fetches a whole log to show its last 500 lines. If engine logs grow large, core-api's log endpoint could take a `tail` parameter (or answer `Range` requests), so the page fetches only what it shows.
 * **Runs the researcher can't reach any more** (Task 1, decision 4): those on disabled platforms, or after their platform visa is revoked, aren't listed. If owners should always see their own runs, core-api would let them list and read those runs without the visa.
