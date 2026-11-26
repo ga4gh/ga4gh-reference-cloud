@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - develop
-      - ja-iss-64-compute-on-aws
 permissions:
   contents: read
   id-token: write
