@@ -7,7 +7,12 @@ In this demo, you will run a workflow on the reference cloud through its **WES A
 The workflow is `drs-checksum`, a small demo bundled with the reference cloud. It takes one file and reports the file's name, size, MD5 and SHA-256.
 
 :::note Runs on a local reference cloud
-Compute is currently available when you run the reference cloud on your own machine in native mode (see `deploy/local/README.md` in the [repository](https://github.com/ga4gh/ga4gh-reference-cloud)), so this demo uses https://refcloud.ga4gh.localhost rather than the hosted instance. The local setup registers a compute platform called `nextflow-demo`, with `drs-checksum` on its allowlist.
+Compute is currently available when you run the reference cloud on your own machine (see the [repository](https://github.com/ga4gh/ga4gh-reference-cloud)), so this demo uses https://refcloud.ga4gh.localhost rather than the hosted instance. Each local mode registers a compute platform with `drs-checksum` on its allowlist:
+
+* **native mode:** `nextflow-demo`, used in the examples below;
+* **helm mode:** `nextflow-demo-kubernetes`. Use it in place of `nextflow-demo` in every URL below.
+
+The demo works the same on both.
 :::
 
 This demo assumes you have familiarity with:
@@ -21,7 +26,7 @@ You will need `curl` and `jq` on your machine. Read the [Compute Overview](../co
 
 You need two approved visas, and a passport token. [Accessing Compute Platforms](../compute/access) covers the details.
 
-* **The compute platform:** request access to **Nextflow Demo** on the **Browse Compute Platforms** page.
+* **The compute platform:** request access to **Nextflow Demo** (native mode) or **Nextflow Demo (Kubernetes)** (helm mode) on the **Browse Compute Platforms** page.
 * **The input data:** the input file is in the **1000 Genomes** dataset, so request access to it on the **Browse Datasets** page.
 * **A passport token:** copy one from the **View Passport Token** page, and keep it in a shell variable:
 

@@ -38,13 +38,7 @@ public class HostProcessRunner {
     public EngineProcess launch(
             Path runDirectory, List<String> command, Map<String, String> environment, Duration launchTimeout)
             throws IOException {
-        Path launcher = runDirectory.resolve(LAUNCHER);
-        try (InputStream script = HostProcessRunner.class.getResourceAsStream("/compute/run-launcher.sh")) {
-            if (script == null) {
-                throw new IOException("the run launcher script is missing from the classpath");
-            }
-            Files.write(launcher, script.readAllBytes());
-        }
+        Path launcher = writeLauncher(runDirectory);
 
         List<String> launch = new ArrayList<>(List.of("sh", launcher.toString(), runDirectory.toString()));
         launch.addAll(command);
@@ -64,7 +58,7 @@ public class HostProcessRunner {
                 Instant startedAt = ProcessHandle.of(pid.get())
                         .flatMap(handle -> handle.info().startInstant())
                         .orElse(null);
-                return new EngineProcess(pid.get(), startedAt);
+                return EngineProcess.hostProcess(pid.get(), startedAt);
             }
             if (!launcherProcess.isAlive() && readLong(pidFile).isEmpty()) {
                 throw new IOException("the run launcher exited (" + launcherProcess.exitValue()
@@ -74,6 +68,18 @@ public class HostProcessRunner {
         }
         launcherProcess.destroyForcibly();
         throw new IOException("the engine did not start within " + launchTimeout);
+    }
+
+    // the launcher script, written into the run directory (also run by NextflowKubernetesEngine's Job)
+    static Path writeLauncher(Path runDirectory) throws IOException {
+        Path launcher = runDirectory.resolve(LAUNCHER);
+        try (InputStream script = HostProcessRunner.class.getResourceAsStream("/compute/run-launcher.sh")) {
+            if (script == null) {
+                throw new IOException("the run launcher script is missing from the classpath");
+            }
+            Files.write(launcher, script.readAllBytes());
+        }
+        return launcher;
     }
 
     public EngineStatus status(Path runDirectory, EngineProcess process) {
@@ -93,7 +99,7 @@ public class HostProcessRunner {
             }
             sleep(Duration.ofMillis(200));
         }
-        return new EngineStatus.Lost();
+        return new EngineStatus.Lost(null);
     }
 
     // SIGTERM (force: SIGKILL), only if the pid is still the run's engine
@@ -127,7 +133,8 @@ public class HostProcessRunner {
                 .orElse(true);
     }
 
-    private static Optional<Integer> exitCode(Path runDirectory) {
+    // the engine's exit code, once the launcher has written it
+    static Optional<Integer> exitCode(Path runDirectory) {
         return readLong(runDirectory.resolve(EXIT_CODE_FILE)).map(Long::intValue);
     }
 

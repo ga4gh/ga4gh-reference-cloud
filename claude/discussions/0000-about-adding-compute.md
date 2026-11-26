@@ -184,11 +184,11 @@ Stage 1 items were checked on 2026-11-11. Details are in the spec's **Decisions 
 
 1. ✅ nf-ga4gh can authenticate to TES with a credential supplied for each run. `tes.oauthToken` read from an environment variable becomes `Authorization: Bearer` on every create, poll and cancel request (D12).
 2. ✅ **Native mode:** Funnel in Docker Compose with the Docker socket and a same-path mount of the storage root works. It needs a derived image that adds the `docker` CLI.
-3. ⏳ **Stage 2 (helm mode):** Funnel's Kubernetes backend in minikube, with the shared `hostPath` directory.
+3. ✅ **Stage 2 (helm mode):** Funnel's Kubernetes backend in minikube, with the shared `hostPath` directory. Works end to end (2026-11-16), with workarounds: Funnel's backend is built around S3, so it needs a placeholder S3 setting, `hostPath` volume templates, and cluster-wide permission to manage PersistentVolumes. Details in spec 0011, Decisions (Task 1).
 4. ✅ Nextflow 26.10.5, nf-ga4gh 1.5.0 and Funnel 0.11.14 run on arm64. amd64-only task images run under emulation.
 5. ✅ TRS: resolve to the source git repository and commit. Dockstore's TRS descriptor files are incomplete for Nextflow workflows (D20).
 6. ✅ File staging: Funnel copies plain host paths under `LocalStorage.AllowedDirs`. Task images need `bash`. Tasks need a writable `/tmp` because Funnel runs them `--read-only`. **Gap:** nf-ga4gh 1.5.0 doesn't return `.command.env`, so Nextflow `env`/`eval` outputs (used by current nf-core modules) fail (D12, D20).
-7. ⏳ **Stage 2 (helm mode):** with minikube's Docker driver, a `hostPath` is a directory inside the minikube node, not on the macOS host. Decide whether developers reach outputs through `minikube mount` or only through the API.
+7. ✅ **Stage 2 (helm mode):** with minikube's Docker driver, a `hostPath` is a directory inside the minikube node, not on the macOS host. Decided (2026-11-16): outputs only through the WES API; `minikube ssh` reaches run directories for debugging.
 
 ## Open Questions
 
@@ -196,4 +196,4 @@ _None._
 
 ## Next Step
 
-Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md).
+Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md). Stage 2 is specified in [`claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md`](../specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md).

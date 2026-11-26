@@ -6,7 +6,8 @@ isn't restricted.
   to                          from
   refcloud-ui :3000           the ingress
   refcloud-docs :8080         the ingress
-  refcloud-api :8080          the ingress, refcloud-ui, kratos (registration webhook)
+  refcloud-api :8080          the ingress, refcloud-ui, kratos (registration webhook), and locally the Nextflow
+                              Jobs in the compute namespace (its TES API, through the engine callback URL)
   kratos :4433 (public)       the ingress, refcloud-ui, refcloud-api
   kratos :4434 (admin)        nothing (health probes only)
   hydra :4444 (public)        the ingress, refcloud-ui, refcloud-api (signing keys)
@@ -14,7 +15,8 @@ isn't restricted.
   refcloud-admin-cli          nothing
 
 A new in-cluster caller (e.g. a new internal URL in a deployment or config map) needs a rule here, or its requests
-time out.
+time out. The compute namespace's policies, which deny all traffic in and out by default, are in
+compute-network-policies.yaml.
 */ -}}
 {{- if .Values.networkPolicy.enabled }}
 {{- $ingressFrom := .Values.networkPolicy.ingressFrom }}
@@ -78,6 +80,14 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: kratos
+        {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "refcloud.computeNamespace" . }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-nextflow
+        {{- end }}
       ports:
         - protocol: TCP
           port: 8080

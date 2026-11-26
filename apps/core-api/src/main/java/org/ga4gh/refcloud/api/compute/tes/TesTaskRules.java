@@ -18,6 +18,10 @@ public final class TesTaskRules {
     // tags the refcloud adds on the way to the executor; clients can't set them, and they're stripped from responses
     public static final String RESERVED_TAG_PREFIX = "refcloud_";
 
+    // funnel acts on tags starting with "_" (e.g. _WORKER_SA names a service account it deletes at clean-up: spec 0011,
+    // Task 3), so clients can't set those either
+    public static final String EXECUTOR_TAG_PREFIX = "_";
+
     // fields the server sets; whatever a client sends for them is dropped
     private static final String[] SERVER_FIELDS = {"id", "state", "logs", "creation_time"};
 
@@ -53,6 +57,10 @@ public final class TesTaskRules {
             for (String key : tags.propertyNames()) {
                 if (key.startsWith(RESERVED_TAG_PREFIX)) {
                     throw new BadRequestException("tag keys starting with '" + RESERVED_TAG_PREFIX + "' are reserved");
+                }
+                if (key.startsWith(EXECUTOR_TAG_PREFIX)) {
+                    throw new BadRequestException(
+                            "tag keys starting with '" + EXECUTOR_TAG_PREFIX + "' are reserved for the executor");
                 }
             }
         }

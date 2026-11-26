@@ -1,5 +1,6 @@
 """compute-platform allowlist add, remove and list (D20, D21)"""
 
+import os
 from pathlib import Path
 
 import click
@@ -16,10 +17,12 @@ from refcloud.handlers.compute_platform.sources import (
 )
 from refcloud.handlers.visa import echo_table
 
-# bundled workflows live in this repo under compute/workflows/{engine}/{name}; the stored path is relative to the
-# repo root. checked from apps/admin-cli, where the CLI runs locally
+# bundled workflows live in this repo under compute/workflows/{engine}/{name}. the stored path is relative to the
+# directory holding compute/workflows/: the repo root locally (../.. from apps/admin-cli, where the CLI runs), and /app
+# in the admin CLI and core-api images, which both bundle them. core-api resolves it against its own base directory
 BUNDLED_WORKFLOWS_DIRECTORY = "compute/workflows/nextflow"
-REPO_ROOT_FROM_CLI = Path("../..")
+BUNDLED_WORKFLOWS_BASE_DIR_ENV = "REFCLOUD_BUNDLED_WORKFLOWS_BASE_DIR"
+DEFAULT_BUNDLED_WORKFLOWS_BASE_DIR = "../.."
 
 
 def allowlist_add(
@@ -101,9 +104,9 @@ def resolve_source(git_repository, git_ref, trs_descriptor_url, bundled, main_sc
     if not BUNDLED_NAME.match(bundled):
         raise SourceError(f"bundled workflow name ({bundled}) must be lowercase letters, digits and hyphens")
     bundled_path = f"{BUNDLED_WORKFLOWS_DIRECTORY}/{bundled}"
-    if not (REPO_ROOT_FROM_CLI / bundled_path).is_dir():
-        # only checkable from a repo checkout; core-api checks again when it runs the workflow
-        click.echo(f"warning: {bundled_path} was not found relative to the repo root; check the name")
+    base_dir = Path(os.environ.get(BUNDLED_WORKFLOWS_BASE_DIR_ENV, DEFAULT_BUNDLED_WORKFLOWS_BASE_DIR))
+    if not (base_dir / bundled_path).is_dir():
+        raise SourceError(f"bundled workflow ({bundled}) not found: no {bundled_path} in {base_dir.resolve()}")
     return {"source_kind": "bundled", "workflow_url": f"refcloud:bundled/{bundled}", "bundled_path": bundled_path}
 
 

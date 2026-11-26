@@ -75,11 +75,7 @@ public class NextflowEngine implements WorkflowEngine {
             ComputeRun run, ComputeConfig.Connection connection, String tesEndpoint, String tesToken)
             throws IOException {
         Path runDirectory = Path.of(run.getRunDirectory());
-        Files.writeString(runDirectory.resolve(CONFIG_FILE), config(tesEndpoint), StandardCharsets.UTF_8);
-        Files.writeString(
-                runDirectory.resolve(PARAMS_FILE),
-                objectMapper.writeValueAsString(run.getWorkflowParams()),
-                StandardCharsets.UTF_8);
+        writeRunFiles(run, tesEndpoint, objectMapper);
         return hostProcessRunner.launch(
                 runDirectory,
                 command(run, connection.engine()),
@@ -88,18 +84,32 @@ public class NextflowEngine implements WorkflowEngine {
     }
 
     @Override
-    public EngineStatus status(ComputeRun run) {
+    public EngineStatus status(ComputeRun run, ComputeConfig.Connection connection) {
         return hostProcessRunner.status(Path.of(run.getRunDirectory()), process(run));
     }
 
     @Override
-    public void terminate(ComputeRun run, boolean force) {
+    public void terminate(ComputeRun run, ComputeConfig.Connection connection, boolean force) {
         hostProcessRunner.signal(Path.of(run.getRunDirectory()), process(run), force);
     }
 
     @Override
-    public void cleanUp(ComputeRun run) {
+    public void cleanUp(ComputeRun run, ComputeConfig.Connection connection) {
+        removeIntermediateDirectories(Path.of(run.getRunDirectory()));
+    }
+
+    // the run's generated nextflow config and its params file, in the run directory (shared with
+    // NextflowKubernetesEngine, as are the command, the environment, refcloudFailureOf and the clean-up)
+    static void writeRunFiles(ComputeRun run, String tesEndpoint, ObjectMapper objectMapper) throws IOException {
         Path runDirectory = Path.of(run.getRunDirectory());
+        Files.writeString(runDirectory.resolve(CONFIG_FILE), config(tesEndpoint), StandardCharsets.UTF_8);
+        Files.writeString(
+                runDirectory.resolve(PARAMS_FILE),
+                objectMapper.writeValueAsString(run.getWorkflowParams()),
+                StandardCharsets.UTF_8);
+    }
+
+    static void removeIntermediateDirectories(Path runDirectory) {
         for (String name : INTERMEDIATE_DIRECTORIES) {
             deleteRecursively(runDirectory.resolve(name));
         }
@@ -111,6 +121,10 @@ public class NextflowEngine implements WorkflowEngine {
     // failed. only the end of the run's own log is read
     @Override
     public Optional<String> refcloudFailure(ComputeRun run) {
+        return refcloudFailureOf(run);
+    }
+
+    static Optional<String> refcloudFailureOf(ComputeRun run) {
         Path log = Path.of(run.getRunDirectory()).resolve("nextflow.log");
         return abortCause(tail(log, LOG_TAIL_BYTES))
                 .filter(cause -> cause.contains("/ga4gh/tes/" + run.getComputePlatformId() + "/v1/"))
@@ -158,9 +172,14 @@ public class NextflowEngine implements WorkflowEngine {
     }
 
     static List<String> command(ComputeRun run, ComputeConfig.Engine engine) {
+        return command(run, engine.nextflowExecutable());
+    }
+
+    // the nextflow command for the run, run by executable
+    static List<String> command(ComputeRun run, String executable) {
         Path runDirectory = Path.of(run.getRunDirectory());
         List<String> command = new ArrayList<>(List.of(
-                engine.nextflowExecutable(),
+                executable,
                 "-log",
                 runDirectory.resolve("nextflow.log").toString(),
                 "run",
@@ -188,20 +207,26 @@ public class NextflowEngine implements WorkflowEngine {
     }
 
     static Map<String, String> environment(ComputeRun run, ComputeConfig.Engine engine, String tesToken) {
-        Map<String, String> environment = new HashMap<>();
-        if (run.getEngineEnv() != null) {
-            environment.putAll(run.getEngineEnv());
-        }
-        // set after the allowlist entry's variables, so these always win
-        environment.put("NXF_VER", engine.nextflowVersion());
-        environment.put("NXF_PLUGINS_DEFAULT", "nf-ga4gh@" + engine.nfGa4ghVersion());
-        environment.put("NXF_ANSI_LOG", "false");
+        Map<String, String> environment = pinnedEnvironment(run, engine);
         environment.put(TOKEN_ENVIRONMENT_VARIABLE, tesToken);
         return environment;
     }
 
+    // the allowlist entry's variables, then the pinned versions, which always win (every engine type; the token is
+    // added separately)
+    static Map<String, String> pinnedEnvironment(ComputeRun run, ComputeConfig.Engine engine) {
+        Map<String, String> environment = new HashMap<>();
+        if (run.getEngineEnv() != null) {
+            environment.putAll(run.getEngineEnv());
+        }
+        environment.put("NXF_VER", engine.nextflowVersion());
+        environment.put("NXF_PLUGINS_DEFAULT", "nf-ga4gh@" + engine.nfGa4ghVersion());
+        environment.put("NXF_ANSI_LOG", "false");
+        return environment;
+    }
+
     private static EngineProcess process(ComputeRun run) {
-        return new EngineProcess(run.getEnginePid(), run.getEngineStartedAt());
+        return EngineProcess.hostProcess(run.getEnginePid(), run.getEngineStartedAt());
     }
 
     // deletes a directory inside the run directory; files the engine's containers wrote may not be deletable by

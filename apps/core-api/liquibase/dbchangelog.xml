@@ -726,4 +726,23 @@
             </sql>
         </rollback>
     </changeSet>
+    <!--
+        compute stage 2 (claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md, Task 4): a run on a
+        nextflow-funnel-kubernetes platform runs as a kubernetes Job, whose name derives from the run id. engine_job_uid
+        records that Job's uid (engine_started_at its creation time), as engine_pid records a host process. a run has
+        at most one of them
+    -->
+    <changeSet author="jadams" id="modify-tb-compute-run-add-engine-job-uid">
+        <sql dbms="postgresql">
+            ALTER TABLE compute_run ADD COLUMN engine_job_uid UUID;
+            ALTER TABLE compute_run ADD CONSTRAINT compute_run_one_engine_identity_check
+                CHECK (num_nonnulls(engine_pid, engine_job_uid) &lt;= 1);
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE compute_run DROP CONSTRAINT compute_run_one_engine_identity_check;
+                ALTER TABLE compute_run DROP COLUMN engine_job_uid;
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

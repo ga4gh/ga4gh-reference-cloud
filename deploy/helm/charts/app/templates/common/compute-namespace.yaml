@@ -1,0 +1,20 @@
+{{- /*
+The compute namespace (refcloud.computeNamespace): Funnel, its workers and the task pods.
+
+Stage 2 stores runs on a hostPath, which the baseline and restricted Pod Security levels both forbid, so no level is
+enforced here. Every pod is hardened through its own security context instead, and anything short of restricted is
+reported: a warning to whoever creates it, and an audit annotation.
+
+Local only, like everything in it (Funnel, its RBAC): stage 2's storage is a hostPath on the minikube node.
+*/}}
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "refcloud.computeNamespace" . }}
+  labels:
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+{{- end }}

@@ -1,0 +1,102 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+{{- $persistentVolumesRole := printf "%s-funnel-persistentvolumes" $namespace }}
+# Funnel's server: creates each task's worker Job, and the volume and claim Funnel requires for it (files/funnel/)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: funnel
+  namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: funnel
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: funnel
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: funnel
+subjects:
+  - kind: ServiceAccount
+    name: funnel
+    namespace: {{ $namespace }}
+---
+# PersistentVolumes have no namespace, so this permission covers every volume in the cluster, not only Funnel's.
+# Accepted for stage 2's minikube (spec 0011, Task 1); named per release, so installations don't share it. Funnel
+# deletes only the volumes labelled with its namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $persistentVolumesRole }}
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["create", "get", "list", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $persistentVolumesRole }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $persistentVolumesRole }}
+subjects:
+  - kind: ServiceAccount
+    name: funnel
+    namespace: {{ $namespace }}
+---
+# Funnel's workers (files/funnel/worker-job.yaml): each creates and watches its task's executor Jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: funnel-worker
+  namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: funnel-worker
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: funnel-worker
+  namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: funnel-worker
+subjects:
+  - kind: ServiceAccount
+    name: funnel-worker
+    namespace: {{ $namespace }}
+{{- end }}

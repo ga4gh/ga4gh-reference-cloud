@@ -27,7 +27,7 @@ public class ComputeHealthServiceTest {
         private List<String> failures = new ArrayList<>();
 
         StubChecker() {
-            super(new ComputeHealthConfig(Duration.ofSeconds(60), Duration.ofSeconds(1), Duration.ofSeconds(1)));
+            super(new ComputeHealthConfig(Duration.ofSeconds(60), Duration.ofSeconds(1), Duration.ofSeconds(1)), null);
         }
 
         @Override

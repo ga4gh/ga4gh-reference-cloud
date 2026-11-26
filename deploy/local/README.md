@@ -28,6 +28,8 @@ Native mode can run workflows through the refcloud's WES and TES APIs: a researc
 
 **Setup:** `./scripts/refcloud-setup.sh` checks that `nextflow` can run the pinned version, downloading it the first time. If it can't, setup warns and skips compute. Otherwise it registers and enables the `nextflow-demo` compute platform on the `nextflow-funnel-docker-local` connection, with the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow on its allowlist and small per-user limits: 2 concurrent runs; 2 CPU cores, 2 GB of memory and 10 GB of disk per task; 30 minutes per run; 10 core-hours a month. An existing platform is left as it is; to recreate it, delete it with `uv run refcloud compute-platform delete -p nextflow-demo` (in `apps/admin-cli`) and run setup again.
 
+Helm mode has its own demo platform, `nextflow-demo-kubernetes` (see [`deploy/helm/README.md`](../helm/README.md), Compute). Both modes share the databases, so each lists the other's platform as unavailable, and a researcher requests access to each separately. The run scripts list only their own mode's platforms.
+
 **Running the demo end to end** (the spec's "Done when" check). On a fresh setup:
 
 1. Install Nextflow's launcher (see the requirements in the main [README](../../README.md); not Homebrew's `nextflow`, see above), then set up from scratch and start native mode. `--reset` deletes your local databases (including local accounts), and onboarding 1000 Genomes takes a while:
@@ -53,7 +55,7 @@ Native mode can run workflows through the refcloud's WES and TES APIs: a researc
    ./scripts/refcloud-compute-demo.sh <passport token>
    ```
 
-   The script submits the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow through WES on the demo's DRS object (`drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`). Then it:
+   Without `-p <platform id>`, it uses whichever demo platform is healthy: `nextflow-demo` in native mode. The script submits the bundled [`drs-checksum`](../../compute/workflows/nextflow/drs-checksum/README.md) workflow through WES on the demo's DRS object (`drs://refcloud.ga4gh.localhost/HG00096.mapped.ILLUMINA.bwa.GBR.exome.20120522.bam.bai`). Then it:
    * follows the run (`QUEUED` → `RUNNING` → `COMPLETE`, about 20 seconds once Nextflow is cached);
    * downloads `checksum-report.json` through the output download endpoint;
    * checks that the report's MD5 matches the checksum DRS reports for the object.
@@ -72,7 +74,7 @@ REFCLOUD_COMPUTE_STORAGE_ROOT=$PWD/compute/nextflow-funnel-docker docker compose
 
 ## Static Analysis
 
-Static analysis of this directory (including `funnel/Dockerfile`) and of every app Dockerfile (`apps/**/Dockerfile`) runs in CI on every pull request that changes them. Run it locally from the repo root (requires only Docker; each tool runs from a pinned image, so local runs match CI):
+Static analysis of this directory (including `funnel/Dockerfile`), of every app Dockerfile (`apps/**/Dockerfile`) and of the compute images (`compute/images/**/Dockerfile`) runs in CI on every pull request that changes them. Run it locally from the repo root (requires only Docker; each tool runs from a pinned image, so local runs match CI):
 
 | Check | Command |
 |-|-|

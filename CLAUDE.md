@@ -13,7 +13,7 @@ High-level bash/zsh scripts are located in the `scripts/` directory. Scripts inc
 * set up baseline resources (safe to re-run): `./scripts/refcloud-setup.sh` (`--reset` to start fresh)
 * run all refcloud services from source: `./scripts/refcloud-run-native.sh`
 * run all refcloud services in minikube via helm: `./scripts/refcloud-run-helm.sh` (`--down` to uninstall)
-* run the compute demo end to end through WES (native mode, after setup with Nextflow installed): `./scripts/refcloud-compute-demo.sh <passport token>` (steps in `deploy/local/README.md`)
+* run the compute demo end to end through WES, in either local mode (it picks the running mode's demo platform): `./scripts/refcloud-compute-demo.sh <passport token>` (steps in `deploy/local/README.md` and `deploy/helm/README.md`)
 * static analysis of `deploy/local` and the app Dockerfiles: `./scripts/refcloud-static-analysis-deploy-local.sh` (bash, needs only Docker; see `deploy/local/README.md`)
 * static analysis of the helm chart (`deploy/helm`): `./scripts/refcloud-static-analysis-helm.sh` (bash, needs only Docker; see `deploy/helm/README.md`)
 * static analysis of the GitHub Actions workflows: `./scripts/refcloud-static-analysis-workflows.sh` (bash, needs only Docker; conventions in `.github/workflows/README.md`)
@@ -46,13 +46,16 @@ Configuration code for deploying the refcloud is stored in the `deploy/` directo
 * `.github` - GitHub Actions workflows (conventions, including SHA-pinned actions, in `.github/workflows/README.md`) and Dependabot config
 * `assets/` - web/art assets used by the refcloud
 * `claude/` - contains historical and active specs that claude can reference to develop new features and fix bugs
-* `compute/` - compute (WES/TES): bundled demo workflows in `compute/workflows/` (tracked), and native-mode run storage in `compute/nextflow-funnel-docker/` (git-ignored by `compute/.gitignore`, cleared by `--reset`)
+* `compute/` - compute (WES/TES): bundled demo workflows in `compute/workflows/` (tracked), the Nextflow image that Kubernetes compute runs in `compute/images/nextflow/` (built with the lockstep tag, like the apps), and native-mode run storage in `compute/nextflow-funnel-docker/` (git-ignored by `compute/.gitignore`, cleared by `--reset`)
 * `docs/` - high-level planning and milestone documentation
 
 ## Things to Note
 
 * When running the refcloud locally via either `deploy/local` or `deploy/helm`, the expected base URL is `https://refcloud.ga4gh.localhost` for all backend & frontend services, and `https://docs.refcloud.ga4gh.localhost` for the docs
 * Only one local mode (native or helm) runs at a time: Caddy and `minikube tunnel` both bind port 443. Both modes share the host Postgres databases.
-* Compute runs in native mode only (helm mode has no compute connection until stage 2, so the default `nextflow-demo` platform shows as unavailable there). Nextflow runs natively (core-api launches `nextflow run`); Funnel runs in Docker Compose and starts task containers through the host's Docker socket, for local development only. See `deploy/local/README.md`.
+* Compute has a connection per mode, and each mode shows the other's platforms as unavailable (both share the databases):
+  * native mode (`nextflow-funnel-docker-local`, demo platform `nextflow-demo`, registered by setup): Nextflow runs natively (core-api launches `nextflow run`); Funnel runs in Docker Compose and starts task containers through the host's Docker socket, for local development only. See `deploy/local/README.md`;
+  * helm mode (`nextflow-funnel-kubernetes-local`, demo platform `nextflow-demo-kubernetes`, registered by the run script; spec 0011): core-api runs a Nextflow Job per run in the release's compute namespace, and Funnel runs each task as Jobs there. See `deploy/helm/CLAUDE.md`.
 * The repo is public and has GitHub push protection on. Never commit real credentials: anything pushed is public and can't be fully removed. Dev-only defaults (`secret`, the Hydra system secret in `deploy/local/ory/hydra/hydra.yml`) are local/minikube-only and allowlisted in `.gitleaks.toml`; any new allowlist entry needs a reason.
+* The core-api and admin CLI images are built from the repo root (their Dockerfiles stay in their app directories), so both can bundle `compute/workflows/`. `/.dockerignore` is an allowlist of what those builds see, which also keeps `minikube image build` from copying the whole repo into minikube. The other images build from their own directories.
 * Versioning of the refcloud apps follows a "lockstep versioning" pattern. When a new release is minted, all apps will have the same docker tag. Docker tags are derived from `git describe --tags` (local helm builds append `-uncommitted` when the working tree has changes)
