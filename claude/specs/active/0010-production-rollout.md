@@ -1,0 +1,142 @@
+# Feature Spec: Production rollout for the end of 2026
+
+**Branch:** _TBD_
+
+**Linked GitHub Issue:** _TBD_
+
+**Target:** in production **before the end of 2026**. The last working day before the break is **December 18th, 2026**, so aim to deploy by **December 14th–16th**, leaving time to watch production and fix problems before the break.
+
+## Objective
+
+Bring production (https://refcloud.ga4gh.org, on EKS Auto Mode) up to date in **one update**: everything merged since the current production release, in a single release tag and `helm upgrade`. Production is updated once, at the end, rather than after each branch.
+
+**Done when:**
+
+* production runs the new release;
+* researchers can register, log in, get a passport token, request dataset access and use the GA4GH APIs as before;
+* compute is available in production (if it made the cut, see Task 1): a researcher with approved visas can run the bundled demo through WES on the production compute platform;
+* the post-deploy checks (Task 6) pass, and someone has watched production for at least a day before the break.
+
+## Context
+
+**What the release includes** (as of 2026-11-16; finalized in Task 1):
+
+* **Compute, stage 1** ([spec 0008](../archive/0008-add-compute-wes-tes.md)): WES and TES APIs, Compute Platforms, the visa admin commands, and the researcher UI's compute pages. Its database migrations include **converting every timestamp column to UTC `timestamptz`**, whose production notes are under spec 0008's Decisions (Task 2).
+* **Deployment hardening** ([issue 58](https://github.com/ga4gh/ga4gh-reference-cloud/issues/58)):
+  * every Service is ClusterIP, and the ALB targets pod IPs;
+  * NetworkPolicies, which need policy enforcement on in the cluster;
+  * Kratos and Hydra run without dev mode, with Ory usage reports off;
+  * **Kratos upgraded to `v26.2.0`**, in step with Hydra, with one-step registration;
+  * Kratos logs at `info`.
+* **The year-end compute work, as it lands** ([milestones](../../../docs/milestones/2026-12-18-Compute-Milestones.md)):
+  * stage 2 (Nextflow + Funnel on Kubernetes);
+  * stage 3 (MinIO/S3 storage);
+  * the compute platform on AWS (EKS);
+  * the researcher UI's My Runs page;
+  * the docs update.
+
+**What changes for users:** everyone logs in again once after the deploy (Hydra's cookie names change when it leaves dev mode). Accounts and passwords are kept: the Kratos upgrade was tested from `v0.9.0-alpha.2` with existing accounts and sessions.
+
+Production details (account IDs, CIDRs, ARNs, secret values) stay in the private values repo and the Terraform repo, never in this public repo.
+
+## Engineering Tasks
+
+### Task 1: Scope and release candidate (by December 11th)
+
+* **Go/no-go on compute:** decide which year-end items ship.
+  * If the AWS compute platform isn't ready and tested by December 11th, ship without it. Compute's APIs deploy, but no production platform is registered or enabled (the platforms page shows none).
+  * Record what ships under Decisions.
+* Merge every included branch into `main`, and check that `main` passes CI.
+* **Rehearse in minikube (helm mode)** with the exact commit that will be tagged:
+  * a fresh `./scripts/refcloud-setup.sh --reset`, then `./scripts/refcloud-run-helm.sh`;
+  * the end-to-end checks of Task 6, as far as they apply locally.
+* Cut the lockstep release tag (e.g. `v0.2.0`), and check that CI pushed every image to ECR under that tag.
+
+**Decisions (Task 1):**
+
+### Task 2: Infrastructure (Terraform)
+
+Cluster-wide changes, in the Terraform repo, prepared ahead and applied as part of the rollout:
+
+* **Network policy enforcement.** Add the `amazon-vpc-cni` ConfigMap in `kube-system` with `enable-network-policy-controller: "true"`, through the Kubernetes provider ([AWS: Use Network Policies with EKS Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html)). It applies to the whole cluster:
+  * first, check whether it already exists (`kubectl -n kube-system get cm amazon-vpc-cni -o yaml`);
+  * list other apps' policies (`kubectl get networkpolicy -A`): any outside the refcloud's namespace start being enforced too, so check they allow what those apps need;
+  * keep the NodeClass default (`networkPolicy: DefaultAllow`).
+* **Compute on AWS** (if it ships), from the AWS compute platform spec:
+  * an S3 bucket for work directories and outputs, with a lifecycle rule;
+  * an IAM role for the compute pods, through EKS Pod Identity or IRSA, limited to that bucket;
+  * an Auto Mode NodePool for task pods, with limits on instance types and total capacity;
+  * a budget with alarms.
+* **Logs:** check where the cluster's pod logs go and how long they're kept, and set a retention period.
+
+**Decisions (Task 2):**
+
+### Task 3: Production values and secrets
+
+In the private values repo:
+
+* `image.tag`: the release tag.
+* **`networkPolicy.ingressFrom`: required on AWS.** Without it the chart fails to render. Set it to where the ALB connects from: the VPC CIDR, `[{ipBlock: {cidr: <VPC CIDR>}}]`.
+* **Compute** (if it ships), using stage 2's chart wiring:
+  * the production compute connection (`compute.connections`);
+  * the compute service-info settings: a non-`local` ID suffix, and the public auth instructions URL on https://docs.refcloud.ga4gh.org.
+* Any value or Secret the year-end specs add. Check each spec's production notes, and `deploy/helm/README.md` (Remote Deployment).
+
+**Decisions (Task 3):**
+
+### Task 4: Before deploying
+
+* **Snapshots** of the production databases: the refcloud database, Kratos and Hydra. Note the snapshot IDs privately; they're the rollback point.
+* **The UTC migration's checks** (spec 0008, Decisions (Task 2), production rollout notes):
+  * run `SHOW timezone;`;
+  * look at the visa rows' `current_status_at` (approvals were made with raw SQL, possibly with hand-typed local times), and fix outliers before upgrading.
+* **Announce** a short maintenance window: migrations run before the new pods start, and everyone logs in again once.
+* **Rollback plan:**
+  * the previous release tag with its values, plus restoring the snapshots (the Kratos and timestamp migrations aren't reversible in place);
+  * if only network policies cause trouble, `--set networkPolicy.enabled=false`.
+
+**Decisions (Task 4):**
+
+### Task 5: Deploy
+
+* Apply Task 2's Terraform changes. Policy enforcement has no effect on the refcloud until its policies exist.
+* `helm upgrade` with the release tag and the production values. The pre-upgrade hooks run the migrations first (Liquibase, Kratos `v26.2.0`, Hydra); watch them finish.
+* Wait for every deployment to be ready.
+
+**Decisions (Task 5):**
+
+### Task 6: After deploying
+
+* **End to end, in a browser:**
+  * register a new account (one screen);
+  * log in;
+  * open View Passport Token;
+  * request access to a dataset, and approve it with `kubectl exec deploy/refcloud-admin-cli -- refcloud visa approve ...`;
+  * use DRS with the token.
+* **Data Connect:** run `kubectl exec deploy/refcloud-admin-cli -- refcloud seed`, so existing table types pick up the UTC data model (spec 0008, Decisions (Task 2)).
+* **Deployment checks:**
+  * every pod is ready and stays ready;
+  * `kubectl get svc` shows only ClusterIP Services;
+  * `kubectl get networkpolicy` lists the refcloud's policies;
+  * from a throwaway pod, the Kratos and Hydra admin APIs time out (`deploy/helm/README.md`, Network Policies);
+  * the service registry lists every service, with health.
+* **Compute** (if it ships):
+  1. register and enable the production compute platform with the admin CLI (allowlist and limits);
+  2. approve a test account's visas;
+  3. run the demo: `REFCLOUD_DEMO_BASE_URL=https://refcloud.ga4gh.org ./scripts/refcloud-compute-demo.sh <token>`;
+  4. check that the run's outputs download through WES, and that its cost shows up where the budget alarms expect.
+* **Docs:** the docs site says compute is available in production (today it says local only), and describes the production platform.
+
+**Decisions (Task 6):**
+
+### Task 7: Over the break (by December 18th)
+
+* Watch production for at least a day after the deploy: errors, pod restarts, costs.
+* **Compute over the break:** keep platform access approval-only, approve nothing while nobody is watching, and know the kill switch: `refcloud compute-platform disable` in the admin CLI pod.
+* Write down where things stand: what shipped, the snapshot IDs (privately), and the rollback steps.
+
+**Decisions (Task 7):**
+
+## Future Directions
+
+* A staging environment (a second namespace or cluster with production-like settings), so a rollout like this one is rehearsed against AWS rather than only minikube.

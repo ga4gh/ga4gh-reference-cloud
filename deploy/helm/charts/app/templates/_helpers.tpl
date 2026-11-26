@@ -19,7 +19,7 @@ release deploys a fixed Kratos/Hydra version.
 Keep in sync with deploy/local/docker-compose.yml.
 */}}
 {{- define "refcloud.kratosImage" -}}
-oryd/kratos:v0.9.0-alpha.2
+oryd/kratos:v26.2.0
 {{- end -}}
 
 {{- define "refcloud.hydraImage" -}}

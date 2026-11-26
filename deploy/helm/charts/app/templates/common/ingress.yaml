@@ -10,6 +10,8 @@ metadata:
       alb.ingress.kubernetes.io/ssl-redirect: '443'
       alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ga4gh.referenceCloud.aws.certificateARN }}
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      # route straight to pod IPs, so no Service needs a node port (the Services are ClusterIP)
+      alb.ingress.kubernetes.io/target-type: ip
       kubernetes.io/ingress.class: alb
     {{- end }}
 spec:
@@ -25,7 +27,8 @@ spec:
   ingressClassName: alb
   {{- end }}
   # Routes must be kept in sync with deploy/local/Caddyfile.
-  # Never route to Hydra admin (4445) or Kratos admin (4434).
+  # Never route to Hydra admin (4445) or Kratos admin (4434). Kratos calls core-api's registration webhook
+  # directly (http://refcloud-api:8080), so /webhook/kratos/ isn't routed either.
   rules:
     - host: {{ .Values.ga4gh.referenceCloud.baseURL }}
       http:
@@ -65,13 +68,6 @@ spec:
                 name: hydra
                 port:
                   number: 4444
-          - path: /webhook/kratos/
-            pathType: Prefix
-            backend:
-              service:
-                name: refcloud-api
-                port:
-                  number: 8080
           - path: /ga4gh/drs/v1/
             pathType: Prefix
             backend:

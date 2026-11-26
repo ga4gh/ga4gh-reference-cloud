@@ -1,6 +1,6 @@
 # Compute Milestones for the End of 2026
 
-This document outlines the Reference Cloud compute (WES/TES) deliverables we aim to achieve before the Christmas break, building on stage 1 (local native mode, [spec 0008](../../claude/specs/archive/0008-add-compute-wes-tes.md)). Prioritized on November 13th, 2026, for the six weeks to the break. We aim to have compute in production by **December 18th, 2026** (proposed), leaving time to watch it before the break.
+This document outlines the Reference Cloud compute (WES/TES) deliverables we aim to achieve before the Christmas break, building on stage 1 (local native mode, [spec 0008](../../claude/specs/archive/0008-add-compute-wes-tes.md)). Prioritized on November 13th, 2026, for the six weeks to the break. We aim to have compute in production by **December 18th, 2026**, the last working day before the break. The production rollout ([spec 0010](../../claude/specs/active/0010-production-rollout.md)) aims a few days earlier, so there's time to watch it.
 
 The design source of truth is [`claude/discussions/0000-about-adding-compute.md`](../../claude/discussions/0000-about-adding-compute.md). Each item below gets its own spec.
 
@@ -16,7 +16,7 @@ In priority order:
 3. **A compute platform on AWS (EKS).** Run WES/TES jobs on the Kubernetes cluster on AWS that the refcloud is deployed to. See [Running on AWS](#running-on-aws).
 4. **My Runs page in the researcher UI, for monitoring.** List the user's runs and their states, follow each run's tasks, view logs, download outputs, and cancel runs. Researchers keep submitting runs through WES; the page doesn't submit runs (see below).
 5. **General docs update.** Docs-site pages for each item above as it lands, plus a general pass over the existing pages, including screenshots of the researcher UI (spec 0008, Future Directions).
-6. **Final deployment to production.** Compute on https://refcloud.ga4gh.org.
+6. **Final deployment to production.** Compute on https://refcloud.ga4gh.org, in one production update with everything else merged since the current release: [spec 0010](../../claude/specs/active/0010-production-rollout.md).
 
 ## Running on AWS
 
@@ -35,15 +35,15 @@ In priority order:
 
 | Week | Dates | Work |
 |-|-|-|
-| 1 | Nov 16–20 | Close stage 1 (end-to-end check, PR, merge). Spike the stage 2–3 unknowns: Funnel's Kubernetes backend in minikube, Nextflow as a Kubernetes Job, and nf-ga4gh with an `s3://` work directory against MinIO and Funnel's S3 storage. Start the AWS conversations (see Dependencies). |
-| 2–3 | Nov 23–Dec 4 | Stage 2 (item 1). Start the My Runs page (item 4). |
+| 1 | Nov 16–20 | Close stage 1 (PR review and merge). Harden the deployment ([issue 58](https://github.com/ga4gh/ga4gh-reference-cloud/issues/58)). Start the AWS conversations (see Dependencies). |
+| 2–3 | Nov 23–Dec 4 | Spike the stage 2–3 unknowns: Funnel's Kubernetes backend in minikube, Nextflow as a Kubernetes Job, and nf-ga4gh with an `s3://` work directory against MinIO and Funnel's S3 storage. Then stage 2 (item 1). Start the My Runs page (item 4). |
 | 3–4 | Nov 30–Dec 11 | Stage 3 (item 2). |
 | 4–5 | Dec 7–18 | AWS connection and production hardening (item 3), then production deployment (item 6). Docs (item 5) throughout. |
 | 6 | Dec 21–24 | Buffer. No new deployments. |
 
 ## Dependencies and Risks
 
-* **Unverified stack pieces.** Funnel's Kubernetes backend (discussion doc, To Verify item 3), Nextflow as a Kubernetes Job, and nf-ga4gh with S3 work directories haven't been tried yet. The week 1 spike covers them, so surprises surface early.
+* **Unverified stack pieces.** Funnel's Kubernetes backend (discussion doc, To Verify item 3), Nextflow as a Kubernetes Job, and nf-ga4gh with S3 work directories haven't been tried yet. The spike at the start of week 2 covers them, so surprises surface early.
 * **AWS access and approvals**, outside the code:
   * who pays for compute, and a budget with alarms;
   * IAM roles, an S3 bucket for work and outputs, and capacity on the cluster (a separate node group for task Jobs).
