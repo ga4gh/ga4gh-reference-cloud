@@ -58,7 +58,16 @@ The browser never calls core-api's GA4GH APIs directly: the passport lives in th
 | `/api/ga4gh/refget/v2/sequence/[id]?start=&end=` | refget sequence, streamed as plain text |
 | `/api/ga4gh/refget/v2/sequence/[id]/metadata` | refget sequence metadata |
 | `/api/datasets/[id]/manifests?page=&size=` | refcloud `GET /datasets/{id}/manifests` |
+| `/api/ga4gh/wes/[platformId]/v1/runs?page_size=&page_token=` | WES `GET /runs` (each run with its `workflow_url`, a refcloud extension) |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]` | WES `GET /runs/{run_id}` (the run log) |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/status` | WES `GET /runs/{run_id}/status` |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/tasks?page_size=&page_token=` | WES `GET /runs/{run_id}/tasks` |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/cancel` (POST) | WES `POST /runs/{run_id}/cancel` |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/logs/[stdout\|stderr]?download=1` | the refcloud's WES log endpoint: the engine's console output, streamed as text (saved as `<run id>-<stream>.log` with `download=1`) |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/outputs/[...path]` | the refcloud's WES output download, streamed with core-api's `Content-Disposition` |
+| `/api/ga4gh/tes/[platformId]/v1/tasks/[id]?view=` | TES `GET /tasks/{id}` (`FULL` has each executor's stdout and stderr) |
 
+* The WES and TES routes (My Runs, spec 0014) share `utils/api/ga4ghProxy.ts`: `forwardToCoreApi` forwards with the passport, passes only the query parameters a route names, and streams bodies when asked. `encodeSegments` encodes each path segment and refuses empty, `.` and `..` ones (`400`). There's deliberately no proxy for `POST /runs`: the UI doesn't submit runs. Cancel is the only POST, and the passport cookie is `SameSite=Lax`, so another site's form can't send it.
 * The UI never follows Data Connect's `next_page_url`: it takes the `page_token` from it and calls its own proxy. `pagination` is omitted on the last page.
 * Manifest downloads go through the manifest-content proxy (`components/drs/DrsObjectDownloadButton.tsx` rewrites refcloud manifest access URLs to it), because a plain browser link can't send the passport.
 

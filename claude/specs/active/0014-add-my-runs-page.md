@@ -105,6 +105,30 @@ Next.js API routes forwarding WES's and TES's paths with the passport, as the ex
 
 **Decisions (Task 2):**
 
+Built 2026-11-26:
+1. **Eight routes,** under `/api/ga4gh/wes/[platformId]/v1/runs/…` and `/api/ga4gh/tes/[platformId]/v1/tasks/[id]`:
+   * WES: list runs, a run's log, its status, its tasks, cancel (the only POST), the engine's stdout and stderr, and output files;
+   * TES: one task, with `view` limited to `MINIMAL`, `BASIC` or `FULL`.
+
+   There's no route for `POST /runs`, since the UI doesn't submit runs.
+2. **A shared helper, `utils/api/ga4ghProxy.ts`,** which the existing GA4GH proxies don't have (each repeats its own forwarding):
+   * `forwardToCoreApi` adds the passport from the `access_token` cookie, passes only the query parameters a route names, and passes statuses and JSON bodies through. It streams logs and outputs with their `Content-Type` and `Content-Disposition`, and answers `502` when core-api can't be reached;
+   * `encodeSegments` encodes each path segment and refuses empty, `.` and `..` ones, which a URL would resolve away (`400`);
+   * the logs route takes only `stdout` and `stderr`. With `?download=1` it names the file `<run id>-<stream>.log`.
+3. **Cancel and CSRF:** the passport cookie is `SameSite=Lax`, so another site's form can't post here with it.
+4. **Checked:**
+   * against a stand-in core-api on localhost, with `next dev` (both stopped afterwards):
+     * paths, the passport header and the allowed query parameters reach core-api, and other parameters don't;
+     * cancel is a POST;
+     * logs stream as text, and download under their name with `download=1`;
+     * an output keeps core-api's file name;
+     * a `404` passes through with its body;
+     * an unknown log stream or view gets `400`; Next.js itself refuses a `..` segment;
+     * with no cookie the request goes without credentials;
+     * with core-api down, `502`;
+   * the UI's static analysis passes: Prettier, ESLint, types, and Semgrep with 0 findings;
+   * `apps/researcher-ui/CLAUDE.md` lists the routes.
+
 ### Task 3: The runs list
 
 The page, its table, paging, and empty and error states (no approved platform, no runs, a platform that's unreachable). The sidebar entry.
