@@ -13,12 +13,10 @@ In priority order:
    * Nextflow as one Kubernetes Job per WES run, created by core-api (discussion doc, Future Directions);
    * the chart's compute connection wiring (`compute.connections` value, ConfigMap, Secrets; spec 0008, Future Directions).
 2. **Stage 3: S3 storage.** ✅ **Done 2026-11-18** ([spec 0012](../../claude/specs/archive/0012-add-compute-s3-storage.md)). `s3` as a connection storage setting (D15) for the Kubernetes platform type: RustFS locally (MinIO's community edition was archived), S3 on AWS. The Docker type keeps the shared filesystem. Covers the Nextflow work directory, Funnel's file staging (on Funnel 0.12.3, with a claim per task and no cluster-wide permissions), WES input staging (D17), output downloads (D19), and credentials for each run limited to its own files. Helm mode is now S3 only, with no `hostPath`, so its compute namespace enforces the restricted Pod Security level.
-3. **A compute platform on AWS (EKS).** Run WES/TES jobs on the Kubernetes cluster on AWS that the refcloud is deployed to, fully working and tested there before production. See [Running on AWS](#running-on-aws).
-   * **One branch covers it all:**
-     * the AWS prerequisites, in Terraform: the `refcloud-nextflow` ECR repository, an S3 bucket, IAM roles through EKS Pod Identity, a node pool for task Jobs, and a budget with alarms;
-     * the platform's connection;
-     * what stage 3 left to verify on EKS (see [Dependencies and Risks](#dependencies-and-risks)).
-   * **Its first question:** where to test it on EKS without disturbing production. Enforcing network policies affects every app in a cluster ([spec 0010](../../claude/specs/active/0010-production-rollout.md)).
+3. **A compute platform on AWS (EKS).** ✅ **Done 2026-11-26** ([spec 0013](../../claude/specs/active/0013-add-compute-aws-platform.md)): built, and passed end to end on staging, which shares production's cluster. See [Running on AWS](#running-on-aws).
+   * The platform is `nextflow-aws-us-east-2`, on the chart's AWS connection: runs keep their files in an S3 bucket per environment, reached through a private S3 endpoint; core-api and Funnel's workers use EKS Pod Identity; compute pods run on a node pool of their own, whose nodes exist only during runs.
+   * The Terraform for staging and production is applied, so production's resources exist, unused until the rollout. There's no refcloud-only budget: the node pools' caps bound the cost.
+   * Staging first got its current chart (rehearsing [spec 0010](../../claude/specs/active/0010-production-rollout.md)'s rollout), then compute: the demo through WES, run credentials reaching only their own files, cancel, the network policies from stand-in pods, and the kill switch.
 4. **My Runs page in the researcher UI, for monitoring.** List the user's runs and their states, follow each run's tasks, view logs, download outputs, and cancel runs. Researchers keep submitting runs through WES; the page doesn't submit runs (see below).
 5. **Testing framework and CI.**
    * **First:** run each app's existing tests in CI on every pull request, so a fresh checkout's failures show up at once. Spec 0012 found two test fixtures that `.gitignore` had kept out of the repository, so every fresh checkout would have failed those tests.
@@ -73,15 +71,13 @@ The AWS platform goes before the My Runs page for three reasons:
 
 ## Dependencies and Risks
 
-* **Stack pieces:** Funnel's Kubernetes backend and Nextflow as a Kubernetes Job are verified (spec 0011), and so are nf-ga4gh with an `s3://` work directory and Funnel's S3 staging (spec 0012), without new patches. Still to verify on EKS (the AWS platform spec): per-task workspace claims on EBS, EKS Pod Identity for core-api and Funnel's workers, and DNS plus a route to S3 for the Nextflow Jobs.
+* **Stack pieces:** Funnel's Kubernetes backend and Nextflow as a Kubernetes Job are verified (spec 0011), and so are nf-ga4gh with an `s3://` work directory and Funnel's S3 staging (spec 0012), without new patches. **Verified on EKS** (spec 0013): per-task workspace claims on EBS (with one SELinux level for a task's pods), EKS Pod Identity for core-api and Funnel's workers, and a route to S3 for the Nextflow Jobs with no DNS (a private S3 endpoint at fixed addresses).
 * **Young releases:** Funnel 0.12.3 (November 9th) changed a lot since 0.11.14, and RustFS (local only) releases weekly. Both are pinned by digest; watch for fixes before production.
 * **Run length on AWS:** each run's storage credentials last at most an hour there (issued from core-api's own role session), so production runs are capped at about 45 minutes until credentials can be refreshed (spec 0012, Future Directions).
-* **AWS setup**, outside the code (no outside approvals needed; it's part of item 3's branch):
-  * who pays for compute, and a budget with alarms;
-  * IAM roles, an S3 bucket for work and outputs, and capacity on the cluster (a separate node group for task Jobs).
+* **AWS setup** ✅ done (spec 0013): IAM roles, an S3 bucket per environment, a private S3 endpoint, and a node pool per environment for compute pods, capped in vCPUs and memory. Compute runs on the team's account; there's no refcloud-only budget (it needs a cost-allocation tag only the Organization's payer account can activate), but compute nodes are tagged.
 * **Production security.** Researchers run allowlisted workflows only, behind visa approval and per-user limits. In production, task Jobs also need:
   * their own namespace, with no service account token;
   * network policies and a resource quota on that namespace.
 
-  Stage 2 built these for minikube (spec 0011, Tasks 3–6: a per-release compute namespace that denies all traffic by default, no DNS for workflow pods, an outbound allowlist, a quota and a LimitRange), so the AWS platform reuses them. Stage 3 removed Funnel's cluster-wide permission on PersistentVolumes (Funnel 0.12.3's per-task claims) and made the namespace enforce the restricted Pod Security level. The admin CLI's platform disable is the kill switch.
+  Stage 2 built these for minikube (spec 0011, Tasks 3–6: a per-release compute namespace that denies all traffic by default, no DNS for workflow pods, an outbound allowlist, a quota and a LimitRange), so the AWS platform reuses them. Stage 3 removed Funnel's cluster-wide permission on PersistentVolumes (Funnel 0.12.3's per-task claims) and made the namespace enforce the restricted Pod Security level. The admin CLI's platform disable is the kill switch. On EKS (spec 0013) the same policies hold, checked from stand-in pods, and the private S3 endpoint admits only the refcloud's buckets and roles.
 * **Holiday timing.** Deploy by December 18th so there's time to watch costs and usage before the break. Consider keeping platform access approval-only over the break.

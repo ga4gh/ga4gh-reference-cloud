@@ -198,7 +198,7 @@ Datasets aren't onboarded by setup: after a first deploy, onboard them with the 
 
 ## Static Analysis
 
-The chart is checked on every pull request that changes `deploy/helm/` (`.github/workflows/static-analysis-helm.yml`), rendered with its default (local) values. Each tool runs from a Docker image pinned by version and digest, so the only requirement is Docker. Run from the repo root:
+The chart is checked on every pull request that changes `deploy/helm/` (`.github/workflows/static-analysis-helm.yml`), rendered twice: with its default (local) values, and with sample AWS values (`static-analysis/aws-values.yaml`, compute on; every value in it is an example). Each tool runs from a Docker image pinned by version and digest, so the only requirement is Docker. Run from the repo root:
 
 | Check | Command |
 |-|-|
@@ -227,7 +227,12 @@ The chart's defaults target local minikube. For AWS, supply overrides at deploy 
 | `ga4gh.referenceCloud.baseURL` | `refcloud.ga4gh.localhost` | public hostname |
 | `ga4gh.referenceCloud.cloudEnvironment` | `local` | `aws` |
 | `ga4gh.referenceCloud.aws.certificateARN` | n/a | ACM certificate ARN for the ALB |
-| `ga4gh.referenceCloud.compute.connections` | `{}` (compute is off) | the deployment's compute connections, written as in `deploy/local/compute/connections.yml` (credentials named by environment variable, never inline) |
+| `ga4gh.referenceCloud.compute.aws.*` | empty (compute is off on AWS) | the AWS compute connection's bucket, region, run role and private S3 endpoint, its Job size and limits ([Compute on AWS](#compute-on-aws)) |
+| `ga4gh.referenceCloud.compute.namespace` | `""` (`<release>-compute`) | the environment's compute namespace, as its Pod Identity association names it |
+| `ga4gh.referenceCloud.compute.storageClass` | `""` (the cluster's default) | `ebs-gp3`: task workspaces and Funnel's database |
+| `ga4gh.referenceCloud.compute.nodeSelector`, `.tolerations` | none (any node) | the environment's compute node pool |
+| `ga4gh.referenceCloud.compute.seLinuxLevel` | `""` (derived from the compute namespace's name) | usually left to the chart |
+| `ga4gh.referenceCloud.compute.connections` | `{}` | extra compute connections, beyond the chart's own, written as in `deploy/local/compute/connections.yml` (credentials named by environment variable, never inline) |
 | `ga4gh.referenceCloud.serviceInfo.idSuffix` | `local.helm` | the deployment's own, e.g. `staging`: every GA4GH service's service-info ID is `org.ga4gh.refcloud.<service>.<idSuffix>` (DRS, refget, Data Connect, the service registry, and each compute platform's WES and TES) |
 | `ga4gh.referenceCloud.serviceInfo.environmentName` | `Local Helm Environment` | ends every service's name, e.g. `Staging Environment` |
 | `ga4gh.referenceCloud.serviceInfo.environment` | `local` | e.g. `staging`, `prod` |
@@ -260,6 +265,64 @@ kubectl create secret docker-registry ecr-registry-key \
   --docker-password=$(aws ecr get-login-password --region <region>) \
   --namespace=<namespace>
 ```
+
+### Compute on AWS
+
+With `ga4gh.referenceCloud.compute.aws.bucket` set, the chart runs compute as it does locally, on AWS resources from the infra repo's Terraform (`reference-cloud`; [spec 0013](../../claude/specs/active/0013-add-compute-aws-platform.md)):
+
+* **Storage:** each environment keeps its runs' files in an S3 bucket, reached only through compute's private S3 endpoint. That's an interface endpoint in the VPC's private subnets, at fixed addresses. Its policy admits only the run buckets and the refcloud's compute roles, and the buckets refuse the run role's and Funnel's workers' credentials anywhere else.
+* **Credentials:** core-api and Funnel's workers use IAM roles through EKS Pod Identity, so there are no keys anywhere. Each run's Nextflow Job gets credentials from the run role, which core-api limits to the run's prefix. They last at most an hour, so runs last at most 45 minutes (`max-run-duration-seconds: 2700`).
+* **Nodes:** the Nextflow Jobs and Funnel's workers and executors run on the environment's own Auto Mode node pool, which is tainted and capped in vCPUs and memory. Its nodes exist only while compute pods need them. Funnel's server runs on the general nodes.
+* **Volumes:** task workspaces and Funnel's database are EBS volumes (`ebs-gp3`).
+
+The values come from `terraform output compute` in the infra repo's `reference-cloud`, per environment:
+
+```yaml
+ga4gh:
+  referenceCloud:
+    compute:
+      namespace: <the environment's compute namespace, as the Terraform's compute_environments names it>
+      storageClass: ebs-gp3
+      nodeSelector:
+        refcloud.ga4gh.org/compute: <environment>
+      tolerations:
+        - {key: refcloud.ga4gh.org/compute, operator: Equal, value: <environment>, effect: NoSchedule}
+      aws:
+        bucket: <bucket>
+        region: <region>
+        runRoleArn: <run_role_arn>
+        s3Endpoint: <s3_endpoint_url>     # https://bucket.vpce-....s3.<region>.vpce.amazonaws.com
+        s3EndpointIps: <s3_endpoint_ips>
+        # engine (each Nextflow Job's size) and limits: the defaults allow one run and two tasks at a time, sized for a
+        # 4 vCPU node pool
+```
+
+From these, the chart defines its connection, `nextflow-funnel-kubernetes-aws`: `s3` storage through the endpoint, path-style, with no keys and no `sts-endpoint`. Run credentials come from AWS's regional STS. A connection names an `sts-endpoint` only for a server that issues them at its own address, as RustFS does locally.
+
+**The platform** is registered with the admin CLI, on that connection. Staging's and production's is `nextflow-aws-us-east-2`:
+
+```sh
+kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform init -p nextflow-aws-us-east-2 \
+  --name "Nextflow on AWS (us-east-2)" \
+  --description "Run allowlisted Nextflow workflows on AWS in us-east-2 (Nextflow and Funnel on Kubernetes, with no internet access), with refcloud DRS objects as inputs" \
+  --connection nextflow-funnel-kubernetes-aws --monthly-core-hours 10
+kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform allowlist add -p nextflow-aws-us-east-2 --bundled drs-checksum \
+  --name "DRS checksum" --description "Report a DRS object's name, size, MD5 and SHA-256"
+kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform enable -p nextflow-aws-us-east-2
+```
+
+- **Health:** its WES service-info reports its health. When it's unhealthy, core-api's log says why: `kubectl logs deploy/refcloud-api | grep 'compute connection'`.
+- **The demo:** a researcher with approved visas for the platform and for 1000 Genomes can run it against the deployment: `REFCLOUD_DEMO_BASE_URL=https://<host> ./scripts/refcloud-compute-demo.sh <passport token>`. A run's first task waits a minute or so while Auto Mode starts nodes.
+- **The kill switch:** `refcloud compute-platform disable` hides the platform at once.
+
+**Costs:** with no runs, the compute node pool has no nodes. What's always on is compute's private S3 endpoint (about $22 a month), Funnel's server, and its 1 GiB volume. Compute nodes carry the tags `Project=reference-cloud` and `Component=compute`.
+
+**Network policies on EKS:** the compute namespace's policies (see Network Policies, above) apply on AWS too.
+- **What each pod reaches:** the Nextflow Jobs reach core-api and the S3 endpoint's addresses, with no DNS. Funnel's workers reach the S3 endpoint, Funnel's server, the Pod Identity agent, the Kubernetes API and DNS.
+- **How destinations are named:** the rules name each destination in both forms that network plugins match, a Service's address and the pods behind it. The Kubernetes API's and CoreDNS's addresses are looked up when the chart is deployed.
+- **Stand-in pods need distinct names:** EKS's policy agent shares rules between pods whose names differ only after the last `-`, as it would for replicas. A stand-in pod for checking the policies needs a name of its own, e.g. `np-check-worker-1` and `np-check-executor-1`, never `np-check-worker` beside `np-check-executor`.
+
+On AWS, compute needs no Secrets.
 
 ### Secrets
 

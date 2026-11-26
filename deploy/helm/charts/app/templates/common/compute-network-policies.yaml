@@ -29,6 +29,11 @@ address the pod connects to. Their addresses are looked up when the chart is dep
 (refcloud.computeClusterAddresses): `helm template` can't look anything up, so it renders them without addresses, and a
 deploy that reaches a cluster but finds no API server fails.
 
+On EKS, the policy agent on each node shares rules between pods whose names differ only after the last "-", as it
+would for replicas: pods of different roles here must never share that prefix, or each gets the other's rules. The
+compute pods' names keep them apart (nextflow-<run id>-..., <task id>-... for workers, <task id>-<n>-... for executors);
+so must stand-in pods' (e.g. standin-worker-1, standin-executor-1; spec 0013, Task 8).
+
 Traffic from the node (kubelet health probes) is always allowed. core-api's side, accepting the Nextflow Jobs, is in
 network-policies.yaml.
 */}}

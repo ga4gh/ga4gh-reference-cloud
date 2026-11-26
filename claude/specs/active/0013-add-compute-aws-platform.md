@@ -738,10 +738,54 @@ Staging, 2026-11-25:
      * `deploy/helm/CLAUDE.md` describes the reservation.
    * A chart-only change, deployed to staging with the same image tag; to commit with the rest.
 
-   **Paused 2026-11-25:**
-   * **Done:** the stuck run is cancelled (`CANCELED`), and the platform is registered, enabled and healthy, with the user's access approved.
-   * **Next:** deploy the chart with the worker's reservation (`helm upgrade` from the working tree, same values and image tag), then the runbook from step 4 (the demo) through step 10.
-   * **Uncommitted:** this fix and the spec in the monorepo; staging's values (compute block and image tag) in the values repo.
+   Paused 2026-11-25, with the stuck run cancelled. The user committed and pushed everything, the fix included (`26e4116`).
+9. **The demo passed on staging (2026-11-26, the user):** the chart with the worker's reservation deployed (same image tag), then `REFCLOUD_DEMO_BASE_URL=https://staging… ./scripts/refcloud-compute-demo.sh`.
+   * The platform was healthy. The run submitted staging's own copy of the 1000 Genomes object, and ended `COMPLETE` in 90 seconds with one TES task. The report downloaded through the output endpoint, and its MD5 matched the DRS object's checksum.
+   * **Placement:** the Nextflow Job went to a new compute node, and Funnel's worker, reserving the task's CPU, to a second one, where its executor started beside it at once. Each node took about 20 seconds from Pending to scheduled. That's the run's extra time over the local 20 seconds.
+   * **The compute nodes are tagged** `Project=reference-cloud` and `Component=compute`, so their cost can be told apart (in place of the budget check: Task 4, decision 6). The first node had already gone, after 5 minutes empty.
+   * **The run's files are all under its prefix:** the engine's files and logs (`engine/`) and the outputs (`outputs/checksum-report.json`). Its inputs, work directory and workflow archive are gone, removed by core-api when the run ended.
+10. **A run's credentials reach only its own files (step 5).** A second run, checked from inside its Nextflow Job with its own credentials, through the private endpoint:
+    * its own run's config: `200`;
+    * the first run's: `403`;
+    * a listing of the bucket: `403`.
+
+    The run then completed. So the session policy limits the run role's credentials to the run's prefix on AWS, as it did on RustFS (spec 0012).
+11. **Cancel and a core-api restart behave as locally** (steps 6 and 7):
+    * a run cancelled through WES while `RUNNING` ended `CANCELED`, and its Jobs and pods were cleaned up;
+    * a run whose core-api restarted mid-run ended `SYSTEM_ERROR`, as expected with nf-ga4gh 1.5.0 (D23), and nothing was left behind.
+12. **The network policies don't hold on EKS (step 8, 2026-11-26): rules naming addresses reach pods they don't select.** Stand-in pods in the compute namespace, labelled as a Nextflow Job, a worker, an executor, and with no label (11 mismatches of 36 checks):
+    * **rules naming pods held per pod:** only the Nextflow-labelled pod reached core-api (at its Service's and its pod's address), and only the worker-labelled pod reached Funnel's server (at its Service's address and by name);
+    * **rules naming addresses reached every pod in the namespace:** the S3 endpoint (allowed to Nextflow Jobs and workers), and the Pod Identity agent, the Kubernetes API's address and CoreDNS's (allowed to workers and Funnel's server). That includes the executor-labelled and unlabelled pods, which no rule allows anything;
+    * **the internet stayed blocked for all,** since no rule names it.
+
+    **The impact:** workflow pods (executors, Nextflow Jobs) can look up names, which is the leak the no-DNS design closes (spec 0011; Task 5, decision 11). The rest gives them little: the S3 endpoint refuses anyone but our roles, and executors have no credentials or ServiceAccount token for the Pod Identity agent or the API. **To fix before production.**
+
+    **Next:** a minimal check in a throwaway namespace (default-deny, and one rule letting one of two pods reach one address), and a read of what the policy controller computed (its `PolicyEndpoints`), to confirm the cause before choosing a fix.
+13. **The cause was the test pods' names: the policies hold on EKS.**
+    * **The policy controller computed every rule correctly:** each `PolicyEndpoint` named only the pods its policy selects. No cluster-wide policies exist. For the Nextflow Jobs' rule on core-api it also listed core-api's Service address next to its pod's, which is how rules naming pods cover Service addresses on EKS (Task 7, decision 2).
+    * **EKS's policy agent, on each node, shares rules between pods whose names differ only after the last `-`,** as it would for replicas (`funnel-6f8bcf85bc-wmfgt` → `funnel-6f8bcf85bc`). Pods named `pod-a` and `pod-b`, or `standin-nextflow` and `standin-worker`, therefore shared each other's egress.
+    * **What showed it:** in a throwaway namespace, default-deny plus a rule letting only one pod reach `1.1.1.1:443`:
+      * pods `pod-a` and `pod-b`: both reached it;
+      * pods `alpha` and `bravo`: only `alpha` did.
+    * **The stand-ins renamed** with their own prefixes (`standin-<role>-1`): all 36 checks matched (`mismatches: 0`):
+      * the Nextflow Jobs reach core-api (at its Service's and its pod's address) and the S3 endpoint, with no DNS;
+      * workers reach the endpoint, Funnel's server (by address and by name), the Pod Identity agent, the API and DNS;
+      * executors and unlabelled pods reach nothing, and nothing reaches the internet.
+
+      Task 7's policies are verified on EKS.
+    * **Why the real compute pods are safe:** each gets its own prefix, since their names come from the system, not from workflows: `nextflow-<run id>-…`, `<task id>-…` (workers), `<task id>-<n>-…` (executors), `funnel-<replica set>-…`.
+    * **Now a rule:** pods of different roles in the compute namespace must never share a name prefix (before the last `-`). It's in the compute policies' header and `deploy/helm/CLAUDE.md`, for stand-in pods too. The README's stand-in instructions get it in Task 9.
+14. **The kill switch works, and compute idles at no compute cost (steps 9 and 10):**
+    * `refcloud compute-platform disable` hid the platform at once (its WES service-info `404`), and `enable` restored it (`200`);
+    * some 10 minutes after the last run, no compute nodes were left; the compute namespace held only Funnel's server and its database volume (`ebs-gp3`, 1 GiB).
+15. **Task 8 is done (2026-11-26).** Every "Done when" check holds in staging:
+    * a researcher with approved visas submits the bundled demo through WES on a 1000 Genomes DRS object, watches it run on the compute node pool, and downloads its report: `./scripts/refcloud-compute-demo.sh` passes against staging;
+    * the run's files sit under its prefix in staging's bucket;
+    * a run's credentials reach only its own files;
+    * workflow pods reach only what they need, with no DNS, and the compute namespace refuses everything else;
+    * production's AWS resources exist (Task 4).
+
+    Fixed along the way: STS requests going to the S3 endpoint (decision 6), and executors that couldn't be placed beside their worker (decision 8). The platform stays enabled and approval-only.
 
 ### Task 9: Docs and the rollout spec
 
@@ -755,6 +799,39 @@ Staging, 2026-11-25:
 
 **Decisions (Task 9):**
 
+Agreed 2026-11-26:
+1. **Production mirrors staging's limits** to start with: the chart's defaults (Task 6, decision 4) and a monthly cap of 10 core-hours per researcher on the platform. Production's node pool allows 16 vCPU / 64 GiB (Task 4), so its limits can be raised later without Terraform.
+2. **Production's values are written at the rollout,** together with the switch to this chart (spec 0010, Task 3). Until then spec 0010 holds the exact compute block, with pointers to where each value comes from. So production's values file always matches what's deployed.
+3. **This branch comes out of the image workflows' triggers when Task 9 is done,** in the branch's last push before the PR (the user). Fixes until then still build images.
+4. **Planned:**
+   * `deploy/helm/README.md`, Remote Deployment: the setup Jobs on AWS, compute on AWS (the values and where each comes from, the platform's registration), `sts-endpoint`, and the policy agent's behaviour on EKS (stand-ins' names);
+   * spec 0010:
+     * Task 2 shrinks to what's left;
+     * Task 3 gets production's compute values;
+     * Task 6 gets the platform's registration, the demo, and the cost check through the nodes' tags;
+   * the milestones doc (item 3), and the discussion doc's To Verify list;
+   * the docs site: nothing until production has compute (spec 0010, Task 6);
+   * this spec's Future Directions;
+   * the values repo's README (private): staging's compute and its platform, shown before it's written.
+5. **Written 2026-11-26:**
+   * **`deploy/helm/README.md`:**
+     * the values table gains compute's AWS values;
+     * a new "Compute on AWS" section: what runs where; the values and where each comes from; `sts-endpoint`; the platform's registration, health, demo and kill switch; costs; and the policies on EKS, including stand-in pods' names;
+     * static analysis renders both sets of values;
+   * **`deploy/helm/CLAUDE.md`:** where connections come from;
+   * **spec 0010:**
+     * the context lists what the AWS platform adds;
+     * Task 2's compute is done, all applied for both environments, with no refcloud-only budget;
+     * Task 3 has production's compute block, as staging's, with pointers to the Terraform output; it's written at the rollout;
+     * Task 6 has the platform's registration, the demo, the files, the nodes and their tags, and the kill switch;
+   * **the milestones doc:** item 3 done, and its risks updated (verified on EKS; the AWS setup done);
+   * **the discussion doc:** To Verify item 9 (AWS), and its next step (the My Runs page);
+   * **this spec's Future Directions:** staging's concurrency, Burstable executors, production's instance sizes against its largest task, path-style addressing, a refcloud-only budget, Auto Mode's cap while a node starts, and SpotBugs' error on `CorsConfig`;
+   * **the docs site:** unchanged, until production has compute (spec 0010, Task 6).
+6. **The values repo's README** (private, 2026-11-26): staging's section says where its compute values come from, that the platform was registered once and stays across deploys, and that a later commit is fine when only the chart changed.
+
+    **Task 9 is done.** To close the branch (the user): remove it from the seven image workflows' triggers and push; archive this spec; open the PR for issue 64.
+
 ## Future Directions
 
 * **A one-click AWS deploy: Terraform, then Helm, with nothing by hand in between** (raised 2026-11-20). Today, an environment's first deploy needs `refcloud-db-bootstrap` created by hand (Task 2, decision 4), and Helm's AWS values copied from Terraform. Terraform can't create the Postgres role itself, because RDS is in private subnets. Proposed:
@@ -766,3 +843,12 @@ Staging, 2026-11-25:
     * `refcloud-db-bootstrap` stays, for minikube tests and clusters without Pod Identity;
     * it can only be tested on EKS: delete `refcloud-db-admin` in staging, and deploy;
   * **Helm's AWS values from Terraform's outputs:** the database endpoint, the certificate ARN, the VPC CIDR, and the compute bucket and IAM roles (Task 4). For example, a values file Terraform writes, or `helm upgrade` run with `-f` on Terraform's output.
+* **Compute concurrency on staging's node pool** (Task 8, decision 8). The pool is capped at 4 vCPU, and Auto Mode picks `c6a.large` nodes (2 vCPU). A Nextflow Job (1 CPU) and a worker reserving a 1-CPU task don't fit on one node, so a run with tasks takes both nodes, and further tasks wait for room. Fine for staging; production's pool (16 vCPU) has room. If more is wanted:
+  * keep the pools to `xlarge` nodes, so a run and its tasks share one;
+  * or raise the caps and the connection's limits together.
+* **Executors run Burstable** (Task 8, decision 8). Each worker reserves its task's CPU and memory, and its executor requests almost nothing, up to its limits. Under memory pressure a node evicts Burstable pods first, but the worker's reservation keeps that room free. Revisit if Funnel ever runs a task's executors in the worker's own pod, or several at once.
+* **Production's instance sizes against its largest task.** Production's pool allows nodes up to `xlarge` (4 vCPU). A task can ask for at most `max-task-cpu-cores` (2 today), so it always fits on one node with its worker's reservation. Keep `max-task-cpu-cores` below the largest node's allocatable CPUs when raising it, or a worker can never be placed.
+* **Path-style S3 addressing** (Task 6, decision 7). Funnel, core-api and Nextflow reach the private endpoint path-style (`https://bucket.vpce-…/<bucket>/<key>`). If AWS ever retires path-style there, switch to virtual-hosted, which the endpoint check showed works too: pin `<bucket>.bucket.vpce-…` in the Jobs' `/etc/hosts` as well.
+* **A refcloud-only budget** (Task 4, decision 6). Activate the `Project` tag as a cost allocation tag in the Organization's payer account, then add a budget filtered on it. Compute nodes already carry it.
+* **Auto Mode counts a starting node against the pool's cap** (Task 5, decision 19): while one node started, it reported the staging pool over its limits for another pod. Watch for tasks that wait longer than expected near the cap.
+* **SpotBugs logs an internal error on `CorsConfig`** (Task 6, decision 9): Find Security Bugs' CORS detector throws a `NullPointerException` on it. The build passes and the report is otherwise complete. Check after the next SpotBugs or Find Security Bugs upgrade, or report it upstream.
