@@ -162,7 +162,7 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
 
 ## Setup Jobs
 
-The chart prepares what it needs itself, on every install and upgrade ([spec 0013](../../claude/specs/active/0013-add-compute-aws-platform.md), Task 2). Two Helm hook Jobs run `refcloud-setup` (`setup/refcloud-setup`, in the `refcloud-setup` image built from `setup/`):
+The chart prepares what it needs itself, on every install and upgrade ([spec 0013](../../claude/specs/archive/0013-add-compute-aws-platform.md), Task 2). Two Helm hook Jobs run `refcloud-setup` (`setup/refcloud-setup`, in the `refcloud-setup` image built from `setup/`):
 
 | Job | When | What it checks |
 |-|-|-|
@@ -268,7 +268,7 @@ kubectl create secret docker-registry ecr-registry-key \
 
 ### Compute on AWS
 
-With `ga4gh.referenceCloud.compute.aws.bucket` set, the chart runs compute as it does locally, on AWS resources from the infra repo's Terraform (`reference-cloud`; [spec 0013](../../claude/specs/active/0013-add-compute-aws-platform.md)):
+With `ga4gh.referenceCloud.compute.aws.bucket` set, the chart runs compute as it does locally, on AWS resources from the infra repo's Terraform (`reference-cloud`; [spec 0013](../../claude/specs/archive/0013-add-compute-aws-platform.md)):
 
 * **Storage:** each environment keeps its runs' files in an S3 bucket, reached only through compute's private S3 endpoint. That's an interface endpoint in the VPC's private subnets, at fixed addresses. Its policy admits only the run buckets and the refcloud's compute roles, and the buckets refuse the run role's and Funnel's workers' credentials anywhere else.
 * **Credentials:** core-api and Funnel's workers use IAM roles through EKS Pod Identity, so there are no keys anywhere. Each run's Nextflow Job gets credentials from the run role, which core-api limits to the run's prefix. They last at most an hour, so runs last at most 45 minutes (`max-run-duration-seconds: 2700`).
