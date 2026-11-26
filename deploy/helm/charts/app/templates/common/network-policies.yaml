@@ -13,6 +13,8 @@ isn't restricted.
   hydra :4444 (public)        the ingress, refcloud-ui, refcloud-api (signing keys)
   hydra :4445 (admin)         refcloud-ui (login and consent)
   refcloud-admin-cli          nothing
+  rustfs :9000 (local only)   refcloud-api, the rustfs-setup Job, and in the compute namespace the Nextflow Jobs and
+                              Funnel's workers (run storage, spec 0012)
 
 A new in-cluster caller (e.g. a new internal URL in a deployment or config map) needs a rule here, or its requests
 time out. The compute namespace's policies, which deny all traffic in and out by default, are in
@@ -157,4 +159,36 @@ spec:
       app.kubernetes.io/name: refcloud-admin-cli
   policyTypes:
     - Ingress
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rustfs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: refcloud-api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rustfs-setup
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "refcloud.computeNamespace" . }}
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [refcloud-nextflow, funnel-worker]
+      ports:
+        - protocol: TCP
+          port: 9000
+{{- end }}
 {{- end }}

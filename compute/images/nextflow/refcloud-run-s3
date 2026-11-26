@@ -1,0 +1,106 @@
+#!/bin/sh
+# runs a compute run's engine on S3 storage (spec 0012) as the Nextflow Job's main process, in place of the run
+# directory a shared filesystem gives stage 2's launcher. core-api puts the run's files under its S3 prefix, whose URL is
+# REFCLOUD_RUN_URL, and the run's own credentials, limited to that prefix, in AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+# and AWS_SESSION_TOKEN (with AWS_REGION). this script:
+#   1. fetches engine/workflow.tar.gz (extracted into <run directory>/workflow), engine/refcloud.config and
+#      engine/params.json into the Job's own run directory;
+#   2. runs the engine command, with its output in engine.stdout.log and engine.stderr.log, passing SIGTERM and SIGINT
+#      on to it: as the pod's main process this script gets them when the run is cancelled, and nextflow then cancels
+#      its tasks and exits;
+#   3. uploads engine.stdout.log, engine.stderr.log and nextflow.log to engine/ every REFCLOUD_LOG_SYNC_SECONDS
+#      (default 15) while the engine runs, so the run's logs can be followed through WES;
+#   4. when the engine exits, uploads the logs again and then its exit code (engine/engine.exitcode), which is how
+#      core-api learns how the run ended. a run whose files can't be fetched ends with 126 ("the engine could not be
+#      started"), with the reason in engine.stderr.log.
+# curl signs each request itself (--aws-sigv4), so the image needs no S3 client. exits 0 once the exit code is uploaded,
+# 1 if it can't be (core-api then finds the Job ended without one, and the run lost)
+#
+# usage: refcloud-run-s3 <run directory> <engine command...>
+set -u
+
+run_dir="$1"
+shift
+stderr_log="$run_dir/engine.stderr.log"
+done_file="$run_dir/.engine-done"
+
+s3() {
+  curl --silent --show-error --fail --retry 3 --retry-connrefused \
+    --aws-sigv4 "aws:amz:${AWS_REGION}:s3" --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" \
+    --header "x-amz-security-token: ${AWS_SESSION_TOKEN}" "$@"
+}
+
+# get <key under the run's prefix> <local file>
+get() {
+  s3 --output "$2" "${REFCLOUD_RUN_URL}/$1"
+}
+
+# put <local file> <key under the run's prefix>
+put() {
+  s3 --output /dev/null --upload-file "$1" "${REFCLOUD_RUN_URL}/$2"
+}
+
+sync_logs() {
+  for name in engine.stdout.log engine.stderr.log nextflow.log; do
+    if [ -f "$run_dir/$name" ]; then
+      put "$run_dir/$name" "engine/$name" 2>> "$stderr_log" || true
+    fi
+  done
+}
+
+# uploads the logs and the exit code, then exits
+finish() {
+  sync_logs
+  echo "$1" > "$run_dir/engine.exitcode"
+  if put "$run_dir/engine.exitcode" engine/engine.exitcode; then
+    exit 0
+  fi
+  echo "refcloud-run-s3: could not upload the exit code ($1)" >&2
+  exit 1
+}
+
+mkdir -p "$run_dir/workflow" || exit 1
+: > "$run_dir/engine.stdout.log"
+: > "$stderr_log"
+if ! get engine/workflow.tar.gz "$run_dir/workflow.tar.gz" 2>> "$stderr_log" \
+  || ! tar -xzf "$run_dir/workflow.tar.gz" -C "$run_dir/workflow" --no-same-owner --no-overwrite-dir 2>> "$stderr_log" \
+  || ! get engine/refcloud.config "$run_dir/refcloud.config" 2>> "$stderr_log" \
+  || ! get engine/params.json "$run_dir/params.json" 2>> "$stderr_log"; then
+  echo "refcloud-run-s3: could not fetch the run's files from its storage" >> "$stderr_log"
+  finish 126
+fi
+rm -f "$run_dir/workflow.tar.gz"
+
+"$@" > "$run_dir/engine.stdout.log" 2>> "$stderr_log" < /dev/null &
+pid=$!
+trap 'kill -TERM "$pid" 2> /dev/null' TERM INT
+
+# the uploader checks every second whether the engine is done, so it stops promptly, and is never cut off mid-upload
+interval="${REFCLOUD_LOG_SYNC_SECONDS:-15}"
+(
+  trap '' TERM INT
+  while [ ! -e "$done_file" ]; do
+    waited=0
+    while [ "$waited" -lt "$interval" ] && [ ! -e "$done_file" ]; do
+      sleep 1
+      waited=$((waited + 1))
+    done
+    [ -e "$done_file" ] || sync_logs
+  done
+) &
+uploader=$!
+
+wait "$pid"
+code=$?
+# a trapped signal interrupts wait (with a status above 128): keep waiting until the engine itself has exited. 127
+# means the pid is no longer this script's child, so the status already in hand is the engine's
+while [ "$code" -gt 128 ] && kill -0 "$pid" 2> /dev/null; do
+  wait "$pid"
+  next=$?
+  [ "$next" -eq 127 ] && break
+  code=$next
+done
+
+: > "$done_file"
+wait "$uploader" 2> /dev/null
+finish "$code"

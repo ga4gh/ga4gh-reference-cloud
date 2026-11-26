@@ -1,0 +1,14 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: rustfs
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000
+{{- end }}

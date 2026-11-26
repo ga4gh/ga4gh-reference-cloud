@@ -5,6 +5,7 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -16,6 +17,12 @@ import java.util.Optional;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputePlatformType;
 import org.ga4gh.refcloud.api.compute.run.ComputeRun;
+import org.ga4gh.refcloud.api.compute.storage.FakeS3Client;
+import org.ga4gh.refcloud.api.compute.storage.FakeStsClient;
+import org.ga4gh.refcloud.api.compute.storage.RunCredentials;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
+import org.ga4gh.refcloud.api.compute.storage.S3RunStorage;
 import org.testng.annotations.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -58,6 +65,147 @@ public class NextflowKubernetesEngineTest {
 
     private static JsonNode job() {
         return NextflowKubernetesEngine.job(run(), CONNECTION, Duration.ofMinutes(2));
+    }
+
+    // a run on S3 storage (spec 0012): its location is a prefix, and RustFS's endpoint is reached by its address
+    private static final String S3_RUN = "s3://refcloud-compute/ref/runs/" + RUN_ID;
+
+    private static final ComputeConfig.Storage RUSTFS = new ComputeConfig.Storage(
+            ComputeConfig.StorageType.S3,
+            null,
+            "refcloud-compute",
+            "ref/",
+            "us-east-1",
+            java.net.URI.create("http://rustfs.refcloud-compute.svc:9000/"),
+            true,
+            null,
+            null,
+            "arn:aws:iam::000000000000:role/refcloud-compute-run",
+            43200);
+
+    private static ComputeRun s3Run() {
+        ComputeRun run = run();
+        run.setRunDirectory(S3_RUN);
+        run.setWorkflowPath(S3_RUN + "/workflow");
+        return run;
+    }
+
+    private static NextflowKubernetesEngine.S3Access s3Access(ComputeConfig.Storage storage) throws IOException {
+        return NextflowKubernetesEngine.s3Access(
+                        s3Run(), storage, host -> InetAddress.getByAddress(host, new byte[] {10, 96, 0, 9}))
+                .orElseThrow();
+    }
+
+    @Test
+    public void s3RunsReachTheirPrefixByAddress() throws IOException {
+        NextflowKubernetesEngine.S3Access access = s3Access(RUSTFS);
+
+        assertEquals(access.runUrl(), "http://10.96.0.9:9000/refcloud-compute/ref/runs/" + RUN_ID);
+        assertEquals(access.files().directory(), "/refcloud/run");
+        assertEquals(access.files().workflow(), "/refcloud/run/workflow");
+        assertEquals(access.files().workDir(), S3_RUN + "/work");
+        assertEquals(access.files().outputs(), S3_RUN + "/outputs");
+        assertEquals(
+                access.nextflowConfig(),
+                "aws.region = 'us-east-1'\n"
+                        + "aws.client.endpoint = 'http://10.96.0.9:9000'\n"
+                        + "aws.client.s3PathStyleAccess = true\n");
+        // a run on a shared filesystem has none
+        assertTrue(
+                NextflowKubernetesEngine.s3Access(run(), RUSTFS, host -> null).isEmpty());
+    }
+
+    // on AWS: the bucket's own URL, and nextflow needs only the region
+    @Test
+    public void s3RunsOnAwsUseTheBucketsUrl() throws IOException {
+        ComputeConfig.Storage aws = new ComputeConfig.Storage(
+                ComputeConfig.StorageType.S3,
+                null,
+                "refcloud-compute",
+                "ref/",
+                "ca-central-1",
+                null,
+                false,
+                null,
+                null,
+                "arn:aws:iam::123456789012:role/refcloud-compute-run",
+                null);
+
+        NextflowKubernetesEngine.S3Access access = s3Access(aws);
+
+        assertEquals(access.runUrl(), "https://refcloud-compute.s3.ca-central-1.amazonaws.com/ref/runs/" + RUN_ID);
+        assertEquals(access.nextflowConfig(), "aws.region = 'ca-central-1'\n");
+    }
+
+    @Test
+    public void s3JobKeepsTheEngineFilesInItsOwnDirectory() throws IOException {
+        JsonNode job =
+                NextflowKubernetesEngine.job(s3Run(), CONNECTION, Duration.ofMinutes(2), Optional.of(s3Access(RUSTFS)));
+        JsonNode pod = job.at("/spec/template/spec");
+        JsonNode container = pod.at("/containers/0");
+
+        // no hostPath: the Job's own emptyDir, so the compute namespace can enforce restricted Pod Security
+        assertTrue(pod.at("/volumes/0/emptyDir").isObject());
+        assertTrue(pod.at("/volumes/0/hostPath").isMissingNode());
+        assertEquals(container.at("/workingDir").asString(), "/refcloud/run");
+        List<String> command = new java.util.ArrayList<>();
+        container.path("command").forEach(part -> command.add(part.asString()));
+        assertEquals(command.subList(0, 3), List.of("refcloud-run-s3", "/refcloud/run", "refcloud-nextflow"));
+        assertEquals(command.get(command.indexOf("-work-dir") + 1), S3_RUN + "/work");
+        assertEquals(command.get(command.indexOf("--outdir") + 1), S3_RUN + "/outputs");
+        assertEquals(command.get(command.indexOf("-c") + 1), "/refcloud/run/refcloud.config");
+        assertEquals(command.get(command.indexOf("run") + 1), "/refcloud/run/workflow");
+
+        Map<String, String> values = new java.util.HashMap<>();
+        Map<String, String> fromSecret = new java.util.HashMap<>();
+        for (JsonNode variable : container.path("env")) {
+            if (variable.has("value")) {
+                values.put(
+                        variable.path("name").asString(), variable.path("value").asString());
+            } else {
+                fromSecret.put(
+                        variable.path("name").asString(),
+                        variable.at("/valueFrom/secretKeyRef/key").asString());
+            }
+        }
+        assertEquals(values.get("REFCLOUD_RUN_URL"), "http://10.96.0.9:9000/refcloud-compute/ref/runs/" + RUN_ID);
+        assertEquals(values.get("REFCLOUD_LOG_SYNC_SECONDS"), "15");
+        assertEquals(values.get("AWS_REGION"), "us-east-1");
+        assertEquals(values.get("AWS_EC2_METADATA_DISABLED"), "true");
+        // the token and the credentials only ever from the run's Secret
+        assertEquals(
+                fromSecret,
+                Map.of(
+                        "REFCLOUD_TES_TOKEN", "token",
+                        "AWS_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID",
+                        "AWS_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY",
+                        "AWS_SESSION_TOKEN", "AWS_SESSION_TOKEN"));
+    }
+
+    // the exit code and the end of nextflow.log come from the run's storage: here, the engine/ objects on S3
+    @Test
+    public void s3RunsExitCodeAndLogComeFromTheBucket() throws IOException {
+        FakeS3Client s3 = new FakeS3Client();
+        S3RunStorage storage = new S3RunStorage(RUSTFS, () -> s3, FakeStsClient::new);
+        ComputeRun run = s3Run();
+
+        assertEquals(NextflowKubernetesEngine.exitCode(storage, run), Optional.empty());
+        s3.objects.put("refcloud-compute/ref/runs/" + RUN_ID + "/engine/engine.exitcode", "1\n".getBytes());
+        assertEquals(NextflowKubernetesEngine.exitCode(storage, run), Optional.of(1));
+
+        s3.objects.put(
+                "refcloud-compute/ref/runs/" + RUN_ID + "/engine/nextflow.log",
+                ("x".repeat(300_000) + "\nSession aborted -- Cause: Unable to connect to"
+                                + " http://10.96.0.1:8080/ga4gh/tes/nextflow-demo-kubernetes/v1/tasks/abc\n")
+                        .getBytes());
+        RunStorages storages = new RunStorages(null, null, null) {
+            @Override
+            public RunStorage forRun(ComputeRun ignored) {
+                return storage;
+            }
+        };
+        NextflowKubernetesEngine engine = new NextflowKubernetesEngine(null, null, null, storages);
+        assertTrue(engine.refcloudFailure(run).orElseThrow().contains("lost contact with the refcloud TES"));
     }
 
     @Test
@@ -154,10 +302,30 @@ public class NextflowKubernetesEngineTest {
         assertEquals(token.at("/valueFrom/secretKeyRef/name").asString(), "nextflow-" + RUN_ID + "-tes-token");
         assertEquals(token.at("/valueFrom/secretKeyRef/key").asString(), "token");
 
-        JsonNode secret = NextflowKubernetesEngine.secret(run(), "rcrun_secret");
+        JsonNode secret = NextflowKubernetesEngine.secret(run(), "rcrun_secret", Optional.empty());
         assertEquals(secret.at("/metadata/name").asString(), "nextflow-" + RUN_ID + "-tes-token");
         assertEquals(secret.at("/stringData/token").asString(), "rcrun_secret");
+        assertEquals(secret.path("stringData").size(), 1);
         assertEquals(secret.at("/metadata/labels/refcloud.ga4gh.org~1run-id").asString(), RUN_ID);
+    }
+
+    // on S3 storage the run's own credentials go in the same Secret, as the AWS SDK's environment variables (spec 0012)
+    @Test
+    public void storageCredentialsGoInTheRunsSecret() {
+        RunCredentials credentials =
+                new RunCredentials("ASIAKEY", "secret-key", "session-token", Instant.parse("2026-11-18T12:00:00Z"));
+
+        JsonNode data = NextflowKubernetesEngine.secret(run(), "rcrun_secret", Optional.of(credentials))
+                .path("stringData");
+
+        assertEquals(data.path("token").asString(), "rcrun_secret");
+        assertEquals(data.path("AWS_ACCESS_KEY_ID").asString(), "ASIAKEY");
+        assertEquals(data.path("AWS_SECRET_ACCESS_KEY").asString(), "secret-key");
+        assertEquals(data.path("AWS_SESSION_TOKEN").asString(), "session-token");
+        // an allowlist entry can't set them, or anything else that would point the AWS SDK elsewhere
+        NextflowKubernetesEngine engine = new NextflowKubernetesEngine(null, null, null, null);
+        assertTrue(engine.isReservedEnvironmentVariable("AWS_SESSION_TOKEN"));
+        assertTrue(engine.isReservedEnvironmentVariable("AWS_ENDPOINT_URL"));
     }
 
     @Test
@@ -178,7 +346,7 @@ public class NextflowKubernetesEngineTest {
 
     @Test
     public void everythingTheJobSetsIsReserved() {
-        NextflowKubernetesEngine engine = new NextflowKubernetesEngine(null, null, null);
+        NextflowKubernetesEngine engine = new NextflowKubernetesEngine(null, null, null, null);
         Map<String, String> environment = NextflowKubernetesEngine.environment(run(), ENGINE);
 
         for (String name : environment.keySet()) {

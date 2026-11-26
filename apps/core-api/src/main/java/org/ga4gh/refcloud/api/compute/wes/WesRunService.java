@@ -6,13 +6,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +30,10 @@ import org.ga4gh.refcloud.api.compute.run.ComputeRun;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunRepository;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunService;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunStates;
+import org.ga4gh.refcloud.api.compute.storage.RelativePaths;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
+import org.ga4gh.refcloud.api.compute.storage.StoredFile;
 import org.ga4gh.refcloud.api.compute.task.ComputeTask;
 import org.ga4gh.refcloud.api.compute.task.ComputeTaskRepository;
 import org.ga4gh.refcloud.api.drs.DrsConfig;
@@ -41,6 +42,7 @@ import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ForbiddenException;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.ga4gh.refcloud.api.serviceregistry.ServiceRegistryConfig;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -81,6 +83,8 @@ public class WesRunService {
 
     private final RunPreparationService runPreparationService;
 
+    private final RunStorages runStorages;
+
     private final ServiceRegistryConfig serviceRegistryConfig;
 
     private final ObjectMapper objectMapper;
@@ -95,6 +99,7 @@ public class WesRunService {
             DrsConfig drsConfig,
             ComputeWesConfig wesConfig,
             RunPreparationService runPreparationService,
+            RunStorages runStorages,
             ServiceRegistryConfig serviceRegistryConfig,
             ObjectMapper objectMapper) {
         this.computeRunService = computeRunService;
@@ -106,6 +111,7 @@ public class WesRunService {
         this.drsConfig = drsConfig;
         this.wesConfig = wesConfig;
         this.runPreparationService = runPreparationService;
+        this.runStorages = runStorages;
         this.serviceRegistryConfig = serviceRegistryConfig;
         this.objectMapper = objectMapper;
     }
@@ -136,6 +142,7 @@ public class WesRunService {
                         + "' is not on this compute platform's workflow allowlist (it must match an entry exactly)"));
         checkEntry(entry, form, connection.type().engine(), connection.engine().nextflowVersion());
         JsonNode params = parseObject("workflow_params", form.workflowParams(), objectMapper);
+        DrsInputs.refuseStorageLocations(params);
         Map<String, String> tags = parseTags(form.tags(), objectMapper);
 
         // per-user limits (D11)
@@ -167,7 +174,7 @@ public class WesRunService {
         try {
             directory = computeRunService.allocateRunDirectory(platform);
         } catch (IOException exception) {
-            throw new UncheckedIOException("could not create the run directory", exception);
+            throw new UncheckedIOException("could not allocate the run's storage", exception);
         }
         String runId = computeRunService.submit(
                 platform,
@@ -226,7 +233,7 @@ public class WesRunService {
                 run.getExitCode(),
                 run.getStateReason() == null ? List.of() : List.of(run.getStateReason()));
         return new WesViews.RunLog(
-                run.getId(), run.getRequest(), run.getState(), log, runUrl + "/tasks", outputs(run, runUrl));
+                run.getId(), run.getRequest(), run.getState(), log, runUrl + "/tasks", outputs(platform, run, runUrl));
     }
 
     public WesViews.RunStatus getRunStatus(ComputePlatform platform, ComputeCaller caller, String runId) {
@@ -266,24 +273,32 @@ public class WesRunService {
         return new WesViews.RunId(run.getId());
     }
 
-    // GET /runs/{run_id}/outputs/{path}: a file strictly inside the run's outputs/ directory
-    public Path outputFile(ComputePlatform platform, ComputeCaller caller, String runId, String path) {
+    // GET /runs/{run_id}/outputs/{path}: a file strictly inside the run's outputs/ (a directory, or an S3 prefix)
+    public Resource outputFile(ComputePlatform platform, ComputeCaller caller, String runId, String path) {
         ComputeRun run = ownedRun(platform, caller, runId);
-        Path outputs = Path.of(run.getRunDirectory()).resolve("outputs");
-        return resolveInside(outputs, path)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "the run has no output '" + (path.startsWith("/") ? path.substring(1) : path) + "'"));
+        try {
+            return storage(platform)
+                    .openOutput(run.getRunDirectory(), path)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "the run has no output '" + RelativePaths.stripLeadingSlash(path) + "'"));
+        } catch (IOException exception) {
+            throw new UncheckedIOException("could not read the run's output", exception);
+        }
     }
 
-    // GET /runs/{run_id}/logs/{stdout|stderr}: the engine's console output, empty until the run starts
-    public Optional<Path> logFile(ComputePlatform platform, ComputeCaller caller, String runId, String stream) {
+    // GET /runs/{run_id}/logs/{stdout|stderr}: the engine's console output, empty until the run starts (on S3, the
+    // engine uploads it every few seconds while it runs)
+    public Optional<Resource> logFile(ComputePlatform platform, ComputeCaller caller, String runId, String stream) {
         ComputeRun run = ownedRun(platform, caller, runId);
         String name = LOG_FILES.get(stream);
         if (name == null) {
             throw new ResourceNotFoundException("no log '" + stream + "' (use stdout or stderr)");
         }
-        Path file = Path.of(run.getRunDirectory()).resolve(name);
-        return Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) ? Optional.of(file) : Optional.empty();
+        try {
+            return storage(platform).openEngineLog(run.getRunDirectory(), name);
+        } catch (IOException exception) {
+            throw new UncheckedIOException("could not read the run's log", exception);
+        }
     }
 
     // the request's own shape: the required fields, and nothing that would change what or how the engine runs
@@ -421,51 +436,22 @@ public class WesRunService {
         }
     }
 
-    private WesViews.Outputs outputs(ComputeRun run, String runUrl) {
-        Path outputs = Path.of(run.getRunDirectory()).resolve("outputs");
-        if (!Files.isDirectory(outputs, LinkOption.NOFOLLOW_LINKS)) {
-            return new WesViews.Outputs(List.of());
-        }
-        // walk doesn't follow symlinks, and only regular files are listed
-        try (Stream<Path> files = Files.walk(outputs)) {
-            List<WesViews.OutputFile> listed = files.filter(
-                            file -> Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS))
-                    .map(file -> {
-                        String relative = outputs.relativize(file).toString();
-                        return new WesViews.OutputFile(
-                                relative, size(file), runUrl + "/outputs/" + encodePath(relative));
-                    })
-                    .sorted(Comparator.comparing(WesViews.OutputFile::path))
-                    .toList();
+    // the run's outputs, each with its size and download url
+    private WesViews.Outputs outputs(ComputePlatform platform, ComputeRun run, String runUrl) {
+        try {
+            List<WesViews.OutputFile> listed = new ArrayList<>();
+            for (StoredFile file : storage(platform).listOutputs(run.getRunDirectory())) {
+                listed.add(new WesViews.OutputFile(
+                        file.relativePath(), file.size(), runUrl + "/outputs/" + encodePath(file.relativePath())));
+            }
             return new WesViews.Outputs(listed);
         } catch (IOException exception) {
             throw new UncheckedIOException("could not list the run's outputs", exception);
         }
     }
 
-    // resolves a relative path strictly inside root: no absolute paths, no "." or ".." segments, and (after symlinks
-    // are followed) still inside root. empty if it isn't, or isn't a regular file
-    static Optional<Path> resolveInside(Path root, String relative) {
-        String path = relative.startsWith("/") ? relative.substring(1) : relative;
-        if (path.isEmpty() || path.indexOf('\0') >= 0 || path.startsWith("/") || path.contains("\\")) {
-            return Optional.empty();
-        }
-        for (String segment : path.split("/", -1)) {
-            if (segment.isEmpty() || segment.equals(".") || segment.equals("..")) {
-                return Optional.empty();
-            }
-        }
-        try {
-            Path normalizedRoot = root.toAbsolutePath().normalize();
-            Path candidate = normalizedRoot.resolve(path).normalize();
-            if (!candidate.startsWith(normalizedRoot) || !Files.isRegularFile(candidate)) {
-                return Optional.empty();
-            }
-            Path real = candidate.toRealPath();
-            return real.startsWith(normalizedRoot.toRealPath()) ? Optional.of(real) : Optional.empty();
-        } catch (IOException exception) {
-            return Optional.empty();
-        }
+    private RunStorage storage(ComputePlatform platform) {
+        return runStorages.forConnection(platform.getConnectionKey());
     }
 
     // never the executor's system_logs: funnel's are its internal log lines (its docker run command, host paths,
@@ -568,14 +554,6 @@ public class WesRunService {
     // core-hours to two decimal places, e.g. 12.50
     private static String hours(BigDecimal coreHours) {
         return coreHours.setScale(2, RoundingMode.HALF_UP).toPlainString();
-    }
-
-    private static long size(Path file) {
-        try {
-            return Files.size(file);
-        } catch (IOException exception) {
-            throw new UncheckedIOException(exception);
-        }
     }
 
     // each path segment percent-encoded (spaces as %20, not +)

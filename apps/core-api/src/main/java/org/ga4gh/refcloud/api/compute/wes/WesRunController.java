@@ -2,14 +2,12 @@ package org.ga4gh.refcloud.api.compute.wes;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import org.ga4gh.refcloud.api.compute.ComputeCaller;
 import org.ga4gh.refcloud.api.compute.ComputeCallerResolver;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
 import org.ga4gh.refcloud.api.compute.serviceinfo.ComputeServiceInfoService;
 import org.ga4gh.refcloud.api.exception.ResourceNotFoundException;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -124,7 +122,8 @@ public class WesRunController {
         return ResponseEntity.ok(wesRunService.cancel(anyPlatform(platformId), caller, runId));
     }
 
-    // a file under the run's outputs/ (D19, non-standard); {*path} is the rest of the url, e.g. /report/summary.txt
+    // a file under the run's outputs/ (D19, non-standard); {*path} is the rest of the url, e.g. /report/summary.txt.
+    // a file on a shared filesystem, or streamed from S3 (spec 0012)
     @GetMapping("/runs/{runId}/outputs/{*path}")
     public ResponseEntity<Resource> getOutput(
             @PathVariable String platformId,
@@ -132,16 +131,16 @@ public class WesRunController {
             @PathVariable String path,
             Authentication authentication) {
         ComputeCaller caller = callerResolver.resolve(authentication);
-        Path file = wesRunService.outputFile(anyPlatform(platformId), caller, runId, path);
+        Resource file = wesRunService.outputFile(anyPlatform(platformId), caller, runId, path);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.attachment()
-                                .filename(String.valueOf(file.getFileName()))
+                                .filename(String.valueOf(file.getFilename()))
                                 .build()
                                 .toString())
-                .body(new FileSystemResource(file));
+                .body(file);
     }
 
     // the engine's console output (D19, non-standard): run_log.stdout and run_log.stderr point here
@@ -154,7 +153,6 @@ public class WesRunController {
         ComputeCaller caller = callerResolver.resolve(authentication);
         Resource body = wesRunService
                 .logFile(anyPlatform(platformId), caller, runId, stream)
-                .<Resource>map(FileSystemResource::new)
                 .orElseGet(() -> new ByteArrayResource(new byte[0]));
         return ResponseEntity.ok().contentType(TEXT_PLAIN_UTF8).body(body);
     }

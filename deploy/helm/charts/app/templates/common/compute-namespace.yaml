@@ -1,11 +1,11 @@
 {{- /*
-The compute namespace (refcloud.computeNamespace): Funnel, its workers and the task pods.
+The compute namespace (refcloud.computeNamespace): Funnel, its workers, the Nextflow Jobs and the task pods.
 
-Stage 2 stores runs on a hostPath, which the baseline and restricted Pod Security levels both forbid, so no level is
-enforced here. Every pod is hardened through its own security context instead, and anything short of restricted is
-reported: a warning to whoever creates it, and an audit annotation.
+It enforces the restricted Pod Security level (spec 0012): runs keep their files in RustFS and each task's workspace is
+a claim, so nothing mounts a hostPath, and every pod runs non-root with no privileges. A pod that falls short is
+refused (a stand-in pod for checking the NetworkPolicies needs a restricted security context: README.md).
 
-Local only, like everything in it (Funnel, its RBAC): stage 2's storage is a hostPath on the minikube node.
+Local only, like everything in it (Funnel, its RBAC): the AWS platform spec adds its own.
 */}}
 {{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
 apiVersion: v1
@@ -13,6 +13,8 @@ kind: Namespace
 metadata:
   name: {{ include "refcloud.computeNamespace" . }}
   labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/warn-version: latest
     pod-security.kubernetes.io/audit: restricted

@@ -68,16 +68,6 @@ securityContext:
 {{- end -}}
 
 {{/*
-Compute run storage on the minikube node (local only): a hostPath with one directory per release, mounted at the
-same path in every pod that uses it, since run directories are passed between them by path.
-scripts/refcloud-run-helm.sh creates it, owned by the compute user (10001): a directory Kubernetes created would be
-root's. Keep in sync with MINIKUBE_COMPUTE_STORAGE_ROOT in scripts/lib/common.sh.
-*/}}
-{{- define "refcloud.computeStorageRoot" -}}
-/data/refcloud-compute/{{ .Release.Name }}
-{{- end -}}
-
-{{/*
 The compute namespace: one per release, created by the chart (templates/common/compute-namespace.yaml), so several
 installations can share a cluster. Funnel, its workers and the task pods run there.
 */}}
@@ -87,8 +77,32 @@ installations can share a cluster. Funnel, its workers and the task pods run the
 
 {{/*
 The Funnel (TES executor) image, run by Funnel's server and its per-task workers. Pinned by version and by the digest
-of its multi-architecture index. Keep the version in sync with deploy/local/funnel/Dockerfile (native mode).
+of its multi-architecture index. Keep the version in sync with deploy/local/funnel/Dockerfile (native mode). Funnel
+has moved to github.com/calypr/funnel; its images are still published here.
 */}}
 {{- define "refcloud.funnelImage" -}}
-quay.io/ohsu-comp-bio/funnel:0.11.14@sha256:8e10ba4de436b058bed95427110d9fe947142162078274a6a91cfe3b3eb8d15a
+quay.io/ohsu-comp-bio/funnel:0.12.3@sha256:bfd615926d2bbc5aac76cd9640235f3e7fcd3badc95f58fbdff29368f86b6db4
+{{- end -}}
+
+{{/*
+The disk (GB) a task that requests none is given: the size of its workspace claim (files/funnel/storage.yaml) and
+Funnel's own default (templates/apps/funnel/config-map.yaml).
+*/}}
+{{- define "refcloud.defaultTaskDiskGb" -}}
+1
+{{- end -}}
+
+{{/*
+RustFS, the S3-compatible server that stands in for S3 locally (spec 0012): run storage for the local compute
+connection. Pinned by version and by the digest of its multi-architecture index. Local only; production uses S3.
+*/}}
+{{- define "refcloud.rustfsImage" -}}
+rustfs/rustfs:1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
+{{- end -}}
+
+{{/*
+The local S3 bucket compute runs are kept in (runs/<run id>/ under it), on RustFS.
+*/}}
+{{- define "refcloud.localComputeBucket" -}}
+refcloud-compute
 {{- end -}}

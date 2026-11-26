@@ -10,11 +10,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.ga4gh.refcloud.api.compute.ComputeConfig;
+import org.ga4gh.refcloud.api.compute.ComputeConnections;
 import org.ga4gh.refcloud.api.compute.ComputeWesConfig;
 import org.ga4gh.refcloud.api.compute.run.ComputeRun;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunService;
 import org.ga4gh.refcloud.api.compute.run.ComputeRunStates;
+import org.ga4gh.refcloud.api.compute.storage.FakeS3Client;
+import org.ga4gh.refcloud.api.compute.storage.FakeStsClient;
+import org.ga4gh.refcloud.api.compute.storage.RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.RunStorages;
+import org.ga4gh.refcloud.api.compute.storage.S3RunStorage;
+import org.ga4gh.refcloud.api.compute.storage.SharedFilesystemRunStorage;
+import org.ga4gh.refcloud.api.compute.storage.TarEntries;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -40,6 +51,9 @@ public class RunPreparationServiceTest {
 
     private RunPreparationService service;
 
+    // the storage every run here uses: a shared filesystem unless a test switches it
+    private RunStorage storage;
+
     @BeforeMethod
     public void setUp() throws IOException {
         directory = Files.createTempDirectory("run-preparation-test");
@@ -49,7 +63,7 @@ public class RunPreparationServiceTest {
         failure = null;
 
         // only the calls preparation makes are needed; the rest of the run service isn't used
-        ComputeRunService runs = new ComputeRunService(null, null, null, null, null, List.of()) {
+        ComputeRunService runs = new ComputeRunService(null, null, null, null, null, null, List.of()) {
             @Override
             public Optional<ComputeRun> findRun(String runId) {
                 return Optional.ofNullable(run);
@@ -68,7 +82,15 @@ public class RunPreparationServiceTest {
         };
         ComputeWesConfig config = new ComputeWesConfig(
                 base.toString(), Duration.ofSeconds(30), Duration.ofMinutes(1), Duration.ofMinutes(1), 256, 2048);
-        service = new RunPreparationService(runs, config, Runnable::run);
+        storage = new SharedFilesystemRunStorage(directory);
+        ComputeConnections noConnections = new ComputeConnections(new ComputeConfig("/etc/connections.yml", Map.of()));
+        RunStorages storages = new RunStorages(noConnections, null, null) {
+            @Override
+            public RunStorage forRun(ComputeRun ignored) {
+                return storage;
+            }
+        };
+        service = new RunPreparationService(runs, config, storages, Runnable::run);
     }
 
     @AfterMethod(alwaysRun = true)
@@ -108,6 +130,40 @@ public class RunPreparationServiceTest {
         assertEquals(Files.readString(runDirectory.resolve("workflow/main.nf")), "workflow {}");
         assertTrue(Files.exists(runDirectory.resolve("workflow/conf/base.config")));
         assertFalse(Files.exists(runDirectory.resolve("workflow/conf/link.txt")));
+    }
+
+    // on S3 storage the workflow goes up as one archive, and nothing stays on core-api's disk (spec 0012)
+    @Test
+    public void bundledWorkflowIsArchivedToS3() throws IOException {
+        Path workflow = Files.createDirectories(base.resolve("compute/workflows/nextflow/demo"));
+        Files.writeString(workflow.resolve("main.nf"), "workflow {}");
+        FakeS3Client s3 = new FakeS3Client();
+        storage = new S3RunStorage(
+                new ComputeConfig.Storage(
+                        ComputeConfig.StorageType.S3,
+                        null,
+                        "bucket",
+                        "",
+                        "us-east-1",
+                        null,
+                        true,
+                        null,
+                        null,
+                        "arn:aws:iam::000000000000:role/refcloud-run",
+                        null),
+                () -> s3,
+                FakeStsClient::new);
+        run = queuedRun("{\"kind\": \"bundled\", \"bundled_path\": \"compute/workflows/nextflow/demo\"}", "[]", "{}");
+        run.setRunDirectory("s3://bucket/runs/r1");
+
+        service.prepareInBackground("r1");
+
+        assertNull(failure);
+        assertEquals(preparedParams, objectMapper.readTree("{}"));
+        assertEquals(
+                TarEntries.read(s3.objects.get("bucket/runs/r1/engine/workflow.tar.gz"))
+                        .keySet(),
+                Set.of("main.nf"));
     }
 
     @Test

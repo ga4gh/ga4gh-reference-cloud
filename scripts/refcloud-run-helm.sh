@@ -65,14 +65,6 @@ build_images() {
   done
 }
 
-# compute run storage on the minikube node, owned by the user core-api and the compute pods run as. the chart mounts it
-# as a hostPath that must already exist: a directory kubernetes created would be root's, and unwritable by them
-prepare_compute_storage() {
-  log_info "preparing compute storage '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
-  minikube ssh -- sudo install -d -o "$COMPUTE_USER_ID" -g "$COMPUTE_USER_ID" -m 0750 "$MINIKUBE_COMPUTE_STORAGE_ROOT" > /dev/null \
-    || { log_error "failed to create '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"; exit 1; }
-}
-
 # core-api's Deployment now uses the Recreate strategy (spec 0011, Task 8). A Deployment created with rolling updates
 # keeps the default rollingUpdate settings Kubernetes filled in, which nothing owns, so Helm's server-side apply can't
 # remove them and the change is refused as invalid. Replace the whole strategy once; it doesn't restart anything, and
@@ -118,7 +110,7 @@ uninstall_release() {
   if helm_local status "$HELM_RELEASE" > /dev/null 2>&1; then
     log_info "uninstalling helm release '$HELM_RELEASE'"
     helm_local uninstall "$HELM_RELEASE" --wait > /dev/null || { log_error "failed to uninstall helm release '$HELM_RELEASE'"; exit 1; }
-    delete_funnel_volumes
+    log_info "compute runs' files are kept (RustFS's data, '$RUSTFS_DATA_CLAIM'): ./scripts/refcloud-setup.sh --reset deletes them"
   else
     log_info "helm release '$HELM_RELEASE' is not installed"
   fi
@@ -148,7 +140,6 @@ IMAGE_TAG=$(refcloud_image_tag)
 log_info "using lockstep image tag '$IMAGE_TAG'"
 
 build_images "$IMAGE_TAG"
-prepare_compute_storage
 switch_core_api_to_recreate
 deploy_release "$IMAGE_TAG"
 init_kubernetes_compute_platform

@@ -36,7 +36,13 @@ Bring production (https://refcloud.ga4gh.org, on EKS Auto Mode) up to date in **
     * the core-api and admin CLI images build from the repo root (they bundle `compute/workflows/`), and core-api's includes `git`. CI's image workflow takes a Dockerfile path for them;
     * a new image, `refcloud-nextflow`, pushed by `push-docker-image-nextflow.yml` to an ECR repository of the same name (Task 2);
     * core-api's TES API refuses tag keys starting with `_` (Funnel acts on them);
-  * stage 3 (MinIO/S3 storage);
+  * stage 3 (S3 storage, [spec 0012](../archive/0012-add-compute-s3-storage.md)). RustFS, its setup Job, its data claim and its three Secrets are **local only** (`cloudEnvironment: local`), so production gets none of them; production uses Amazon S3 through the AWS platform's connection. What does reach production:
+    * core-api's AWS SDK, upgraded from 2.25.15 to 2.57.8 through its BOM, with the JDK-based `url-connection-client` instead of Apache's (whose `httpcore5`, pinned by Spring Boot, had HIGH CVEs), plus the `sts` module. DRS's S3 reads use it too (checked against the public 1000 Genomes bucket);
+    * new `s3` connection settings, and core-api's run storage layer. There's no schema migration: `compute_run.run_directory` and `workflow_path` hold `s3://` locations for S3 runs;
+    * startup refuses an S3 connection whose runs could outlive their storage credentials. With AWS's one-hour limit, `max-run-duration-seconds` can be at most 3180 (45 minutes, 2700, is planned);
+    * the `refcloud-nextflow` image adds nf-amazon 3.12.1, `curl`, and the S3 launcher `refcloud-run-s3`;
+    * WES refuses `s3://` values in `workflow_params`;
+    * Funnel 0.12.3 (in production only with the AWS platform);
   * the compute platform on AWS (EKS);
   * the researcher UI's My Runs page;
   * the docs update.
@@ -69,8 +75,13 @@ Cluster-wide changes, in the Terraform repo, prepared ahead and applied as part 
   * list other apps' policies (`kubectl get networkpolicy -A`): any outside the refcloud's namespace start being enforced too, so check they allow what those apps need;
   * keep the NodeClass default (`networkPolicy: DefaultAllow`).
 * **Compute on AWS** (if it ships), from the AWS compute platform spec:
-  * an S3 bucket for work directories and outputs, with a lifecycle rule;
-  * an IAM role for the compute pods, through EKS Pod Identity or IRSA, limited to that bucket;
+  * an S3 bucket for compute runs (`runs/<run id>/`), with a lifecycle rule;
+  * IAM roles through EKS Pod Identity (no keys anywhere), as stage 3 set them up locally (spec 0012, Tasks 3 and 5):
+    * **core-api's:** objects under `runs/*` and `health/*` (its health probe), listing the bucket, and `sts:AssumeRole` on the run role;
+    * **the run role:** trusts core-api's role, with objects under `runs/*` and listing the bucket. Each run's session is narrowed to its own prefix by core-api's session policy, and lasts at most an hour (chained from core-api's session);
+    * **Funnel's workers':** objects under `runs/*` and listing the bucket. Funnel's server and the task containers get none, and the Nextflow Jobs get no ServiceAccount token: their credentials come from the run's Secret;
+  * a route to S3 (a VPC gateway endpoint) for the Nextflow Jobs and Funnel's workers, and DNS for the Nextflow Jobs. Locally the Jobs reach RustFS by address, with no DNS (Funnel's workers already have DNS and use RustFS's name); on AWS they need S3's name;
+  * an EBS StorageClass for Funnel's per-task workspace claims (ReadWriteOnce; executors run next to their worker);
   * an Auto Mode NodePool for task pods, with limits on instance types and total capacity;
   * a budget with alarms.
 * **Logs:** check where the cluster's pod logs go and how long they're kept, and set a retention period.
@@ -85,7 +96,7 @@ In the private values repo:
 * `image.tag`: the release tag.
 * **`networkPolicy.ingressFrom`: required on AWS.** Without it the chart fails to render. Set it to where the ALB connects from: the VPC CIDR, `[{ipBlock: {cidr: <VPC CIDR>}}]`.
 * **Compute** (if it ships), using stage 2's chart wiring:
-  * the production compute connection (`ga4gh.referenceCloud.compute.connections`);
+  * the production compute connection (`ga4gh.referenceCloud.compute.connections`), with `s3` storage: the bucket and region, the run role's ARN (`run-role-arn`), and no endpoint or key variables (core-api uses Pod Identity). Keep `max-run-duration-seconds` at about 2700 (spec 0012);
   * the compute service-info settings (`ga4gh.referenceCloud.compute.serviceInfo`): a non-`local` ID suffix and the environment. The auth instructions URL follows from `baseURL` (the docs site's `/docs/compute/access`).
 * Any value or Secret the year-end specs add. Check each spec's production notes, and `deploy/helm/README.md` (Remote Deployment).
 

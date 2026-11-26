@@ -5,19 +5,13 @@ import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 import org.ga4gh.refcloud.api.compute.platformworkflow.ComputePlatformWorkflow;
 import org.ga4gh.refcloud.api.compute.task.ComputeTask;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ForbiddenException;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -25,22 +19,6 @@ import tools.jackson.databind.json.JsonMapper;
 public class WesRunServiceTest {
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
-
-    private Path directory;
-
-    @BeforeMethod
-    public void createDirectory() throws IOException {
-        directory = Files.createTempDirectory("wes-run-service-test");
-    }
-
-    @AfterMethod(alwaysRun = true)
-    public void deleteDirectory() throws IOException {
-        try (var paths = Files.walk(directory)) {
-            for (Path path : paths.sorted((a, b) -> b.compareTo(a)).toList()) {
-                Files.deleteIfExists(path);
-            }
-        }
-    }
 
     private static WesRunService.RunRequestForm form(
             String url, String type, String version, String engineParameters, boolean attachment) {
@@ -161,41 +139,6 @@ public class WesRunServiceTest {
         expectThrows(
                 BadRequestException.class, () -> WesRunService.parseObject("workflow_params", "[1]", objectMapper));
         expectThrows(BadRequestException.class, () -> WesRunService.parseTags("{\"n\": 1}", objectMapper));
-    }
-
-    @Test
-    public void outputPathsResolveStrictlyInsideOutputs() throws IOException {
-        Path outputs = Files.createDirectories(directory.resolve("outputs"));
-        Files.createDirectories(outputs.resolve("report"));
-        Files.writeString(outputs.resolve("report/summary.txt"), "ok");
-        Files.writeString(directory.resolve("secret.txt"), "no");
-        Files.createSymbolicLink(outputs.resolve("escape.txt"), directory.resolve("secret.txt"));
-        Files.createSymbolicLink(outputs.resolve("inside.txt"), outputs.resolve("report/summary.txt"));
-
-        assertEquals(
-                WesRunService.resolveInside(outputs, "/report/summary.txt"),
-                Optional.of(outputs.resolve("report/summary.txt").toRealPath()));
-        assertEquals(
-                WesRunService.resolveInside(outputs, "report/summary.txt"),
-                Optional.of(outputs.resolve("report/summary.txt").toRealPath()));
-        // a symlink that stays inside outputs is fine
-        assertTrue(WesRunService.resolveInside(outputs, "inside.txt").isPresent());
-
-        for (String rejected : new String[] {
-            "../secret.txt",
-            "/report/../../secret.txt",
-            "report/./summary.txt",
-            "//etc/passwd",
-            "report//summary.txt",
-            "escape.txt",
-            "report",
-            "missing.txt",
-            "",
-            "/",
-            "report\\summary.txt"
-        }) {
-            assertEquals(WesRunService.resolveInside(outputs, rejected), Optional.empty(), rejected);
-        }
     }
 
     @Test

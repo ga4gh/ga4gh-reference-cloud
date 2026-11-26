@@ -6,6 +6,7 @@ import java.util.Set;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.ComputePlatformType;
 import org.ga4gh.refcloud.api.compute.run.ComputeRun;
+import org.ga4gh.refcloud.api.compute.storage.RunCredentials;
 
 // a workflow engine behind a compute platform type (D12). implementations launch one run at a time as something
 // core-api can find again after a restart, and clean up after it. Nextflow is the first; Cromwell would be another
@@ -18,8 +19,14 @@ public interface WorkflowEngine {
     Set<String> reservedEnvironment();
 
     // starts the run's engine. tesEndpoint is the refcloud TES the engine sends its tasks to, and tesToken the
-    // run-scoped token it authenticates with (only ever passed to the engine, never stored in the database)
-    EngineProcess launch(ComputeRun run, ComputeConfig.Connection connection, String tesEndpoint, String tesToken)
+    // run-scoped token it authenticates with. storageCredentials are the run's own S3 credentials, limited to its
+    // prefix (spec 0012), where its storage needs them. both are only ever passed to the engine, never stored
+    EngineProcess launch(
+            ComputeRun run,
+            ComputeConfig.Connection connection,
+            String tesEndpoint,
+            String tesToken,
+            Optional<RunCredentials> storageCredentials)
             throws IOException;
 
     // connection is the run's (its platform's connection), as for launch
@@ -28,8 +35,9 @@ public interface WorkflowEngine {
     // asks the engine to stop (SIGTERM: it cancels its own tasks), or stops it at once if force
     void terminate(ComputeRun run, ComputeConfig.Connection connection, boolean force);
 
-    // removes what the run no longer needs once it has ended, keeping its outputs and logs. also called for runs that
-    // never launched (cancelled while queued, or failed preparation)
+    // removes the engine's own resources once the run has ended (e.g. a Kubernetes Job and its token Secret). the run's
+    // files are the storage's (RunStorage), cleaned up separately. also called for runs that never launched
+    // (cancelled while queued, or failed preparation)
     void cleanUp(ComputeRun run, ComputeConfig.Connection connection);
 
     // after the engine exited with a failure: the reason, if the cause was losing contact with the refcloud's own TES

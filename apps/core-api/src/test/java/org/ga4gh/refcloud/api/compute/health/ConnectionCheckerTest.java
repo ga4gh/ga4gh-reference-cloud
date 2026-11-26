@@ -1,7 +1,6 @@
 package org.ga4gh.refcloud.api.compute.health;
 
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
 import com.sun.net.httpserver.HttpServer;
@@ -23,6 +22,7 @@ import org.ga4gh.refcloud.api.compute.ComputeHealthConfig;
 import org.ga4gh.refcloud.api.compute.ComputePlatformType;
 import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesClient;
 import org.ga4gh.refcloud.api.compute.kubernetes.KubernetesPermission;
+import org.ga4gh.refcloud.api.compute.storage.SharedFilesystemRunStorage;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -198,40 +198,23 @@ public class ConnectionCheckerTest {
     }
 
     @Test
-    public void writableStorageRootIsHealthyAndLeavesNoFiles() throws IOException {
-        Path root = Files.createTempDirectory(workDir, "storage");
-        assertEquals(checker.checkStorage(root), Optional.empty());
-        try (Stream<Path> files = Files.list(root)) {
-            assertEquals(files.count(), 0L);
-        }
-    }
-
-    @Test
-    public void missingStorageRootIsUnhealthyAndNotCreated() {
-        Path root = workDir.resolve("no-such-storage");
-        Optional<String> failure = checker.checkStorage(root);
-        assertTrue(failure.orElseThrow().contains("does not exist"), failure.toString());
-        assertFalse(Files.exists(root));
-    }
-
-    @Test
-    public void readOnlyStorageRootIsUnhealthy() throws IOException {
-        Path root = Files.createTempDirectory(workDir, "read-only");
-        Files.setPosixFilePermissions(root, PosixFilePermissions.fromString("r-x------"));
-        try {
-            assertTrue(checker.checkStorage(root).orElseThrow().contains("not writable"));
-        } finally {
-            Files.setPosixFilePermissions(root, PosixFilePermissions.fromString("rwx------"));
-        }
-    }
-
-    @Test
     public void allChecksReportEveryFailure() throws IOException {
         ComputeConfig.Connection connection = new ComputeConfig.Connection(
                 ComputePlatformType.NEXTFLOW_FUNNEL_DOCKER,
                 engine(workDir.resolve("no-such-nextflow"), "26.10.5"),
                 new ComputeConfig.Executor(URI.create("http://127.0.0.1:1"), null),
-                new ComputeConfig.Storage(ComputeConfig.StorageType.SHARED_FILESYSTEM, "x"),
+                new ComputeConfig.Storage(
+                        ComputeConfig.StorageType.SHARED_FILESYSTEM,
+                        "x",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null),
                 new ComputeConfig.Limits(
                         1,
                         1,
@@ -246,7 +229,8 @@ public class ConnectionCheckerTest {
                         BigDecimal.ONE,
                         BigDecimal.TEN));
 
-        List<String> failures = checker.check(connection, workDir.resolve("no-such-storage"));
+        List<String> failures =
+                checker.check(connection, new SharedFilesystemRunStorage(workDir.resolve("no-such-storage")));
 
         assertEquals(failures.size(), 3, failures.toString());
     }

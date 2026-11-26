@@ -68,7 +68,7 @@ Helm mode has its own demo platform, `nextflow-demo-kubernetes` (see [`deploy/he
 REFCLOUD_COMPUTE_STORAGE_ROOT=$PWD/compute/nextflow-funnel-docker docker compose -f deploy/local/docker-compose.yml up -d
 ```
 
-**Helm mode** has no compute: no connection is configured until stage 2. Both modes share the host databases, so the `nextflow-demo` platform registered by setup shows as unavailable in helm mode ("connection not configured").
+**Helm mode** has its own connection and demo platform, `nextflow-demo-kubernetes`, and keeps its runs' files in S3 storage (RustFS, in the cluster) rather than a host directory (see [`deploy/helm/README.md`](../helm/README.md), Compute). Both modes share the host databases, so the `nextflow-demo` platform registered by setup shows as unavailable in helm mode ("connection not configured"), and helm mode's shows as unavailable here.
 
 **Known limitation:** until nf-ga4gh releases a fix for transient TES errors (D23 in the discussion doc), restarting core-api for more than a few seconds fails the workflows that are running.
 

@@ -33,16 +33,11 @@ KUBE_CONTEXT="minikube"
 K8S_NAMESPACE="default"
 HELM_RELEASE="refcloud"
 TLS_CERT_DIR="./deploy/helm/.certs"
-# compute run storage on the minikube node (a hostPath), one directory per release. keep in sync with
-# refcloud.computeStorageRoot in deploy/helm/charts/app/templates/_helpers.tpl
-MINIKUBE_COMPUTE_STORAGE_ROOT="/data/refcloud-compute/$HELM_RELEASE"
 # helm mode's compute: the release's compute namespace (refcloud.computeNamespace), the chart's local connection
 # (refcloud.localComputeConnection), and the demo platform the run script registers on it
 KUBERNETES_COMPUTE_NAMESPACE="$HELM_RELEASE-compute"
 KUBERNETES_COMPUTE_CONNECTION_KEY="nextflow-funnel-kubernetes-local"
 KUBERNETES_COMPUTE_PLATFORM_ID="nextflow-demo-kubernetes"
-# the user every compute pod and core-api run as, which must own that directory
-COMPUTE_USER_ID=10001
 # secrets the helm chart expects, deleted on --reset
 K8S_SECRETS=(
   common-db-info
@@ -55,7 +50,13 @@ K8S_SECRETS=(
   refcloud-ui-hydra-researcher-client
   refcloud-api-kratos-webhook
   refcloud-tls
+  refcloud-compute-s3-root
+  refcloud-compute-s3-core-api
+  refcloud-compute-s3-funnel
 )
+# RustFS's data claim: kept when the release is uninstalled (--down) so run outputs survive, deleted on --reset with
+# the RustFS credentials above, which go with it (deploy/helm/charts/app/templates/apps/rustfs/pvc.yaml)
+RUSTFS_DATA_CLAIM=rustfs-data
 # refcloud images built for helm mode (the apps, and the Nextflow image compute Jobs run), as "<repository>:<docker build context>:<Dockerfile, relative to the
 # context>". core-api and the admin CLI build from the repo root, so they can include compute/workflows/; /.dockerignore
 # limits what those builds see. keep in sync with each image's CI workflow (.github/workflows/push-docker-image-*.yml)
@@ -510,6 +511,24 @@ apply_k8s_secret() {
   || { log_error "failed to apply kubernetes secret '$secret_name'"; exit 1; }
 }
 
+# creates a secret only if it doesn't exist yet, e.g. for generated values that must stay as they are
+create_k8s_secret_if_missing() {
+  local secret_type=$1
+  local secret_name=$2
+  shift 2
+
+  if kubectl_local get secret "$secret_name" > /dev/null 2>&1; then
+    log_info "kubernetes secret '$secret_name' exists, keeping it"
+    return
+  fi
+  apply_k8s_secret "$secret_type" "$secret_name" "$@"
+}
+
+# 48 random hex characters
+random_secret() {
+  od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+}
+
 # values match native mode (deploy/local, apps/core-api application.yml, the constants above)
 apply_k8s_secrets() {
   log_info "applying kubernetes secrets required by the helm chart"
@@ -549,10 +568,22 @@ apply_k8s_secrets() {
   apply_k8s_secret tls refcloud-tls \
     --cert="$TLS_CERT_DIR/tls.crt" \
     --key="$TLS_CERT_DIR/tls.key"
+  # RustFS, the local compute connection's S3 storage (spec 0012): its root account (used only by the chart's setup
+  # Job), and core-api's and Funnel's users. random, and created only once: RustFS keeps its users with its data, which
+  # outlives the release, so they change only on --reset, which deletes both
+  create_k8s_secret_if_missing generic refcloud-compute-s3-root \
+    --from-literal=access-key-id=refcloud-root \
+    --from-literal=secret-access-key="$(random_secret)"
+  create_k8s_secret_if_missing generic refcloud-compute-s3-core-api \
+    --from-literal=access-key-id=core-api \
+    --from-literal=secret-access-key="$(random_secret)"
+  create_k8s_secret_if_missing generic refcloud-compute-s3-funnel \
+    --from-literal=access-key-id=funnel \
+    --from-literal=secret-access-key="$(random_secret)"
 }
 
 # removes the TLS certificate (recreated fresh by create_tls_cert), the helm release (it holds
-# db connections) and refcloud secrets
+# db connections), refcloud secrets, and RustFS's data (compute runs' files, which outlive the release)
 reset_kubernetes() {
   log_info "deleting TLS certificate in '$TLS_CERT_DIR'"
   rm -rf "$TLS_CERT_DIR"
@@ -568,25 +599,8 @@ reset_kubernetes() {
   log_info "deleting refcloud kubernetes secrets"
   kubectl_local delete secret "${K8S_SECRETS[@]}" --ignore-not-found > /dev/null 2>&1 || { log_error "failed to delete kubernetes secrets"; exit 1; }
 
-  delete_funnel_volumes
-  reset_minikube_compute_storage
-}
-
-# Funnel creates a (cluster-scoped) volume per task and deletes it when the task ends; uninstalling the release while
-# tasks run leaves theirs behind. only volumes labelled with this release's compute namespace
-delete_funnel_volumes() {
-  kubectl_local delete persistentvolume -l "app=funnel,namespace=$KUBERNETES_COMPUTE_NAMESPACE" --ignore-not-found > /dev/null 2>&1 \
-    || log_warn "could not delete Funnel's leftover volumes (kubectl get pv -l namespace=$KUBERNETES_COMPUTE_NAMESPACE)"
-}
-
-# helm mode's compute storage on the minikube node (run directories, Funnel's database and work directory), as
-# reset_compute_storage clears native mode's
-reset_minikube_compute_storage() {
-  if [[ "$MINIKUBE_COMPUTE_STORAGE_ROOT" != /data/refcloud-compute/?* ]]; then
-    log_error "refusing to delete unexpected compute storage root '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
-    exit 1
-  fi
-  log_info "deleting compute storage '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"
-  minikube ssh -- sudo rm -rf "$MINIKUBE_COMPUTE_STORAGE_ROOT" > /dev/null 2>&1 \
-    || { log_error "failed to delete '$MINIKUBE_COMPUTE_STORAGE_ROOT' on the minikube node"; exit 1; }
+  # the release (and RustFS with it) is gone, so its data claim can go: run outputs, and the users its credentials were
+  log_info "deleting RustFS's data (compute runs' files) '$RUSTFS_DATA_CLAIM'"
+  kubectl_local delete persistentvolumeclaim "$RUSTFS_DATA_CLAIM" --ignore-not-found --wait > /dev/null 2>&1 \
+    || { log_error "failed to delete RustFS's data claim '$RUSTFS_DATA_CLAIM'"; exit 1; }
 }

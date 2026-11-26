@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.ga4gh.refcloud.api.compute.storage.S3Location;
 import org.ga4gh.refcloud.api.drs.drsobject.DrsStagingInfo;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
 import org.ga4gh.refcloud.api.exception.ForbiddenException;
@@ -30,6 +31,24 @@ public final class DrsInputs {
 
     // a hostname-based DRS URI, drs://<host>/<object id>
     public record DrsUri(String uri, String host, String objectId) {}
+
+    // a researcher's params can't name storage locations (spec 0012): inputs are drs:// URIs, which the refcloud stages
+    // into the run's own storage, and on S3 storage a location elsewhere in the bucket could belong to another user's
+    // run. the run's credentials are limited to its own prefix as well (Task 3); this refuses such runs up front
+    public static void refuseStorageLocations(JsonNode params) {
+        if (params == null) {
+            return;
+        }
+        if (params.isString() && S3Location.isS3(params.stringValue().strip())) {
+            throw new BadRequestException("workflow_params can't name storage locations (" + params.stringValue()
+                    + "): give inputs as drs:// URIs, which the refcloud stages for the run");
+        }
+        if (params.isObject() || params.isArray()) {
+            for (JsonNode child : params) {
+                refuseStorageLocations(child);
+            }
+        }
+    }
 
     // every distinct drs:// string in the params, in the order first seen
     public static Set<String> find(JsonNode params) {

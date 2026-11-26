@@ -7,7 +7,6 @@ import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.expectThrows;
 
 import java.math.BigDecimal;
-import java.nio.file.Path;
 import org.ga4gh.refcloud.api.compute.ComputeConfig;
 import org.ga4gh.refcloud.api.compute.platform.ComputePlatform;
 import org.ga4gh.refcloud.api.exception.BadRequestException;
@@ -20,7 +19,10 @@ import tools.jackson.databind.node.ObjectNode;
 
 public class TesTaskRulesTest {
 
-    private static final Path RUN = Path.of("/storage/runs/run-1");
+    private static final String RUN = "/storage/runs/run-1";
+
+    // a run on S3 storage (spec 0012)
+    private static final String S3_RUN = "s3://refcloud-compute/ref/runs/run-1";
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
@@ -111,6 +113,58 @@ public class TesTaskRulesTest {
     public void locationOutsideTheRunIsRejected(String extra, String message) {
         BadRequestException exception =
                 expectThrows(BadRequestException.class, () -> TesTaskRules.validate(task(withExecutor(extra)), RUN));
+        assertTrue(exception.getMessage().contains(message), exception.getMessage());
+    }
+
+    @DataProvider
+    public Object[][] allowedS3Locations() {
+        return new Object[][] {
+            // what nf-ga4gh sends for an s3:// work directory (spec 0012, Task 1)
+            {
+                ",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1/work/05/a2/.command.run\",\"path\":\"/work/.command.run\"}]"
+            },
+            {
+                ",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1/inputs/obj1/x.bai\",\"path\":\"/work/input\"}]"
+            },
+            {
+                ",\"outputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1/work/05/a2/.exitcode\",\"path\":\"/work/.exitcode\"}]"
+            },
+            {",\"inputs\":[{\"url\":\"https://example.org/data.txt\",\"path\":\"/in/data.txt\"}]"},
+            {",\"inputs\":[{\"content\":\"hello\",\"path\":\"/in/hello.txt\"}]"},
+        };
+    }
+
+    @Test(dataProvider = "allowedS3Locations")
+    public void s3LocationInsideTheRunIsAllowed(String extra) {
+        TesTaskRules.validate(task(withExecutor(extra)), S3_RUN);
+    }
+
+    @DataProvider
+    public Object[][] forbiddenS3Locations() {
+        return new Object[][] {
+            // another run's prefix (including one that only starts the same), the bucket's root, another bucket
+            {",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-2/outputs/x\",\"path\":\"/in/x\"}]", "outside"
+            },
+            {",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-10/x\",\"path\":\"/in/x\"}]", "outside"},
+            {",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1\",\"path\":\"/in/x\"}]", "outside"},
+            {",\"inputs\":[{\"url\":\"s3://refcloud-compute/secret.txt\",\"path\":\"/in/x\"}]", "outside"},
+            {",\"inputs\":[{\"url\":\"s3://other-bucket/ref/runs/run-1/x\",\"path\":\"/in/x\"}]", "outside"},
+            // a key that would step out of the run's prefix where a path is resolved, or is empty
+            {",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1/../run-2/x\",\"path\":\"/in/x\"}]", "outside"
+            },
+            {",\"inputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1//x\",\"path\":\"/in/x\"}]", "outside"},
+            {",\"outputs\":[{\"url\":\"s3://refcloud-compute/ref/runs/run-1/\",\"path\":\"/out/x\"}]", "outside"},
+            // paths and other schemes aren't the run's storage
+            {",\"inputs\":[{\"url\":\"/storage/runs/run-1/x\",\"path\":\"/in/x\"}]", "s3:// location"},
+            {",\"inputs\":[{\"url\":\"file:///etc/passwd\",\"path\":\"/in/x\"}]", "s3:// location"},
+            {",\"outputs\":[{\"url\":\"https://example.org/upload\",\"path\":\"/out/x\"}]", "s3:// location"},
+        };
+    }
+
+    @Test(dataProvider = "forbiddenS3Locations")
+    public void s3LocationOutsideTheRunIsRejected(String extra, String message) {
+        BadRequestException exception =
+                expectThrows(BadRequestException.class, () -> TesTaskRules.validate(task(withExecutor(extra)), S3_RUN));
         assertTrue(exception.getMessage().contains(message), exception.getMessage());
     }
 

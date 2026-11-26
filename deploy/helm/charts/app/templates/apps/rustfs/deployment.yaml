@@ -1,0 +1,85 @@
+{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+# RustFS: the S3-compatible server that stands in for S3 locally (spec 0012). It holds the local compute connection's
+# bucket, where each run keeps its files under runs/<run id>/. core-api reaches it as its own user, and so do Funnel's
+# workers, while each run's Nextflow Job gets temporary credentials limited to its run (STS, issued by core-api). The
+# root account, from refcloud-compute-s3-root, is used only by the setup Job (setup-job.yaml). Its console is off. Local
+# only: production uses S3
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rustfs
+  replicas: 1
+  # one ReadWriteOnce volume: stop the old pod before starting the new one
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rustfs
+    spec:
+      automountServiceAccountToken: false
+      # RustFS's image runs as 10001 (user and group)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: rustfs-data
+      containers:
+        - image: {{ include "refcloud.rustfsImage" . }}
+          imagePullPolicy: IfNotPresent
+          name: rustfs
+          args: ["server", "/data"]
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-compute-s3-root
+                  key: access-key-id
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: refcloud-compute-s3-root
+                  key: secret-access-key
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "false"
+            # empty: logs go to stdout (kubectl logs)
+            - name: RUSTFS_OBS_LOG_DIRECTORY
+              value: ""
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+          ports:
+            - containerPort: 9000
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+{{- end }}

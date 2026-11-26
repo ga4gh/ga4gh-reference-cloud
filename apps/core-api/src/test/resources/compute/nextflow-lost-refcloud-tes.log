@@ -1,0 +1,13 @@
+Nov-12 14:36:13.024 [main] DEBUG nextflow.cli.Launcher - $> nextflow -log nextflow.log run workflow -ansi-log false -c refcloud.config -work-dir work -params-file params.json --outdir outputs
+Nov-12 14:36:18.401 [Task submitter] INFO  nextflow.Session - [bd/a104ac] Submitted process > GREET (1)
+Nov-12 14:36:33.176 [Task monitor] WARN  n.ga4gh.tes.executor.TesTaskHandler - Failed to cancel TES task: bda104ac-d0b9-4415-8d69-d8d92fb4e0ec -- Error during request to 'POST http://localhost:18080/ga4gh/tes/nf-demo/v1/tasks/bda104ac-d0b9-4415-8d69-d8d92fb4e0ec:cancel': java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:18080
+Nov-12 14:36:33.185 [Task monitor] ERROR nextflow.processor.TaskProcessor - Error executing process > 'GREET (1)'
+
+Caused by:
+  Error during request to 'GET http://localhost:18080/ga4gh/tes/nf-demo/v1/tasks/bda104ac-d0b9-4415-8d69-d8d92fb4e0ec': java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:18080
+nextflow.ga4gh.tes.client.ApiException: Error during request to 'GET http://localhost:18080/ga4gh/tes/nf-demo/v1/tasks/bda104ac-d0b9-4415-8d69-d8d92fb4e0ec': java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:18080
+	at nextflow.ga4gh.tes.client.api.TaskServiceApi.getTask(TaskServiceApi.java:452)
+	at nextflow.ga4gh.tes.executor.TesTaskHandler.checkIfCompleted(TesTaskHandler.groovy:128)
+	at nextflow.processor.TaskPollingMonitor.checkAllTasks(TaskPollingMonitor.groovy:649)
+Nov-12 14:36:33.190 [Task monitor] DEBUG nextflow.Session - Session aborted -- Cause: Error during request to 'GET http://localhost:18080/ga4gh/tes/nf-demo/v1/tasks/bda104ac-d0b9-4415-8d69-d8d92fb4e0ec': java.net.ConnectException: Failed to connect to localhost/[0:0:0:0:0:0:0:1]:18080
+Nov-12 14:36:33.216 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye
