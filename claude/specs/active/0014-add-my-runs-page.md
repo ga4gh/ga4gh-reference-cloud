@@ -331,6 +331,10 @@ Built 2026-11-26:
     * The screenshots were read for layout, at full width and at 390px.
 
     Every WES and TES call carried the passport, and Semgrep finds nothing (0 findings).
+11. **The real demo, followed from the pages** (the user, with the checklist in decision 4):
+    * local native mode: passed 2026-11-26;
+    * local helm mode: pending;
+    * staging: pending.
 
 ## Future Directions
 
