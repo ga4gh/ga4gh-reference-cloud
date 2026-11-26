@@ -58,7 +58,16 @@ The browser never calls core-api's GA4GH APIs directly: the passport lives in th
 | `/api/ga4gh/refget/v2/sequence/[id]?start=&end=` | refget sequence, streamed as plain text |
 | `/api/ga4gh/refget/v2/sequence/[id]/metadata` | refget sequence metadata |
 | `/api/datasets/[id]/manifests?page=&size=` | refcloud `GET /datasets/{id}/manifests` |
+| `/api/ga4gh/wes/[platformId]/v1/runs?page_size=&page_token=` | WES `GET /runs` (each run with its `workflow_url`, a refcloud extension) |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]` | WES `GET /runs/{run_id}` (the run log) |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/status` | WES `GET /runs/{run_id}/status` |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/tasks?page_size=&page_token=` | WES `GET /runs/{run_id}/tasks` |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/cancel` (POST) | WES `POST /runs/{run_id}/cancel` |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/logs/[stdout\|stderr]?download=1` | the refcloud's WES log endpoint: the engine's console output, streamed as text (saved as `<run id>-<stream>.log` with `download=1`) |
+| `/api/ga4gh/wes/[platformId]/v1/runs/[runId]/outputs/[...path]` | the refcloud's WES output download, streamed with core-api's `Content-Disposition` |
+| `/api/ga4gh/tes/[platformId]/v1/tasks/[id]?view=` | TES `GET /tasks/{id}` (`FULL` has each executor's stdout and stderr) |
 
+* The WES and TES routes (My Runs, spec 0014) share `utils/api/ga4ghProxy.ts`: `forwardToCoreApi` forwards with the passport, passes only the query parameters a route names, and streams bodies when asked. `encodeSegments` encodes each path segment and refuses empty, `.` and `..` ones (`400`). There's deliberately no proxy for `POST /runs`: the UI doesn't submit runs. Cancel is the only POST, and the passport cookie is `SameSite=Lax`, so another site's form can't send it.
 * The UI never follows Data Connect's `next_page_url`: it takes the `page_token` from it and calls its own proxy. `pagination` is omitted on the last page.
 * Manifest downloads go through the manifest-content proxy (`components/drs/DrsObjectDownloadButton.tsx` rewrites refcloud manifest access URLs to it), because a plain browser link can't send the passport.
 
@@ -70,6 +79,20 @@ The browser never calls core-api's GA4GH APIs directly: the passport lives in th
 * Visa types, the access-status enum and the status pill classes are shared in `utils/passportVisa.ts`.
 * **Browse Compute Platforms** (`components/pages/compute-platforms/`) lists the **enabled** platforms with their health (as in WES/TES service-info), platform type, WES and TES URLs, allowlisted workflows (the exact `workflow_url` to submit), the user's limits and their access status. Every platform has a visa (no open-access compute).
 * `EnvProvider` renders the app only after fetching `/api/config/env` on the client, so pages are rendered in the browser, not in the server's HTML.
+
+### Workflow runs pages (`/workflow-runs`, spec 0014)
+
+The UI is a WES and TES client here, with the passport, through the proxy routes above; only the platforms come from `/api/compute-platforms` (Kratos session). Both pages wait for `usePassportToken().isTokenLoaded` before their first WES call. Shared types and helpers are in `utils/workflowRuns.ts`.
+
+* **The list** (`WorkflowRunsClient.tsx`): each approved platform's runs (`GET /runs`, 20 at a time), merged newest first by `submitted_time` (`mergeRuns`, which holds back runs older than a platform's unloaded pages). It refreshes every 10 s while any run isn't finished.
+* **A run's page** (`/workflow-runs/[platformId]/[runId]`, `WorkflowRunClient.tsx`): one page with sections:
+  * the overview, with `CancelRunButton.tsx` while the run can be cancelled;
+  * outputs, downloaded through the outputs proxy (`outputDownloadPath`), never core-api's own `url`;
+  * tasks (`RunTasksSection.tsx`), with each task's state from TES `MINIMAL`, and `FULL` when opened, for its executors' output;
+  * logs (`RunLogsSection.tsx`), showing the last 500 lines (`LOG_LINES_SHOWN`) and saying so, with a download of the whole file.
+
+  While the run isn't finished, it checks `/status` every 5 s and fetches the run log again when the state changes.
+* Effects fetch first and set state in their callbacks: the `react-hooks/set-state-in-effect` lint rule refuses an effect that calls a state-setting helper directly.
 
 ### Explore Data page (`/data-connect`)
 

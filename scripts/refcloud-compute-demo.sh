@@ -139,6 +139,9 @@ if [[ "$(status_of "$response")" != 200 ]]; then
 fi
 run_id=$(body_of "$response" | json run_id)
 log_info "run $run_id submitted"
+# the run's page in the researcher UI, which shares the deployment's host with the APIs
+RUN_PAGE="$BASE/workflow-runs/$PLATFORM_ID/$run_id"
+log_info "follow it in the researcher UI: $RUN_PAGE"
 
 # 3. follow the run: QUEUED while its input downloads, then INITIALIZING, RUNNING and a final state
 state=""
@@ -160,6 +163,7 @@ run_log=$(body_of "$response")
 if [[ "$state" != "COMPLETE" ]]; then
   log_error "the run ended $state (or didn't finish within ${TIMEOUT_SECONDS}s): $(print -r -- "$run_log" | json run_log.system_logs)"
   log_error "engine output: $WES/runs/$run_id/logs/stdout and .../logs/stderr; run log: $WES/runs/$run_id"
+  log_error "or see its tasks and logs in the researcher UI: $RUN_PAGE"
   exit 1
 fi
 response=$(api "$WES/runs/$run_id/tasks") || exit 1
@@ -188,3 +192,4 @@ else
   exit 1
 fi
 log_info "compute demo complete: run $run_id"
+log_info "follow it in the researcher UI: $RUN_PAGE"

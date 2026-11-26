@@ -56,7 +56,10 @@ export const SidebarNavLinks = ({ onNavigate }: SidebarNavLinksProps) => {
     {
       key: "compute",
       title: "Compute",
-      items: [{ label: "Browse Compute Platforms", href: "/compute-platforms" }],
+      items: [
+        { label: "Browse Compute Platforms", href: "/compute-platforms" },
+        { label: "View Workflow Runs", href: "/workflow-runs" },
+      ],
     },
     {
       key: "docs-guides",

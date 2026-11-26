@@ -1,0 +1,108 @@
+# Following Your Workflow Runs
+
+The researcher UI's **View Workflow Runs** page, under **Compute** in the sidebar, lists the workflow runs you've submitted on every compute platform you have access to. Each run has its own page, where you can follow it, see its tasks and logs, download its outputs, and cancel it.
+
+You submit runs through a platform's WES API, as in [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes): the UI doesn't submit runs.
+
+:::note Available when you run the reference cloud locally
+Compute is currently available when you run the reference cloud on your own machine (see the [Compute Overview](./compute-overview)), so these pages are at https://refcloud.ga4gh.localhost/workflow-runs.
+:::
+
+## The UI Is a WES and TES Client
+
+The UI reads your runs from each platform's **WES** and **TES** APIs, with your passport token, the same way any other client would. Each section below names the requests behind it, so you can make the same ones yourself (see [Accessing Compute Platforms](./access)). The UI sends them through its own server, which adds your passport token: you don't need to copy it.
+
+You only see your own runs. Runs on a platform where your access isn't approved aren't listed, since its WES API refuses your requests. That includes your earlier runs on a platform whose access was revoked.
+
+## The List of Runs
+
+The list shows your runs from every platform together, newest first by when you submitted them, 20 at a time from each platform. **Load more** shows older runs. Each run shows:
+
+* **Run:** the first part of its run ID. Click it to open the run's page.
+* **Workflow:** the workflow's name on the platform's allowlist, or its `workflow_url`.
+* **Platform:** the compute platform it runs on.
+* **State:** where the run is (see [Run States](#run-states)).
+* **Time:** when you submitted it, while it's queued. Then when it started, and when it ended and how long it took, or how long it's been running.
+
+While any run in the list isn't finished, the list refreshes every 10 seconds.
+
+If you don't have access to a compute platform yet, the page links to **Browse Compute Platforms**, where you can request it. If a platform doesn't answer, the page says so, and still lists your runs on the others.
+
+**The requests:** `GET /ga4gh/wes/{platformId}/v1/runs?page_size=20` on each platform, then with `page_token` for older runs. Each run in that list has its `workflow_url` and `submitted_time`, which are reference cloud extensions (see [Non-Standard Extensions](./compute-overview#non-standard-extensions)).
+
+### Run States
+
+| State | Means |
+|---|---|
+| **Queued** | Accepted, and waiting: the reference cloud is downloading its inputs, or waiting for room on the platform |
+| **Initializing** | The workflow engine is starting |
+| **Running** | The workflow engine is running the workflow's tasks |
+| **Cancelling** | You cancelled it, and its tasks are stopping |
+| **Complete** | Finished successfully |
+| **Executor error** | The workflow failed: one of its tasks, or the workflow itself |
+| **System error** | The platform failed to run it. The run's page gives the reason |
+| **Cancelled** | Stopped by a cancel |
+
+A run is finished once it's complete, failed or cancelled.
+
+## A Run's Page
+
+A run's page is at `/workflow-runs/{platformId}/{run_id}`. While the run isn't finished, the page checks its state every 5 seconds, and reloads it when the state changes.
+
+**The requests:** `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}` (the run log), and `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/status` every 5 seconds.
+
+### Overview
+
+* the workflow's name, the run's state, and the workflow engine's exit code once it has one;
+* the reason for the state, when the platform gives one: why a run ended with a system error, or that you cancelled it (WES's `run_log.system_logs`);
+* the full run ID, with a copy button, and the platform;
+* when you submitted it, when it started and ended, and how long it took;
+* its `workflow_url`, with the workflow's type and version;
+* the parameters you submitted (`workflow_params`), and its tags.
+
+### Cancelling a Run
+
+While a run is queued, initializing or running, its page has a **Cancel run** button. Confirm, and the run moves to **Cancelling**, then **Cancelled**, and its tasks are stopped. A cancelled run can't be resumed: submit it again instead.
+
+**The request:** `POST /ga4gh/wes/{platformId}/v1/runs/{run_id}/cancel`.
+
+### Outputs
+
+Each file the workflow published to the run's outputs, with its path and size, and a **Download** link. They're listed when the run ends.
+
+**The requests:** the run log's `outputs`, and `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/outputs/{path}` to download a file. Both are reference cloud extensions (see [Output Downloads](./compute-overview#output-downloads)).
+
+### Tasks
+
+The workflow engine runs each step of the workflow as a TES task. The page lists the run's tasks, newest first, with each one's name, state, start and end times, and exit code. **Show output** opens a task, with:
+
+* its TES task ID and URL, with copy buttons, to read it through the TES API yourself;
+* each of its executors' exit code, stdout and stderr. TES keeps only the end of each executor's output, and the page shows at most its last 500 lines.
+
+While the run, or any task shown, isn't finished, the tasks refresh every 5 seconds.
+
+**The requests:**
+* the list: `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/tasks` (WES);
+* each task's state: `GET /ga4gh/tes/{platformId}/v1/tasks/{task_id}?view=MINIMAL` (TES);
+* an opened task's output: the same request with `view=FULL`.
+
+### Logs
+
+The workflow engine's console output for the run, in two tabs, **stdout** and **stderr**: for Nextflow, its progress and any errors it reports. The page shows the **last 500 lines** of a log, and says so above the log when there are more. **Download the whole log** saves all of it, as `<run id>-stdout.log` or `<run id>-stderr.log`.
+
+A log is loaded again when the run's state changes, and when you click **Refresh**.
+
+**The request:** `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/logs/{stdout|stderr}`, a reference cloud extension that the run log's `run_log.stdout` and `run_log.stderr` point to.
+
+## When a Run Fails
+
+* **Executor error:** open the task that failed (its exit code isn't 0) and read its stderr. The engine's logs say which step failed, and why.
+* **System error:** the reason is in the overview. Try the run again later, or ask the platform's admin.
+
+## Additional Reading
+
+* [Compute Overview](./compute-overview)
+* [Accessing Compute Platforms](./access)
+* [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes)
+* [WES 1.1.0 specification](https://github.com/ga4gh/workflow-execution-service-schemas/tree/1.1.0)
+* [TES 1.1 specification](https://github.com/ga4gh/task-execution-schemas/tree/v1.1)

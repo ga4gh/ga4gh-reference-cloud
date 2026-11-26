@@ -60,7 +60,7 @@ Helm mode has its own demo platform, `nextflow-demo-kubernetes` (see [`deploy/he
    * downloads `checksum-report.json` through the output download endpoint;
    * checks that the report's MD5 matches the checksum DRS reports for the object.
 
-   It needs only `curl` and Node, and verifies HTTPS against Caddy's local CA. On a refusal it says why: `401` for an invalid or expired token, `403` for a visa that isn't approved. The same steps with `curl` are in the [drs-checksum README](../../compute/workflows/nextflow/drs-checksum/README.md) and on the docs site (Interactive Demos).
+   It prints the run's page in the researcher UI (`https://refcloud.ga4gh.localhost/workflow-runs/nextflow-demo/<run id>`), where you can follow it too: **View Workflow Runs**, under Compute, lists your runs. It needs only `curl` and Node, and verifies HTTPS against Caddy's local CA. On a refusal it says why: `401` for an invalid or expired token, `403` for a visa that isn't approved. The same steps with `curl` are in the [drs-checksum README](../../compute/workflows/nextflow/drs-checksum/README.md) and on the docs site (Interactive Demos).
 
 **Running Docker Compose by hand:** `docker-compose.yml` needs the storage root's absolute path, which the scripts set. From the repo root:
 

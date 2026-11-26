@@ -17,20 +17,28 @@ public final class WesViews {
 
     public record RunStatus(@JsonProperty("run_id") String runId, String state) {}
 
-    // a run in GET /runs; tags is required by WES, so it's always present (possibly empty)
+    // a run in GET /runs; tags is required by WES, so it's always present (possibly empty). Two fields beyond WES's
+    // schema, which clients ignore (the researcher UI's workflow runs page, spec 0014):
+    //   * workflow_url: the run's workflow as submitted, so a list can show it without fetching each run's log;
+    //   * submitted_time: when it was submitted, which GET /runs orders by (newest first), so lists from several
+    //     platforms merge in the same order (start_time is empty while a run is queued)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record RunSummary(
             @JsonProperty("run_id") String runId,
             String state,
             @JsonProperty("start_time") Instant startTime,
             @JsonProperty("end_time") Instant endTime,
-            Map<String, String> tags) {}
+            Map<String, String> tags,
+            @JsonProperty("workflow_url") String workflowUrl,
+            @JsonProperty("submitted_time") Instant submittedTime) {}
 
     // next_page_token is "" on the last page, as WES specifies
     public record RunListResponse(
             List<RunSummary> runs,
             @JsonProperty("next_page_token") String nextPageToken) {}
 
+    // a run in GET /runs/{run_id}. submitted_time isn't in WES's schema (clients ignore it): when the run was
+    // submitted, as in GET /runs, since run_log's start_time is empty while the run is queued (spec 0014)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record RunLog(
             @JsonProperty("run_id") String runId,
@@ -38,7 +46,8 @@ public final class WesViews {
             String state,
             @JsonProperty("run_log") Log runLog,
             @JsonProperty("task_logs_url") String taskLogsUrl,
-            Outputs outputs) {}
+            Outputs outputs,
+            @JsonProperty("submitted_time") Instant submittedTime) {}
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Log(
