@@ -132,6 +132,8 @@ export type RunLog = {
     start_time?: string;
     end_time?: string;
     exit_code?: number;
+    // the reason for the run's state, when the platform gives one (a system error, or cancelled by its owner)
+    system_logs?: string[];
   };
   // the refcloud's outputs (D19): each file under the run's outputs/, with its size
   outputs?: { files: { path: string; size: number; url: string }[] };

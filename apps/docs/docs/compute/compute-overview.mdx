@@ -27,6 +27,7 @@ you → refcloud WES → workflow engine (Nextflow) → refcloud TES → task ex
 * **Inputs:** put `drs://` URIs of the reference cloud's DRS objects anywhere in `workflow_params`. Before the run starts, the reference cloud checks that you can access each object, downloads it into the run's own storage, and replaces its URI with the file's location there. DRS objects from other servers aren't supported yet, and `workflow_params` can't name storage locations (`s3://...`) directly.
 * **Limits:** each platform sets per-user limits: runs at a time, CPU, memory and disk per task, run duration, and a monthly quota in core-hours (CPU cores × hours). You can see them on the platform's card in the researcher UI.
 * **Outputs** stay with the run, and you download them through WES (see [Output Downloads](#output-downloads)).
+* **Following runs:** the researcher UI's **View Workflow Runs** page lists your runs on every platform, and shows each run's state, tasks, logs and outputs, with a cancel button. See [Following Your Workflow Runs](./workflow-runs).
 * **Tasks:** the workflow engine creates TES tasks with a credential that only works for its run. You can list, view and cancel your own tasks through TES, but you submit work only through WES.
 
 ## Terminology
@@ -116,6 +117,7 @@ Two fixes to the nf-ga4gh plugin (Nextflow's TES executor) are pending upstream:
 ## Additional Reading
 
 * [Accessing Compute Platforms](./access)
+* [Following Your Workflow Runs](./workflow-runs)
 * [Run a Workflow Via WES](../interactive-demos/run-a-workflow-via-wes)
 * [WES 1.1.0 specification](https://github.com/ga4gh/workflow-execution-service-schemas/tree/1.1.0)
 * [TES 1.1 specification](https://github.com/ga4gh/task-execution-schemas/tree/v1.1)

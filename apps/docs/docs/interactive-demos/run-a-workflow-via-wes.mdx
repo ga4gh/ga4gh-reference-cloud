@@ -113,6 +113,10 @@ Check the run's state:
 
 A run is `QUEUED` while the reference cloud downloads its input and waits for room on the platform. Then it's `INITIALIZING` and `RUNNING` while Nextflow runs it, and finally `COMPLETE`. A failed run ends `EXECUTOR_ERROR` (the workflow failed) or `SYSTEM_ERROR` (the platform failed). The demo takes about 20 seconds once Nextflow is cached.
 
+:::tip Follow it in the researcher UI too
+The researcher UI's **View Workflow Runs** page lists your runs, and each run's page shows its state, tasks, logs and outputs, using the same WES and TES requests as this demo. See [Following Your Workflow Runs](../compute/workflow-runs).
+:::
+
 The full **Run Log** has the request, timings, the engine's log URLs, and the run's outputs:
 
 <HttpsCurlCodeBlock
@@ -225,9 +229,12 @@ In this demo, you learned how to:
 * inspect the run's **TES tasks**
 * download a run's outputs, and check them against **DRS** metadata
 
+You can follow the same run in the researcher UI, on the **View Workflow Runs** page.
+
 ## Additional Reading
 
 * [Compute Overview](../compute/compute-overview)
 * [Accessing Compute Platforms](../compute/access)
+* [Following Your Workflow Runs](../compute/workflow-runs)
 * [WES 1.1.0 specification](https://github.com/ga4gh/workflow-execution-service-schemas/tree/1.1.0)
 * [TES 1.1 specification](https://github.com/ga4gh/task-execution-schemas/tree/v1.1)

@@ -34,7 +34,7 @@ const sidebars: SidebarsConfig = {
     {
       type: "category",
       label: "Compute",
-      items: ["compute/compute-overview", "compute/access"],
+      items: ["compute/compute-overview", "compute/access", "compute/workflow-runs"],
     },
     {
       type: "category",

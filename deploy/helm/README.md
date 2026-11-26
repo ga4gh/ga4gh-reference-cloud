@@ -73,7 +73,7 @@ Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/sp
    kubectl exec deploy/refcloud-admin-cli -- refcloud visa approve -u <user id> -v ga4gh_visa:compute_platform:nextflow-demo-kubernetes
    ```
 
-3. Copy a passport token from **View Passport Token**, and run `./scripts/refcloud-compute-demo.sh <passport token>` from the repo root. Without `-p`, it uses the healthy demo platform, `nextflow-demo-kubernetes` in helm mode, and trusts both local certificate authorities (Caddy's and mkcert's).
+3. Copy a passport token from **View Passport Token**, and run `./scripts/refcloud-compute-demo.sh <passport token>` from the repo root. Without `-p`, it uses the healthy demo platform, `nextflow-demo-kubernetes` in helm mode, and trusts both local certificate authorities (Caddy's and mkcert's). It prints the run's page in the researcher UI, where you can follow it too (**View Workflow Runs**, under Compute).
 
 **No internet:** the Nextflow Jobs and task containers can't reach anything outside the cluster (see Network Policies). Workflows that download plugins or files at run time fail here, nf-core/demo's `test` profile among them; `drs-checksum` works. Container images still load, since the node pulls them.
 
@@ -312,7 +312,7 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform enable -p ne
 ```
 
 - **Health:** its WES service-info reports its health. When it's unhealthy, core-api's log says why: `kubectl logs deploy/refcloud-api | grep 'compute connection'`.
-- **The demo:** a researcher with approved visas for the platform and for 1000 Genomes can run it against the deployment: `REFCLOUD_DEMO_BASE_URL=https://<host> ./scripts/refcloud-compute-demo.sh <passport token>`. A run's first task waits a minute or so while Auto Mode starts nodes.
+- **The demo:** a researcher with approved visas for the platform and for 1000 Genomes can run it against the deployment: `REFCLOUD_DEMO_BASE_URL=https://<host> ./scripts/refcloud-compute-demo.sh <passport token>`. A run's first task waits a minute or so while Auto Mode starts nodes. The script prints the run's page in that deployment's researcher UI.
 - **The kill switch:** `refcloud compute-platform disable` hides the platform at once.
 
 **Costs:** with no runs, the compute node pool has no nodes. What's always on is compute's private S3 endpoint (about $22 a month), Funnel's server, and its 1 GiB volume. Compute nodes carry the tags `Project=reference-cloud` and `Component=compute`.

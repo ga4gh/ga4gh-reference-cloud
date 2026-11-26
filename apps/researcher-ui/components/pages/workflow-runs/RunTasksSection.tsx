@@ -75,8 +75,15 @@ function withRefreshedPage(loaded: LoadedTasks, page: LoadedTasks): LoadedTasks 
   };
 }
 
-// one executor's stdout or stderr, as TES keeps it (only its end)
+// one executor's stdout or stderr, as TES keeps it (only its end). Like the run's logs, the view starts at its end
 function ExecutorOutput({ name, text }: { name: string; text?: string }) {
+  const outputRef = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [text]);
+
   if (!text) {
     return <div className="text-sm opacity-70">Nothing in {name}.</div>;
   }
@@ -92,7 +99,10 @@ function ExecutorOutput({ name, text }: { name: string; text?: string }) {
           </span>
         ) : null}
       </div>
-      <pre className="p-2 bg-base-300 text-base-content text-xs max-h-80 overflow-auto rounded-none whitespace-pre-wrap break-all">
+      <pre
+        ref={outputRef}
+        className="p-2 bg-base-300 text-base-content text-xs max-h-80 overflow-auto rounded-none whitespace-pre-wrap break-all"
+      >
         <code>{shown.shown}</code>
       </pre>
     </div>

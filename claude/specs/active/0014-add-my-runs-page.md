@@ -264,6 +264,74 @@ Built 2026-11-26:
 
 **Decisions (Task 5):**
 
+Agreed 2026-11-26 (the user):
+1. **The docs page:** "Following Your Workflow Runs" (`compute/workflow-runs.mdx`), in the Compute section after "Accessing Compute Platforms". It covers:
+   * the list and a run's page, section by section;
+   * the 500-line limit and the downloads;
+   * cancelling;
+   * which WES or TES call each part makes.
+
+   Links to it go in the WES demo ("Following the Run", the Conclusion and Additional Reading), "Accessing Compute Platforms" and the Compute Overview. The overview's "hosted instance doesn't offer compute yet" note stays until the production rollout.
+2. **No screenshots for now:** they come with a full docs review in a later task.
+3. **The headless check** uses a stand-in stack in the session's scratchpad, never the local refcloud or its database:
+   * a fake Kratos, and a fake Hydra so the passport loads;
+   * a stand-in core-api with canned WES and TES answers;
+   * the UI from `next build` and `next start`, with headless Chrome.
+
+   It covers the list's and the run page's states, the cancel dialog, an unknown run, and a phone-width layout.
+4. **The real demo, followed from the pages, by the user:** in local native mode, then local helm mode, then staging, with a checklist:
+   * list, details, a task's output, the log tail and download, an output download;
+   * cancelling a second run.
+
+   Staging gets this branch's images (core-api's `submitted_time` and the new UI) before the PR, as in spec 0013. The values change is shown before it's written, and the user runs the helm upgrade.
+5. **The demo script prints the run's page** (`refcloud-compute-demo.sh`): "follow it in the researcher UI: https://…/workflow-runs/<platform>/<run id>", from the same base URL, so it's right on staging too. Each deploy README's "Running the demo" says the same.
+6. **Closing:** once the spec is ready, the git commands to archive it, and the commands to update links to it, are shown to the user to run.
+
+Built 2026-11-26:
+
+7. **The docs site:**
+   * **The new page** (`compute/workflow-runs.mdx`, in the sidebar after "Accessing Compute Platforms") covers:
+     * the list;
+     * a table of run states;
+     * each section of a run's page, with the WES and TES requests behind it;
+     * the 500-line limit and the downloads;
+     * cancelling;
+     * what to look at when a run fails.
+   * **Links to it:**
+     * the WES demo: a tip under "Following the Run", a line in the Conclusion, and Additional Reading;
+     * "Accessing Compute Platforms": the WES bullet. It says the UI follows and cancels runs, but doesn't submit them;
+     * the Compute Overview: a "Following runs" bullet, and Additional Reading.
+   * `npm run build` passes; the site fails on any broken link. Prettier, ESLint and types pass too.
+8. **The demo script** prints `follow it in the researcher UI: <base URL>/workflow-runs/<platform>/<run id>` twice: once the run is submitted, and when the demo completes. A failed run also points to its page. The researcher UI shares the deployment's host with the APIs, locally and in the chart's ingress. `deploy/local/README.md` and `deploy/helm/README.md` (both the local demo and the AWS one) mention the page.
+9. **Found and fixed during the task:**
+   * **The run's reason, `run_log.system_logs`** (e.g. "the engine could not be started…", "canceled by its owner"), now shows in the overview as **Reason**. Task 4 had left it out, so a system error showed no reason.
+   * **A task's executor output** now starts scrolled to its end, like the run's logs.
+10. **The headless check** ran against stand-ins in the session's scratchpad, never the local refcloud or its database:
+    * **The stand-ins:**
+      * a fake core-api (compute platforms, WES and TES), whose canned runs include fractional-second timestamps;
+      * a fake Kratos (whoami, and the logout flow the layout asks for);
+      * a fake Hydra, so the background passport flow completes and sets the `access_token` cookie;
+      * a proxy adding the Kratos session cookie.
+    * **The driver:** headless Chrome over the DevTools protocol, from Node's built-in WebSocket (nothing installed), against `next build` and `next start`.
+    * **The list (all 63 checks pass, with no browser errors):**
+      * the passport flow, and each platform's first page;
+      * newest first with the platforms interleaved, the older run held back until Load more;
+      * names, URLs, states and times;
+      * the unapproved platform never asked;
+      * Load more;
+      * a failing platform's warning, no runs, no access;
+      * no sideways scrolling at 390px.
+    * **The run's page:**
+      * complete: the overview, outputs downloading with segments encoded, the log notice ("Showing only the last 500 of 1,234 lines"), lines 735–1,234 scrolled to the end, the whole log downloading as `<run id>-stdout.log`, a task's TES output with its own 500-line notice, the stderr tab;
+      * running: tags, "so far", task states newest first;
+      * cancel: the dialog, nothing sent before confirming, one `POST` with the passport, Cancelling then Cancelled with its reason, the task refreshed to Cancelled;
+      * queued, system error (its reason), executor error (the task's stderr, the engine's stderr), and an unknown run;
+      * 390px wide.
+    * **A separate dialog check** (5 checks, all passing): "Keep running" has the initial focus, closes the dialog, and sends nothing.
+    * The screenshots were read for layout, at full width and at 390px.
+
+    Every WES and TES call carried the passport, and Semgrep finds nothing (0 findings).
+
 ## Future Directions
 
 * **Submitting runs from the UI** (decided out of scope 2026-11-13; revisit later). Each workflow takes its own inputs, and not every workflow describes them in a schema a form could use. A middle ground: offer a form only for allowlisted workflows that ship a parameter schema (e.g. nf-core's `nextflow_schema.json`), starting with the bundled `drs-checksum`, which takes a single DRS input. Every workflow a platform runs is admin-approved (D20), and admins fix how it runs (D21), so the form only needs the parameters.

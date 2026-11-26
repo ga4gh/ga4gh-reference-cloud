@@ -139,6 +139,7 @@ export default function WorkflowRunClient({ platformId, runId, platforms }: Work
   const startTime = run?.run_log?.start_time;
   const endTime = run?.run_log?.end_time;
   const outputs = run?.outputs?.files ?? [];
+  const systemLogs = run?.run_log?.system_logs ?? [];
   const tags = Object.entries(request?.tags ?? {});
   const params = request?.workflow_params;
   const hasParams = params !== undefined && params !== null && Object.keys(params as object).length > 0;
@@ -179,6 +180,16 @@ export default function WorkflowRunClient({ platformId, runId, platforms }: Work
                     <span className="text-sm opacity-70">workflow engine exit code {run.run_log.exit_code}</span>
                   ) : null}
                 </div>
+
+                {systemLogs.length > 0 ? (
+                  <Field label="Reason">
+                    <ul>
+                      {systemLogs.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </Field>
+                ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Run ID">

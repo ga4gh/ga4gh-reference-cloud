@@ -45,7 +45,7 @@ TOKEN=<your passport token>
 curl -s -H "Authorization: Bearer $TOKEN" https://refcloud.ga4gh.localhost/ga4gh/wes/<platform id>/v1/runs
 ```
 
-* **WES:** you submit runs, and list, follow and cancel your own runs. You download their outputs and logs.
+* **WES:** you submit runs, and list, follow and cancel your own runs. You download their outputs and logs. The researcher UI's **View Workflow Runs** page follows and cancels your runs too, and downloads their outputs and logs, without copying a token (see [Following Your Workflow Runs](./workflow-runs)).
 * **TES:** you list, view and cancel the tasks your runs created. You can't submit tasks directly; workflows create them.
 
 You only ever see your own runs and tasks. Anyone else's are reported as not found.
