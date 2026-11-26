@@ -291,8 +291,13 @@ export default function WorkflowRunsClient({ initialPlatforms }: WorkflowRunsCli
             </table>
           </div>
           {hasMore ? (
-            <button type="button" className="ga4gh-btn-dark mt-4" onClick={loadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? "Loading…" : "Load more"}
+            <button
+              type="button"
+              className="ga4gh-btn-dark aspect-auto mt-4"
+              onClick={loadMore}
+              disabled={isLoadingMore}
+            >
+              <span className="btn-text">{isLoadingMore ? "Loading…" : "Load more"}</span>
             </button>
           ) : null}
         </>

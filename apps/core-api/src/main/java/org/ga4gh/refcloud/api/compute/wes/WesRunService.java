@@ -230,7 +230,13 @@ public class WesRunService {
                 run.getExitCode(),
                 run.getStateReason() == null ? List.of() : List.of(run.getStateReason()));
         return new WesViews.RunLog(
-                run.getId(), run.getRequest(), run.getState(), log, runUrl + "/tasks", outputs(platform, run, runUrl));
+                run.getId(),
+                run.getRequest(),
+                run.getState(),
+                log,
+                runUrl + "/tasks",
+                outputs(platform, run, runUrl),
+                run.getCreatedAt());
     }
 
     public WesViews.RunStatus getRunStatus(ComputePlatform platform, ComputeCaller caller, String runId) {

@@ -86,6 +86,8 @@ WES has no way to download a run's files, so the reference cloud adds a download
 * `workflow_url`: the run's workflow, as it was submitted, so a list of runs can show it without fetching each run's log;
 * `submitted_time`: when it was submitted. The list is ordered by it, newest first, so lists from several platforms can be merged in the same order. `start_time` stays empty while a run is queued.
 
+`GET /ga4gh/wes/{platformId}/v1/runs/{run_id}` has `submitted_time` too, since its `run_log.start_time` is also empty while a run is queued.
+
 ## Workflow Compatibility
 
 Which workflows are known to work on each platform type. An admin should only allowlist workflows known to work.

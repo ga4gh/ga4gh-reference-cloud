@@ -194,6 +194,65 @@ Built 2026-11-26:
 
 **Decisions (Task 4):**
 
+Agreed 2026-11-26 (the user):
+1. **One page with sections,** in this order:
+   * **Overview:** the run ID in full (copyable), the state, platform and workflow (name and URL), when it was submitted, started and ended, with the duration; then its parameters and tags;
+   * **Outputs:** each file's path and size, with a download;
+   * **Tasks:** each task's name, state (from TES), start, end and exit code. Expanding one shows its executors' stdout and stderr, fetched then;
+   * **Logs:** the run's stdout and stderr;
+   * **Cancel,** while the run is queued, initializing or running, with a confirmation.
+
+   Refreshing: the state and tasks every 5 seconds while the run is unfinished; logs on request.
+2. **WES's run log also gains `submitted_time`,** as the run summaries did (Task 3, decision 7). WES's run log has only start and end times, so a queued run would otherwise show none.
+3. **Logs show their last 500 lines,** and the page says so when a log is longer. A Download button saves the whole file.
+
+Built 2026-11-26:
+
+4. **core-api:** the run log's `submitted_time`, from the run's `created_at` (`WesViews.RunLog`, `WesRunService.getRunLog`).
+   * core-api's 330 tests and its static analysis pass.
+   * The docs site's compute overview lists it under "Non-Standard Extensions".
+5. **The page:** `app/workflow-runs/[platformId]/[runId]/page.tsx` checks the Kratos session and fetches the platforms on the server, as the list does. It hands them to `components/pages/workflow-runs/WorkflowRunClient.tsx`, which fetches the run log through the WES proxy once the passport is in place. The platforms only name things: a run on a platform that isn't listed (e.g. disabled) shows the platform's ID and the workflow's URL.
+   * **Sections:**
+     * a link back to the list, then the overview in a card:
+       * the workflow's allowlist name (or URL) as its title;
+       * the state pill, and the engine's exit code once there is one;
+       * the run ID (copyable) and the platform;
+       * when it was submitted, started and ended, and its duration ("… so far" while running);
+       * the `workflow_url` (copyable) with its type and version;
+       * the parameters as formatted JSON ("None: the workflow's defaults" when empty);
+       * the tags, when there are any;
+     * then Outputs, Tasks (`RunTasksSection.tsx`) and Logs (`RunLogsSection.tsx`).
+   * **Cancel** (`CancelRunButton.tsx`) sits in the overview's title row while the run is `QUEUED`, `INITIALIZING` or `RUNNING`. It opens a dialog ("Cancel this run? Its tasks are stopped, and the run ends as Cancelled…") with "Keep running" and "Cancel run". Once the platform accepts, the run log is fetched again, showing Cancelling. A refusal shows in the dialog with core-api's message.
+   * **Refreshing:** while the run isn't finished, its status every 5 seconds, and the whole run log again when the state changes. Outputs, which come with the run log, therefore appear when the run ends, not as each file is written. Durations count up between checks.
+   * **Errors:**
+     * not found (`404`): "No such run…: it may not exist, or it may not be one of yours";
+     * `401`: the passport couldn't be verified (reload);
+     * `403`: no access to the platform any more;
+     * unreachable: try again later.
+
+     A refresh that fails keeps the run shown, with a warning.
+6. **Outputs:** each file's path, size (in kB, MB, GB) and a Download link. The link goes through this app's outputs proxy (`outputDownloadPath`, each path segment encoded), since core-api's own `url` needs the passport, which a plain link can't send. The empty state says "No outputs yet: they're listed here when the run ends", or "This run has no outputs" once it's finished.
+7. **Tasks:**
+   * **The table:** WES's task list, 50 at a time and newest first, with "Load more tasks". Its columns are the task's name, its state from TES (`MINIMAL` view), its start and end (or "Running for …"), its exit code, and a "Show output" toggle.
+   * **An opened task** fetches TES's `FULL` view and shows:
+     * its TES task ID and URL (copyable, for use with the TES API);
+     * for each attempt's executors, the exit code, stdout and stderr. Each shows its last 500 lines, and says so when there were more. The page notes that TES keeps only the end of each executor's output.
+   * **Refreshing:** every 5 seconds while the run, or any task shown, isn't finished. Each refresh folds in the newest page and fetches TES's copy of only the unfinished tasks: the `FULL` view of opened ones, the state of the rest.
+8. **Logs:** stdout and stderr as tabs, with Refresh and "Download the whole log" (the logs proxy's `?download=1`).
+   * Only the last 500 lines are shown (`lastLines`), and the view starts scrolled to the end.
+   * Above a longer log, in bold: "Showing only the last 500 of N lines. Download the whole log to see the rest." Otherwise: "All N lines".
+   * Beyond "on request" (decision 1), the shown log is also fetched again when the run's state changes, so it's complete when the run ends.
+   * The whole log still reaches the browser, which keeps its last 500 lines. Engine logs are small, but a very large one would be slow to load (Future Directions).
+9. **Smaller points:**
+   * **The fetching pattern:** the effects fetch, then set state in their callbacks. React's `set-state-in-effect` lint rule refuses effects that call state-setting helpers directly, and it's satisfied without suppressing it.
+   * **A fix on the list page:** its "Load more" button now wraps its text in `btn-text`, as the app's other `ga4gh-btn-dark` buttons do. Without it, the text was the same colour as the hover background.
+10. **Checked:**
+    * the UI's Prettier, ESLint and types pass, and Semgrep finds nothing (0 findings);
+    * `next build` passes, with both pages and all the proxy routes;
+    * the log tail, size, output path and cancellable-state helpers pass a scratch check with sample data (18 checks). These include a 1,234-line log showing lines 735 to 1,234, exactly 500 lines not counted as cut, and a path with a space and `#`.
+
+    The rendered page is checked in Task 5, with the list.
+
 ### Task 5: Docs and checks
 
 * **The docs site:** a My Runs page in the Compute section.
@@ -209,4 +268,5 @@ Built 2026-11-26:
 
 * **Submitting runs from the UI** (decided out of scope 2026-11-13; revisit later). Each workflow takes its own inputs, and not every workflow describes them in a schema a form could use. A middle ground: offer a form only for allowlisted workflows that ship a parameter schema (e.g. nf-core's `nextflow_schema.json`), starting with the bundled `drs-checksum`, which takes a single DRS input. Every workflow a platform runs is admin-approved (D20), and admins fix how it runs (D21), so the form only needs the parameters.
 * **Filters on the workflow runs list** (Task 3, decision 6): by state, platform or workflow, when researchers have enough runs to need them.
+* **Large run logs** (Task 4, decision 8): the run's page fetches a whole log to show its last 500 lines. If engine logs grow large, core-api's log endpoint could take a `tail` parameter (or answer `Range` requests), so the page fetches only what it shows.
 * **Runs the researcher can't reach any more** (Task 1, decision 4): those on disabled platforms, or after their platform visa is revoked, aren't listed. If owners should always see their own runs, core-api would let them list and read those runs without the visa.

@@ -80,6 +80,20 @@ The browser never calls core-api's GA4GH APIs directly: the passport lives in th
 * **Browse Compute Platforms** (`components/pages/compute-platforms/`) lists the **enabled** platforms with their health (as in WES/TES service-info), platform type, WES and TES URLs, allowlisted workflows (the exact `workflow_url` to submit), the user's limits and their access status. Every platform has a visa (no open-access compute).
 * `EnvProvider` renders the app only after fetching `/api/config/env` on the client, so pages are rendered in the browser, not in the server's HTML.
 
+### Workflow runs pages (`/workflow-runs`, spec 0014)
+
+The UI is a WES and TES client here, with the passport, through the proxy routes above; only the platforms come from `/api/compute-platforms` (Kratos session). Both pages wait for `usePassportToken().isTokenLoaded` before their first WES call. Shared types and helpers are in `utils/workflowRuns.ts`.
+
+* **The list** (`WorkflowRunsClient.tsx`): each approved platform's runs (`GET /runs`, 20 at a time), merged newest first by `submitted_time` (`mergeRuns`, which holds back runs older than a platform's unloaded pages). It refreshes every 10 s while any run isn't finished.
+* **A run's page** (`/workflow-runs/[platformId]/[runId]`, `WorkflowRunClient.tsx`): one page with sections:
+  * the overview, with `CancelRunButton.tsx` while the run can be cancelled;
+  * outputs, downloaded through the outputs proxy (`outputDownloadPath`), never core-api's own `url`;
+  * tasks (`RunTasksSection.tsx`), with each task's state from TES `MINIMAL`, and `FULL` when opened, for its executors' output;
+  * logs (`RunLogsSection.tsx`), showing the last 500 lines (`LOG_LINES_SHOWN`) and saying so, with a download of the whole file.
+
+  While the run isn't finished, it checks `/status` every 5 s and fetches the run log again when the state changes.
+* Effects fetch first and set state in their callbacks: the `react-hooks/set-state-in-effect` lint rule refuses an effect that calls a state-setting helper directly.
+
 ### Explore Data page (`/data-connect`)
 
 * `components/pages/data-connect/DataConnectClient.tsx` holds the dataset and table dropdowns. Datasets and their readable tables come from `/api/datasets` (`tables`, `hasManifests`); the platform-wide `refcloud.platform.datasets` table is a fixed "Platform" entry. The selection is kept in the URL (`?dataset=<id>&table=<table type | drs-manifests>`).

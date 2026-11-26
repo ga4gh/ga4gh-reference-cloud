@@ -115,3 +115,86 @@ export function formatDuration(from: string, to: Date): string {
   }
   return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
 }
+
+// a run in WES GET /runs/{run_id}. submitted_time is the refcloud's addition, as in the list
+export type RunLog = {
+  run_id: string;
+  state: string;
+  request?: {
+    workflow_url?: string;
+    workflow_type?: string;
+    workflow_type_version?: string;
+    workflow_params?: unknown;
+    tags?: Record<string, string>;
+  };
+  run_log?: {
+    name?: string;
+    start_time?: string;
+    end_time?: string;
+    exit_code?: number;
+  };
+  // the refcloud's outputs (D19): each file under the run's outputs/, with its size
+  outputs?: { files: { path: string; size: number; url: string }[] };
+  submitted_time?: string;
+};
+
+// a run's task in WES GET /runs/{run_id}/tasks; its state and its executors' output come from TES (tes_uri)
+export type TaskLog = {
+  id: string;
+  name?: string;
+  start_time?: string;
+  end_time?: string;
+  exit_code?: number;
+  tes_uri?: string;
+};
+
+export type TaskListResponse = {
+  task_logs: TaskLog[];
+  next_page_token: string;
+};
+
+// a TES task (GET /tasks/{id}); FULL has each executor's stdout and stderr: the tail Funnel keeps
+export type TesTask = {
+  id: string;
+  state: string;
+  logs?: {
+    logs?: { start_time?: string; end_time?: string; stdout?: string; stderr?: string; exit_code?: number }[];
+  }[];
+};
+
+// the states WES can still cancel a run in
+const CANCELLABLE_STATES = new Set(["QUEUED", "INITIALIZING", "RUNNING", "PAUSED"]);
+
+export function isCancellable(state: string): boolean {
+  return CANCELLABLE_STATES.has(state);
+}
+
+// the last lines of a text, and how many it has in all (a final line break ends the last line, not a new one)
+export function lastLines(text: string, count: number): { shown: string; total: number; truncated: boolean } {
+  const lines = text.endsWith("\n") ? text.slice(0, -1).split("\n") : text.split("\n");
+  const total = text === "" ? 0 : lines.length;
+  const truncated = total > count;
+  return { shown: (truncated ? lines.slice(-count) : lines).join("\n"), total, truncated };
+}
+
+// a file size in bytes, kB, MB or GB (powers of 1000, as TES and WES count)
+export function formatSize(bytes: number): string {
+  if (bytes < 1000) {
+    return `${bytes} B`;
+  }
+  const units = ["kB", "MB", "GB", "TB"];
+  let value = bytes / 1000;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
+}
+
+// this app's proxy for one of a run's output files: core-api's own URL can't be linked to, since a plain link can't
+// send the passport
+export function outputDownloadPath(platformId: string, runId: string, path: string): string {
+  const segments = path.split("/").map((segment) => encodeURIComponent(segment));
+  return `/api/ga4gh/wes/${encodeURIComponent(platformId)}/v1/runs/${encodeURIComponent(runId)}/outputs/${segments.join("/")}`;
+}

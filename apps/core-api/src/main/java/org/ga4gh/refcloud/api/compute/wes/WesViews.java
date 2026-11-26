@@ -37,6 +37,8 @@ public final class WesViews {
             List<RunSummary> runs,
             @JsonProperty("next_page_token") String nextPageToken) {}
 
+    // a run in GET /runs/{run_id}. submitted_time isn't in WES's schema (clients ignore it): when the run was
+    // submitted, as in GET /runs, since run_log's start_time is empty while the run is queued (spec 0014)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record RunLog(
             @JsonProperty("run_id") String runId,
@@ -44,7 +46,8 @@ public final class WesViews {
             String state,
             @JsonProperty("run_log") Log runLog,
             @JsonProperty("task_logs_url") String taskLogsUrl,
-            Outputs outputs) {}
+            Outputs outputs,
+            @JsonProperty("submitted_time") Instant submittedTime) {}
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Log(
