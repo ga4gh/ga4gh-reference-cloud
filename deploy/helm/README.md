@@ -25,7 +25,7 @@ Alongside the database, OAuth client and dataset setup, the setup script's Kuber
 * starts minikube (docker driver) if it isn't running and enables the `ingress` addon. A new cluster gets the **Calico** network plugin, which enforces the chart's [NetworkPolicies](#network-policies). A cluster created before Calico was added makes setup and the run script stop with instructions: recreate it with `minikube delete`, then run setup again. Your databases are in host Postgres, so they're unaffected
 * switches your `kubectl` context to `minikube` (every script command also passes `--context minikube --namespace default` explicitly, so it never touches another cluster)
 * installs the mkcert local CA and generates a TLS certificate for `refcloud.ga4gh.localhost` and `*.refcloud.ga4gh.localhost` in `deploy/helm/.certs/` (git-ignored)
-* creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode where both use them. RustFS's three are helm-only: random, and created only if they don't exist yet, since they go with RustFS's data (see Compute)
+* creates or updates every secret the chart needs (see [Secrets](#secrets)), using the same values as native mode where both use them. RustFS's three are helm-only: random, and created only if they don't exist yet, since they go with RustFS's data (see Compute). `refcloud-db-admin` is the login setup's own `psql` commands use, for the chart's [setup Jobs](#setup-jobs); if your Postgres asks for a password on connections from `127.0.0.1`, set `PGPASSWORD` when running setup
 
 `--reset` also deletes the TLS certificate, uninstalls the helm release, and deletes the refcloud secrets and RustFS's data (compute runs' files) before recreating the secrets (starting minikube first if needed). The cluster itself is not deleted.
 
@@ -41,8 +41,8 @@ The run script:
 
 1. fails fast if port 443 is in use (e.g. native mode's Caddy, or another `minikube tunnel`)
 2. computes the lockstep image tag: `git describe --tags --match 'v[0-9]*' --always`, plus `-uncommitted` if the working tree has any changes (including untracked files)
-3. builds all app images, and the Nextflow image compute runs, into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`. core-api and the admin CLI build from the repo root, so they can bundle `compute/workflows/`
-4. runs `helm upgrade --install refcloud` with that tag. Database migrations (Liquibase, Kratos, Hydra) run first as Helm hooks, and RustFS's setup (its bucket and users) runs after, as another
+3. builds all app images, the Nextflow image compute runs and the setup Jobs' image into minikube (`minikube image build`); build logs go to `$TMPDIR/refcloud-build-logs/`. core-api and the admin CLI build from the repo root, so they can bundle `compute/workflows/`
+4. runs `helm upgrade --install refcloud` with that tag. The [setup Jobs](#setup-jobs) and the database migrations (Liquibase, Kratos, Hydra) run as Helm hooks: `setup-predeploy` first, then the migrations, and once the release is applied, `setup-postdeploy` and RustFS's setup (its bucket and users). It prints each setup Job's last line: setup has prepared everything, so they should report nothing changed (except `refcloud seed`, which always rewrites its rows)
 5. restarts the app deployments (so rebuilt images with an unchanged tag are picked up) and waits for them to be ready
 6. registers the `nextflow-demo-kubernetes` compute platform, if it doesn't exist yet (see Compute below)
 7. prints the service URLs and runs `minikube tunnel` in the foreground, which prompts for your password to bind port 443
@@ -85,7 +85,7 @@ Helm mode runs compute (WES and TES) in the cluster ([spec 0011](../../claude/sp
 
 ### Network Policies
 
-The chart's NetworkPolicies (`charts/app/templates/common/network-policies.yaml`) let each pod accept only the traffic it needs. The researcher UI, docs, core-api and the Kratos and Hydra public APIs accept traffic from the ingress and from the pods that call them. Hydra's admin API accepts only the researcher UI, and Kratos's admin API nothing but health probes. The template's header has the full table. A new in-cluster caller (a new internal URL) needs a rule there, or its requests time out.
+The chart's NetworkPolicies (`charts/app/templates/common/network-policies.yaml`) let each pod accept only the traffic it needs. The researcher UI, docs, core-api and the Kratos and Hydra public APIs accept traffic from the ingress and from the pods that call them. Hydra's admin API accepts only the researcher UI and the `setup-postdeploy` Job, and Kratos's admin API nothing but health probes. The template's header has the full table. A new in-cluster caller (a new internal URL) needs a rule there, or its requests time out.
 
 In minikube, Calico enforces them. To check that a pod can't reach an admin API:
 
@@ -133,7 +133,7 @@ The namespace also has a ResourceQuota and a LimitRange, computed from the local
 minikube stop                           # optional: stop the cluster
 ```
 
-`--down` keeps compute runs' files (RustFS's data claim, `rustfs-data`, and its secrets), as the databases keep the runs: the next install picks them up. `./scripts/refcloud-setup.sh --reset` deletes them.
+`--down` keeps compute runs' files (RustFS's data claim, `rustfs-data`, and its secrets), as the databases keep the runs: the next install picks them up. `./scripts/refcloud-setup.sh --reset` deletes them. It also deletes the [setup Jobs](#setup-jobs), which uninstalling a release leaves behind, as Helm does with hooks.
 
 ### One mode at a time
 
@@ -154,15 +154,51 @@ kubectl exec deploy/refcloud-admin-cli -- refcloud <command>
 * **A pod is refused in the compute namespace (`violates PodSecurity "restricted:latest"`):** the namespace enforces the strictest Pod Security level. A pod you start there yourself, e.g. to check the NetworkPolicies, needs a restricted security context, as in the `np-check` example under Network Policies.
 * **New pods stay in `ContainerCreating`, and `kubectl describe pod` shows `plugin type="calico" failed ... connection is unauthorized: Unauthorized`** (e.g. the deploy times out in a migration Job): Calico's network plugin token expired without being renewed, which can happen after the laptop sleeps. Running pods are unaffected. Restart Calico's node agent, which writes a new token: `kubectl --context minikube -n kube-system rollout restart daemonset calico-node`.
 * **An image build fails:** see the log path printed by the run script in `$TMPDIR/refcloud-build-logs/`.
-* **The deploy fails:** check `kubectl get pods`, `kubectl get jobs` and `kubectl logs <pod>`. A failed migration Job is kept for inspection and replaced on the next deploy.
+* **The deploy fails:** check `kubectl get pods`, `kubectl get jobs` and `kubectl logs <pod>`. A failed migration Job is kept for inspection and replaced on the next deploy. If a setup Job failed, its log ends with an `[ERROR]` line saying what to fix: `kubectl logs job/setup-predeploy`, or `kubectl logs job/setup-postdeploy --all-containers`.
 * **Liquibase migration fails with `relation "..." already exists`:** your local database recorded migrations under the old changelog path. Run this once (or `./scripts/refcloud-setup.sh --reset`):
   ```sh
   psql -d refcloudapi -c "UPDATE databasechangelog SET filename = 'dbchangelog.xml' WHERE filename = 'apps/core-api/liquibase/dbchangelog.xml';"
   ```
 
+## Setup Jobs
+
+The chart prepares what it needs itself, on every install and upgrade ([spec 0013](../../claude/specs/archive/0013-add-compute-aws-platform.md), Task 2). Two Helm hook Jobs run `refcloud-setup` (`setup/refcloud-setup`, in the `refcloud-setup` image built from `setup/`):
+
+| Job | When | What it checks |
+|-|-|-|
+| `setup-predeploy` | before the database migrations (`pre-install`, `pre-upgrade`) | the [Secrets](#secrets) the chart expects; each app's database and the login role that owns it, both named after the `username` in its Secret, with the role logging in with the Secret's password; Data Connect's role (read-only, a 30-second statement timeout, no `CREATEDB` or `CREATEROLE`) |
+| `setup-postdeploy` | once the release is applied (`post-install`, `post-upgrade`) | the researcher UI's OAuth client in Hydra (it waits for Hydra to be ready). Its last container then runs `refcloud seed` with the admin CLI image, which upserts the Data Connect table types and platform tables |
+
+Each check changes something only when it fails, so on a deployment where everything is intact nothing changes:
+
+* a missing Secret is created with random values. An existing Secret is never changed: one that's missing a key stops the Job, with the key named;
+* `kratos-secrets`, `hydra-secrets` and `refcloud-ui-hydra-researcher-client` are created only with a new database. If one is missing while Kratos's or Hydra's database has data, the Job stops and asks for it to be restored: Kratos and Hydra encrypt what they store with the first two, and Hydra keeps the OAuth client's secret;
+* a missing database or role is created; a database with another owner gets its role as owner; a role that can't log in with its Secret's password gets that password;
+* a missing Hydra client is created from its Secret. For an existing one, the settings the chart decides are updated where they differ (with a JSON Patch, so nothing else on the client changes): the redirect URI, which follows `baseURL` (e.g. after a hostname change), the grant and response types, the scope and the auth method. Lists and the scope compare as sets, so order doesn't count. Its secret isn't checked: Hydra never returns it.
+
+Nothing is ever deleted. Each check is logged as `[OK]` or `[CHANGE]`, a problem setup can't fix as `[ERROR]` (and the deploy fails, before the migrations if it's `setup-predeploy`), and the last line sums up. The Jobs stay until the next deploy replaces them, so their logs can be read:
+
+```sh
+kubectl logs job/setup-predeploy
+kubectl logs job/setup-postdeploy --all-containers
+```
+
+Apps already running read their Secrets only when they start. If `setup-predeploy` created or changed a Secret or a password an app uses (it says so), restart that app once the deploy is done: `kubectl rollout restart deployment/<name>`.
+
+`setup-predeploy` connects to Postgres with the admin login in `refcloud-db-admin`:
+
+* **locally,** `refcloud-setup.sh` creates it with your local Postgres login;
+* **elsewhere (AWS),** it's `refcloud_admin`'s login: a role that can create databases and roles, but isn't a superuser, and (from Postgres 16) manages only the roles it creates or is granted. `setup-predeploy` creates the role and the Secret itself, with a random password nobody needs to know, on a deploy where the **bootstrap login** is there: the master user's credentials, in `refcloud-db-bootstrap` ([below](#the-bootstrap-login)). After that deploy, delete `refcloud-db-bootstrap`. Every later deploy connects as `refcloud_admin`.
+
+Whenever `refcloud-db-bootstrap` exists and can connect, `setup-predeploy` connects as the master user and creates or repairs `refcloud_admin`: its password, its `CREATEDB` and `CREATEROLE`, and its `ADMIN` on every app role. A copy that can't connect (e.g. one whose password RDS has rotated since) is ignored, with a reminder to delete it. So the same step repairs the admin login if `refcloud-db-admin` is lost, or if setup reports a role `refcloud_admin` can't manage.
+
+`setup-predeploy` also needs permission to read and create the release's Secrets: its ServiceAccount, Role and RoleBinding are hooks too, and Helm deletes them once the migrations have run. Hydra's admin API accepts `setup-postdeploy` ([Network Policies](#network-policies)).
+
+Datasets aren't onboarded by setup: after a first deploy, onboard them with the [admin CLI](#admin-cli) pod (`refcloud dataset init` and `refcloud dataset onboard`).
+
 ## Static Analysis
 
-The chart is checked on every pull request that changes `deploy/helm/` (`.github/workflows/static-analysis-helm.yml`), rendered with its default (local) values. Each tool runs from a Docker image pinned by version and digest, so the only requirement is Docker. Run from the repo root:
+The chart is checked on every pull request that changes `deploy/helm/` (`.github/workflows/static-analysis-helm.yml`), rendered twice: with its default (local) values, and with sample AWS values (`static-analysis/aws-values.yaml`, compute on; every value in it is an example). Each tool runs from a Docker image pinned by version and digest, so the only requirement is Docker. Run from the repo root:
 
 | Check | Command |
 |-|-|
@@ -170,6 +206,7 @@ The chart is checked on every pull request that changes `deploy/helm/` (`.github
 | Chart linting (`helm lint --strict`) | `./scripts/refcloud-static-analysis-helm.sh lint` |
 | Rendered manifests against the Kubernetes API schemas ([kubeconform](https://github.com/yannh/kubeconform)) | `./scripts/refcloud-static-analysis-helm.sh kubeconform` |
 | Security misconfigurations ([Trivy](https://trivy.dev/), HIGH and CRITICAL) | `./scripts/refcloud-static-analysis-helm.sh trivy-config` |
+| The setup Jobs' script ([shellcheck](https://www.shellcheck.net/)); its Dockerfile is checked with the others (`./scripts/refcloud-static-analysis-deploy-local.sh`) | `./scripts/refcloud-static-analysis-helm.sh shellcheck` |
 
 Accepted Trivy findings are listed in `.trivyignore.yaml`, each scoped to the files it applies to and with a reason.
 
@@ -177,7 +214,7 @@ Every pod runs as a non-root user with a read-only root filesystem (writable `em
 
 ## Remote Deployment (AWS)
 
-The chart's defaults target local minikube. For AWS, supply overrides at deploy time and create the secrets yourself.
+The chart's defaults target local minikube. For AWS, supply overrides at deploy time. For an environment's first deploy, also put RDS's master credentials in the `refcloud-db-bootstrap` Secret ([The bootstrap login](#the-bootstrap-login)): the [setup Jobs](#setup-jobs) then create the admin login, the other secrets, the databases and roles, and the OAuth client.
 
 ### Values
 
@@ -190,14 +227,21 @@ The chart's defaults target local minikube. For AWS, supply overrides at deploy 
 | `ga4gh.referenceCloud.baseURL` | `refcloud.ga4gh.localhost` | public hostname |
 | `ga4gh.referenceCloud.cloudEnvironment` | `local` | `aws` |
 | `ga4gh.referenceCloud.aws.certificateARN` | n/a | ACM certificate ARN for the ALB |
-| `ga4gh.referenceCloud.compute.connections` | `{}` (compute is off) | the deployment's compute connections, written as in `deploy/local/compute/connections.yml` (credentials named by environment variable, never inline) |
-| `ga4gh.referenceCloud.compute.serviceInfo.idSuffix` | `local.helm` | the deployment's own, so WES and TES service-info IDs differ from local ones |
-| `ga4gh.referenceCloud.compute.serviceInfo.environment` | `local` | e.g. `prod` |
+| `ga4gh.referenceCloud.compute.aws.*` | empty (compute is off on AWS) | the AWS compute connection's bucket, region, run role and private S3 endpoint, its Job size and limits ([Compute on AWS](#compute-on-aws)) |
+| `ga4gh.referenceCloud.compute.namespace` | `""` (`<release>-compute`) | the environment's compute namespace, as its Pod Identity association names it |
+| `ga4gh.referenceCloud.compute.storageClass` | `""` (the cluster's default) | `ebs-gp3`: task workspaces and Funnel's database |
+| `ga4gh.referenceCloud.compute.nodeSelector`, `.tolerations` | none (any node) | the environment's compute node pool |
+| `ga4gh.referenceCloud.compute.seLinuxLevel` | `""` (derived from the compute namespace's name) | usually left to the chart |
+| `ga4gh.referenceCloud.compute.connections` | `{}` | extra compute connections, beyond the chart's own, written as in `deploy/local/compute/connections.yml` (credentials named by environment variable, never inline) |
+| `ga4gh.referenceCloud.serviceInfo.idSuffix` | `local.helm` | the deployment's own, e.g. `staging`: every GA4GH service's service-info ID is `org.ga4gh.refcloud.<service>.<idSuffix>` (DRS, refget, Data Connect, the service registry, and each compute platform's WES and TES) |
+| `ga4gh.referenceCloud.serviceInfo.environmentName` | `Local Helm Environment` | ends every service's name, e.g. `Staging Environment` |
+| `ga4gh.referenceCloud.serviceInfo.environment` | `local` | e.g. `staging`, `prod` |
+| `ga4gh.referenceCloud.serviceInfo.organization`, `.contactUrl`, `.documentationUrl` | GA4GH, `mailto:info@ga4gh.org`, this repo | shared by every service. Each service's version is `image.tag` |
 | `networkPolicy.ingressFrom` | `[]` (the `ingress-nginx` namespace) | **required**: where the ALB connects from. It targets pod IPs from its subnets, e.g. `[{ipBlock: {cidr: <VPC CIDR>}}]` |
 
 **NetworkPolicies on AWS:** the chart's policies only take effect if the cluster enforces them. On EKS Auto Mode, turn on its Network Policy Controller once, with the ConfigMap from [AWS's guide](https://docs.aws.amazon.com/eks/latest/userguide/auto-net-pol.html) (`amazon-vpc-cni` in `kube-system`, `enable-network-policy-controller: "true"`). Deploy the chart (with `networkPolicy.ingressFrom`) before or after; then check that the site still works and the pods stay ready. If something breaks, `--set networkPolicy.enabled=false` removes the policies.
 
-Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`, and `refcloud-nextflow` (the Nextflow image compute Jobs run; `compute/images/nextflow/`). The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
+Images are pulled from the ECR repositories CI pushes to: `refcloud-core-api`, `refcloud-core-api-liquibase`, `refcloud-researcher-ui`, `refcloud-docs`, `refcloud-admin-cli`, `refcloud-nextflow` (the Nextflow image compute Jobs run; `compute/images/nextflow/`), and `refcloud-setup` (the setup Jobs' image; `setup/`). The Ory Kratos and Hydra versions are pinned in `charts/app/templates/_helpers.tpl`.
 
 Example:
 
@@ -222,12 +266,72 @@ kubectl create secret docker-registry ecr-registry-key \
   --namespace=<namespace>
 ```
 
+### Compute on AWS
+
+With `ga4gh.referenceCloud.compute.aws.bucket` set, the chart runs compute as it does locally, on AWS resources from the infra repo's Terraform (`reference-cloud`; [spec 0013](../../claude/specs/archive/0013-add-compute-aws-platform.md)):
+
+* **Storage:** each environment keeps its runs' files in an S3 bucket, reached only through compute's private S3 endpoint. That's an interface endpoint in the VPC's private subnets, at fixed addresses. Its policy admits only the run buckets and the refcloud's compute roles, and the buckets refuse the run role's and Funnel's workers' credentials anywhere else.
+* **Credentials:** core-api and Funnel's workers use IAM roles through EKS Pod Identity, so there are no keys anywhere. Each run's Nextflow Job gets credentials from the run role, which core-api limits to the run's prefix. They last at most an hour, so runs last at most 45 minutes (`max-run-duration-seconds: 2700`).
+* **Nodes:** the Nextflow Jobs and Funnel's workers and executors run on the environment's own Auto Mode node pool, which is tainted and capped in vCPUs and memory. Its nodes exist only while compute pods need them. Funnel's server runs on the general nodes.
+* **Volumes:** task workspaces and Funnel's database are EBS volumes (`ebs-gp3`).
+
+The values come from `terraform output compute` in the infra repo's `reference-cloud`, per environment:
+
+```yaml
+ga4gh:
+  referenceCloud:
+    compute:
+      namespace: <the environment's compute namespace, as the Terraform's compute_environments names it>
+      storageClass: ebs-gp3
+      nodeSelector:
+        refcloud.ga4gh.org/compute: <environment>
+      tolerations:
+        - {key: refcloud.ga4gh.org/compute, operator: Equal, value: <environment>, effect: NoSchedule}
+      aws:
+        bucket: <bucket>
+        region: <region>
+        runRoleArn: <run_role_arn>
+        s3Endpoint: <s3_endpoint_url>     # https://bucket.vpce-....s3.<region>.vpce.amazonaws.com
+        s3EndpointIps: <s3_endpoint_ips>
+        # engine (each Nextflow Job's size) and limits: the defaults allow one run and two tasks at a time, sized for a
+        # 4 vCPU node pool
+```
+
+From these, the chart defines its connection, `nextflow-funnel-kubernetes-aws`: `s3` storage through the endpoint, path-style, with no keys and no `sts-endpoint`. Run credentials come from AWS's regional STS. A connection names an `sts-endpoint` only for a server that issues them at its own address, as RustFS does locally.
+
+**The platform** is registered with the admin CLI, on that connection. Staging's and production's is `nextflow-aws-us-east-2`:
+
+```sh
+kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform init -p nextflow-aws-us-east-2 \
+  --name "Nextflow on AWS (us-east-2)" \
+  --description "Run allowlisted Nextflow workflows on AWS in us-east-2 (Nextflow and Funnel on Kubernetes, with no internet access), with refcloud DRS objects as inputs" \
+  --connection nextflow-funnel-kubernetes-aws --monthly-core-hours 10
+kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform allowlist add -p nextflow-aws-us-east-2 --bundled drs-checksum \
+  --name "DRS checksum" --description "Report a DRS object's name, size, MD5 and SHA-256"
+kubectl exec deploy/refcloud-admin-cli -- refcloud compute-platform enable -p nextflow-aws-us-east-2
+```
+
+- **Health:** its WES service-info reports its health. When it's unhealthy, core-api's log says why: `kubectl logs deploy/refcloud-api | grep 'compute connection'`.
+- **The demo:** a researcher with approved visas for the platform and for 1000 Genomes can run it against the deployment: `REFCLOUD_DEMO_BASE_URL=https://<host> ./scripts/refcloud-compute-demo.sh <passport token>`. A run's first task waits a minute or so while Auto Mode starts nodes.
+- **The kill switch:** `refcloud compute-platform disable` hides the platform at once.
+
+**Costs:** with no runs, the compute node pool has no nodes. What's always on is compute's private S3 endpoint (about $22 a month), Funnel's server, and its 1 GiB volume. Compute nodes carry the tags `Project=reference-cloud` and `Component=compute`.
+
+**Network policies on EKS:** the compute namespace's policies (see Network Policies, above) apply on AWS too.
+- **What each pod reaches:** the Nextflow Jobs reach core-api and the S3 endpoint's addresses, with no DNS. Funnel's workers reach the S3 endpoint, Funnel's server, the Pod Identity agent, the Kubernetes API and DNS.
+- **How destinations are named:** the rules name each destination in both forms that network plugins match, a Service's address and the pods behind it. The Kubernetes API's and CoreDNS's addresses are looked up when the chart is deployed.
+- **Stand-in pods need distinct names:** EKS's policy agent shares rules between pods whose names differ only after the last `-`, as it would for replicas. A stand-in pod for checking the policies needs a name of its own, e.g. `np-check-worker-1` and `np-check-executor-1`, never `np-check-worker` beside `np-check-executor`.
+
+On AWS, compute needs no Secrets.
+
 ### Secrets
 
-The chart expects these secrets to exist in the release namespace. Locally, `refcloud-setup.sh` creates them; in AWS, create them with production values.
+The chart expects these secrets in the release namespace. Locally, `refcloud-setup.sh` creates them all. Everywhere, `setup-predeploy` creates any that are missing, except `refcloud-db-bootstrap` and the local-only ones, with random values, and never changes an existing one (see [Setup Jobs](#setup-jobs)).
 
 | Secret | Keys |
 |---|---|
+| `refcloud-db-bootstrap` | `host`, `port`, `username`, `password`: the master user's login, for one deploy only ([The bootstrap login](#the-bootstrap-login)). Never needed locally |
+| `refcloud-db-admin` | `host`, `port`, `username`, `password`: the admin login `setup-predeploy` connects as: `refcloud_admin`, created with the bootstrap login (locally, your Postgres login) |
 | `common-db-info` | `host`, `port` |
 | `kratos-db-credentials` | `username`, `password` |
 | `hydra-db-credentials` | `username`, `password` |
@@ -241,5 +345,27 @@ The chart expects these secrets to exist in the release namespace. Locally, `ref
 | `refcloud-compute-s3-root` | `access-key-id`, `secret-access-key`: RustFS's root account, used only by its setup Job (local only) |
 | `refcloud-compute-s3-core-api` | `access-key-id`, `secret-access-key`: core-api's RustFS user (local only) |
 | `refcloud-compute-s3-funnel` | `access-key-id`, `secret-access-key`: Funnel's RustFS user, which the chart copies into the compute namespace for its workers (local only) |
+
+### The bootstrap login
+
+Once per environment, for its first deploy, and again only to repair the admin login, give `setup-predeploy` the RDS master user's credentials. RDS keeps them in Secrets Manager (and rotates the password), so copy them straight from there; the password never shows in your terminal:
+
+```sh
+aws secretsmanager get-secret-value --secret-id <master user secret ARN> --query SecretString --output text \
+  | jq --arg host '<RDS endpoint>' '{apiVersion: "v1", kind: "Secret", type: "Opaque",
+      metadata: {name: "refcloud-db-bootstrap"},
+      stringData: {host: $host, port: "5432", username: .username, password: .password}}' \
+  | kubectl create --namespace=<namespace> -f -
+```
+
+(`aws rds describe-db-instances --db-instance-identifier <instance> --query 'DBInstances[0].MasterUserSecret.SecretArn'` gives the secret's ARN.)
+
+Deploy, check `setup-predeploy`'s log (`kubectl logs job/setup-predeploy`: it ends with what it created), then delete the copy:
+
+```sh
+kubectl delete secret refcloud-db-bootstrap --namespace=<namespace>
+```
+
+Setup never needs the master password again, so rotating it now (`aws secretsmanager rotate-secret --secret-id <master user secret ARN>`) makes any copy useless. Do that only if nothing else connects with the master login, e.g. another project's app on the same instance: check that RDS already rotates it (`aws secretsmanager describe-secret --secret-id <ARN> --query RotationEnabled`), since then anything using it reads it from Secrets Manager.
 
 The admin CLI pod in AWS is connected to the production database. Follow the guardrails in [`apps/admin-cli/CLAUDE.md`](../../apps/admin-cli/CLAUDE.md) before running destructive commands.

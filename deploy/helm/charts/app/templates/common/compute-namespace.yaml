@@ -1,13 +1,15 @@
 {{- /*
 The compute namespace (refcloud.computeNamespace): Funnel, its workers, the Nextflow Jobs and the task pods.
 
-It enforces the restricted Pod Security level (spec 0012): runs keep their files in RustFS and each task's workspace is
-a claim, so nothing mounts a hostPath, and every pod runs non-root with no privileges. A pod that falls short is
-refused (a stand-in pod for checking the NetworkPolicies needs a restricted security context: README.md).
+It enforces the restricted Pod Security level (spec 0012): runs keep their files in S3 storage (RustFS locally) and
+each task's workspace is a claim, so nothing mounts a hostPath, and every pod runs non-root with no privileges. A pod
+that falls short is refused (a stand-in pod for checking the NetworkPolicies needs a restricted security context:
+README.md).
 
-Local only, like everything in it (Funnel, its RBAC): the AWS platform spec adds its own.
+Rendered whenever compute is on (refcloud.computeEnabled: locally, or on AWS with a bucket), like everything in it
+(Funnel, its RBAC).
 */}}
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -1,7 +1,9 @@
 # Funnel's executor Job (Kubernetes.ExecutorTemplate in funnel.yml), one per executor of a TES task, created by the
 # task's worker. It runs the task's image and command: workflow code, so it gets no Kubernetes token, no privileges,
 # no credentials, no network (templates/common/compute-network-policies.yaml), and limits equal to the task's requested
-# resources (Funnel's default template sets requests only).
+# resources (Funnel's default template sets requests only). It requests almost nothing itself (50m, and 256Mi or the
+# task's memory if less): its worker has reserved the task's CPU and memory on their node (worker-job.yaml), so it
+# always fits beside it, and its limits keep it to what the task asked for.
 #
 # Funnel renders this file as a Go template for each executor. The chart only replaces the capitalized placeholders
 # (templates/apps/funnel/config-map.yaml), so never write template braces in these comments.
@@ -11,6 +13,9 @@
 #
 # Executors run as 10001, like the worker: with every capability dropped, another user couldn't write to the
 # worker's directories. Images that need root aren't supported.
+#
+# They run on the compute pods' nodes, with the SELinux level every compute pod shares (spec 0013): on nodes that
+# enforce SELinux, a pod with another level couldn't use the worker's claim. Node autoscalers never move them.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -28,14 +33,19 @@ spec:
         app: funnel-executor
         task-id: {{.TaskId}}
         app.kubernetes.io/name: funnel-executor
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
     spec:
       automountServiceAccountToken: false
       restartPolicy: Never
+      REFCLOUD_POD_PLACEMENT
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+        seLinuxOptions:
+          level: "REFCLOUD_SELINUX_LEVEL"
         seccompProfile:
           type: RuntimeDefault
       affinity:
@@ -75,8 +85,8 @@ spec:
               drop: ["ALL"]
           resources:
             requests:
-              cpu: "{{.Cpus}}"
-              memory: "{{printf "%gG" .RamGb}}"
+              cpu: 50m
+              memory: "{{if gt .RamGb 0.25}}256Mi{{else}}{{printf "%gG" .RamGb}}{{end}}"
             limits:
               cpu: "{{.Cpus}}"
               memory: "{{printf "%gG" .RamGb}}"

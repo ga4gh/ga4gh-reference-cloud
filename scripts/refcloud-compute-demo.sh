@@ -13,8 +13,11 @@
 #   * helm mode (./scripts/refcloud-run-helm.sh): nextflow-demo-kubernetes, which the run script registers
 #     (deploy/helm/README.md).
 # Without -p, it uses whichever of the two is healthy (both modes share the database, so both platforms exist, but only
-# the running mode's is healthy). Needs only curl and node. REFCLOUD_DEMO_BASE_URL points it at another deployment
-# (default https://refcloud.ga4gh.localhost); pass -p there.
+# the running mode's is healthy). Needs only curl and node.
+#
+# REFCLOUD_DEMO_BASE_URL points it at another deployment (default https://refcloud.ga4gh.localhost), e.g. staging on AWS,
+# whose platform (nextflow-aws-us-east-2, spec 0013) it also tries without -p. The demo's DRS object is that
+# deployment's own (drs://<its host>/...).
 
 source ./scripts/lib/common.sh
 
@@ -28,7 +31,12 @@ if [[ -z "$TOKEN" ]]; then
 fi
 
 BASE=${REFCLOUD_DEMO_BASE_URL:-"https://$REFCLOUD_BASE_URL"}
+BASE=${BASE%/}
 DEMO_OBJECT_ID=${DEMO_DRS_URI##*/}
+# the deployment's own copy of the demo object: its DRS URIs name its host
+BASE_HOST=${BASE#*://}
+BASE_HOST=${BASE_HOST%%/*}
+DRS_URI="drs://$BASE_HOST/$DEMO_OBJECT_ID"
 POLL_SECONDS=5
 TIMEOUT_SECONDS=900
 
@@ -88,7 +96,7 @@ if [[ -n "${opts[-p]}" ]]; then
   PLATFORM_ID=${opts[-p]}
 else
   PLATFORM_ID=$DEFAULT_COMPUTE_PLATFORM_ID
-  for candidate in "$DEFAULT_COMPUTE_PLATFORM_ID" "$KUBERNETES_COMPUTE_PLATFORM_ID"; do
+  for candidate in "$DEFAULT_COMPUTE_PLATFORM_ID" "$KUBERNETES_COMPUTE_PLATFORM_ID" "$AWS_COMPUTE_PLATFORM_ID"; do
     if [[ "$(platform_health "$candidate")" == "healthy" ]]; then
       PLATFORM_ID=$candidate
       break
@@ -114,12 +122,12 @@ if [[ "$health" != "healthy" ]]; then
 fi
 
 # 2. submit the bundled drs-checksum workflow with the demo's DRS object as its input
-log_info "submitting refcloud:bundled/drs-checksum on $DEMO_DRS_URI"
+log_info "submitting refcloud:bundled/drs-checksum on $DRS_URI"
 response=$(api -X POST "$WES/runs" \
   -F workflow_url=refcloud:bundled/drs-checksum \
   -F workflow_type=NFL \
   -F workflow_type_version=DSL2 \
-  -F "workflow_params={\"input\": \"$DEMO_DRS_URI\"}" \
+  -F "workflow_params={\"input\": \"$DRS_URI\"}" \
   -F 'tags={"purpose": "refcloud compute demo"}') || exit 1
 if [[ "$(status_of "$response")" != 200 ]]; then
   log_error "the run was refused ($(status_of "$response")): $(body_of "$response" | json msg)"

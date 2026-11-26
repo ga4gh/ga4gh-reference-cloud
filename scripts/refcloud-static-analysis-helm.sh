@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 
-# Static analysis for the helm chart (deploy/helm/charts/app), rendered with its default (local) values.
+# Static analysis for the helm chart (deploy/helm/charts/app), rendered twice: with its default (local) values, and
+# with sample AWS values (deploy/helm/static-analysis/aws-values.yaml: cloudEnvironment aws with compute on).
 # Every tool runs from a pinned docker image (version + digest), so the only requirement is Docker, and
 # local runs match CI (.github/workflows/static-analysis-helm.yml), which calls this script.
 #
 #   ./scripts/refcloud-static-analysis-helm.sh                run all checks
 #   ./scripts/refcloud-static-analysis-helm.sh <check>...     run specific checks:
-#       lint          helm lint --strict (chart structure, template errors)
-#       kubeconform   render the chart (helm template) and validate every resource against the kubernetes
-#                     API schemas, including the helm hook Jobs
+#       lint          helm lint --strict (chart structure, template errors), with each set of values
+#       kubeconform   render the chart (helm template) with each set of values and validate every resource
+#                     against the kubernetes API schemas, including the helm hook Jobs
 #       trivy-config  scan for security misconfigurations (HIGH/CRITICAL), both the chart and its rendered
 #                     manifests (trivy's chart mode skips helm hooks, so the migration Jobs are only in the
 #                     rendered scan); ignores: deploy/helm/.trivyignore.yaml
+#       shellcheck    lint the setup Jobs' script (deploy/helm/setup/refcloud-setup, bash) with shellcheck's
+#                     default checks. Its Dockerfile is checked with the others, by
+#                     scripts/refcloud-static-analysis-deploy-local.sh
 #
 # Written for bash 3.2 (macOS) as well as CI, so it avoids zsh and bash 4 features. Run from the repo root.
 
@@ -25,11 +29,16 @@ set -uo pipefail
 HELM_IMAGE="alpine/helm:4.3.1@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e"
 KUBECONFORM_IMAGE="ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e"
 TRIVY_IMAGE="aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb"
+SHELLCHECK_IMAGE="koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d"
 
 HELM_DIR="deploy/helm"
 CHART_DIR="${HELM_DIR}/charts/app"
+# the setup Jobs' image: its script
+SETUP_DIR="${HELM_DIR}/setup"
 # image.tag is required by the chart; any value renders the same manifests
 IMAGE_TAG="static-analysis"
+# the sample AWS values, as the helm container sees them (deploy/helm is mounted at /helm)
+AWS_VALUES="/helm/static-analysis/aws-values.yaml"
 # kubernetes version whose API schemas kubeconform validates against (minikube's default)
 KUBERNETES_VERSION="1.35.1"
 # trivy's vulnerability db and checks bundle, reused between runs (outside the repo)
@@ -61,28 +70,45 @@ trivy() {
     -w /helm/charts/app "${TRIVY_IMAGE}" "$@"
 }
 
+# render [values file]: the chart with its defaults, or with a values file (a path inside the helm container)
 render() {
-  helm template refcloud . --set image.tag="${IMAGE_TAG}"
+  if [ $# -gt 0 ]; then
+    helm template refcloud . --set image.tag="${IMAGE_TAG}" -f "$1"
+  else
+    helm template refcloud . --set image.tag="${IMAGE_TAG}"
+  fi
 }
 
 check_lint() {
-  log_info "linting ${CHART_DIR} (helm lint --strict)"
-  helm lint . --strict --set image.tag="${IMAGE_TAG}"
+  local failed=0
+  log_info "linting ${CHART_DIR} (helm lint --strict), with its default values"
+  helm lint . --strict --set image.tag="${IMAGE_TAG}" || failed=1
+  log_info "linting ${CHART_DIR} (helm lint --strict), with the sample AWS values"
+  helm lint . --strict --set image.tag="${IMAGE_TAG}" -f "${AWS_VALUES}" || failed=1
+  return "${failed}"
 }
 
 check_kubeconform() {
-  log_info "validating rendered manifests against kubernetes ${KUBERNETES_VERSION} schemas (kubeconform)"
-  local rendered
+  local failed=0 rendered
+  log_info "validating rendered manifests against kubernetes ${KUBERNETES_VERSION} schemas (kubeconform), default values"
   rendered=$(render) || { log_error "helm template failed"; return 1; }
   printf '%s\n' "${rendered}" | docker run --rm -i "${KUBECONFORM_IMAGE}" \
-    -strict -summary -kubernetes-version "${KUBERNETES_VERSION}" -
+    -strict -summary -kubernetes-version "${KUBERNETES_VERSION}" - || failed=1
+  log_info "validating rendered manifests against kubernetes ${KUBERNETES_VERSION} schemas (kubeconform), sample AWS values"
+  rendered=$(render "${AWS_VALUES}") || { log_error "helm template failed (sample AWS values)"; return 1; }
+  printf '%s\n' "${rendered}" | docker run --rm -i "${KUBECONFORM_IMAGE}" \
+    -strict -summary -kubernetes-version "${KUBERNETES_VERSION}" - || failed=1
+  return "${failed}"
 }
 
 check_trivy_config() {
   local failed=0 rendered
-  log_info "scanning ${CHART_DIR} for security misconfigurations (trivy config, HIGH/CRITICAL)"
+  log_info "scanning ${CHART_DIR} for security misconfigurations (trivy config, HIGH/CRITICAL), default values"
   trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL --helm-set image.tag="${IMAGE_TAG}" \
     --ignorefile /helm/.trivyignore.yaml . || failed=1
+  log_info "scanning ${CHART_DIR} for security misconfigurations (trivy config, HIGH/CRITICAL), sample AWS values"
+  trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL --helm-set image.tag="${IMAGE_TAG}" \
+    --helm-values "${AWS_VALUES}" --ignorefile /helm/.trivyignore.yaml . || failed=1
 
   # the rendered manifests are one file, so path-scoped ignores can't apply: this scan covers only the helm
   # hook resources (the migration Jobs), which the chart scan above skips
@@ -93,6 +119,11 @@ check_trivy_config() {
     'mkdir -p /tmp/hooks && cat > /tmp/hooks/jobs.yaml && trivy config --quiet --exit-code 1 --severity HIGH,CRITICAL /tmp/hooks' \
     || failed=1
   return "${failed}"
+}
+
+check_shellcheck() {
+  log_info "linting ${SETUP_DIR}/refcloud-setup (shellcheck)"
+  docker run --rm -v "${PWD}/${SETUP_DIR}:/setup:ro" "${SHELLCHECK_IMAGE}" /setup/refcloud-setup
 }
 
 # prints only the rendered documents that are helm hooks
@@ -110,8 +141,9 @@ run_check() {
     lint) check_lint ;;
     kubeconform) check_kubeconform ;;
     trivy-config) check_trivy_config ;;
+    shellcheck) check_shellcheck ;;
     *)
-      log_error "unknown check: $1 (expected lint, kubeconform or trivy-config)"
+      log_error "unknown check: $1 (expected lint, kubeconform, trivy-config or shellcheck)"
       return 2
       ;;
   esac
@@ -127,7 +159,7 @@ if [ ! -f "${CHART_DIR}/Chart.yaml" ]; then
 fi
 
 if [ $# -eq 0 ]; then
-  set -- lint kubeconform trivy-config
+  set -- lint kubeconform trivy-config shellcheck
 fi
 
 # every requested check runs even if an earlier one fails, so a single run reports every problem

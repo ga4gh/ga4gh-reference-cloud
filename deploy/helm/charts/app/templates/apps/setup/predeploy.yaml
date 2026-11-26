@@ -1,0 +1,111 @@
+{{- /*
+setup-predeploy (spec 0013, Task 2): before the migrations, on every install and upgrade, refcloud-setup checks the
+Secrets the chart expects, each app's database and the login role that owns it, and Data Connect's read-only role, and
+creates or fixes only what's missing or wrong (deploy/helm/setup/refcloud-setup). It connects to Postgres with the
+refcloud-db-admin Secret. Locally, scripts/refcloud-setup.sh creates it. On AWS, the first deploy creates it: the
+operator puts RDS's master credentials in refcloud-db-bootstrap for that deploy, and predeploy creates the
+refcloud_admin role (CREATEDB, CREATEROLE, not a superuser) and saves its login in refcloud-db-admin.
+
+All four resources are hooks, since a pre-install hook runs before any of the release's own resources exist: the
+ServiceAccount, Role and RoleBinding first (weight -20), then the Job (-10), then the migrations (0). Helm deletes the
+RBAC once every pre hook has succeeded, so nothing holds the permission between deploys (after a failure, the next
+deploy replaces it). The Job stays until the next deploy replaces it, so its log can be read:
+kubectl logs job/setup-predeploy
+*/ -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: setup-predeploy
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: setup-predeploy
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  # reading its admin and bootstrap logins and the Secrets it checks (keep in sync with refcloud-setup's predeploy)
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames:
+      - refcloud-db-admin
+      - refcloud-db-bootstrap
+      - common-db-info
+      - kratos-db-credentials
+      - hydra-db-credentials
+      - refcloud-api-db-credentials
+      - refcloud-api-data-connect-db-credentials
+      - refcloud-api-kratos-webhook
+      - kratos-secrets
+      - hydra-secrets
+      - refcloud-ui-hydra-researcher-client
+    verbs: [get]
+  # creating the missing ones, refcloud-db-admin included (Kubernetes can't limit create to names). It never updates
+  # or deletes a Secret
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: setup-predeploy
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-20"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: setup-predeploy
+subjects:
+  - kind: ServiceAccount
+    name: setup-predeploy
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: setup-predeploy
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: setup-predeploy
+    spec:
+      restartPolicy: Never
+      serviceAccountName: setup-predeploy
+      # the release's only pod with a token: it reads and creates Secrets through the Kubernetes API
+      automountServiceAccountToken: true
+      {{- include "refcloud.podSecurityContext" 10001 | nindent 6 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: setup
+          image: {{ include "refcloud.image" (dict "root" . "repository" "refcloud-setup") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["predeploy"]
+          {{- include "refcloud.containerSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      {{- include "refcloud.imagePullSecrets" . | nindent 6 }}

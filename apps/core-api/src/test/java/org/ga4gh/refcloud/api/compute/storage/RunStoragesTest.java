@@ -81,4 +81,44 @@ public class RunStoragesTest {
     public void engineLifetimeIsTheRunPlusGraceAndMargin() {
         assertEquals(RUN_CONFIG.engineLifetime(2700), Duration.ofSeconds(2700 + 120 + 300));
     }
+
+    private static ComputeConfig.Storage s3(String endpoint, String stsEndpoint) {
+        return new ComputeConfig.Storage(
+                ComputeConfig.StorageType.S3,
+                null,
+                "refcloud-compute",
+                null,
+                "us-east-2",
+                endpoint == null ? null : URI.create(endpoint),
+                stsEndpoint == null ? null : URI.create(stsEndpoint),
+                endpoint != null,
+                null,
+                null,
+                "arn:aws:iam::123456789012:role/refcloud-compute-run",
+                null);
+    }
+
+    // RustFS issues run credentials at its S3 endpoint, so its connection names it for STS too
+    @Test
+    public void stsGoesWhereTheConnectionSays() {
+        try (var sts =
+                RunStorages.stsClient(s3("http://rustfs.refcloud.svc:9000", "http://rustfs.refcloud.svc:9000"))) {
+            assertEquals(
+                    sts.serviceClientConfiguration().endpointOverride(),
+                    java.util.Optional.of(URI.create("http://rustfs.refcloud.svc:9000")));
+        }
+    }
+
+    // through an S3 interface endpoint on AWS (spec 0013): S3 goes there, STS to AWS's own regional endpoint, never to
+    // the S3 endpoint (which answers STS requests with errors)
+    @Test
+    public void stsNeverUsesTheS3Endpoint() {
+        String endpoint = "https://bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com";
+        try (var s3 = RunStorages.s3Client(s3(endpoint, null));
+                var sts = RunStorages.stsClient(s3(endpoint, null))) {
+            assertEquals(
+                    s3.serviceClientConfiguration().endpointOverride(), java.util.Optional.of(URI.create(endpoint)));
+            assertEquals(sts.serviceClientConfiguration().endpointOverride(), java.util.Optional.empty());
+        }
+    }
 }

@@ -3,18 +3,19 @@ Compute connections (connections.yml), mounted into core-api and the admin CLI, 
 REFCLOUD_COMPUTE_CONNECTIONS_FILE, as they read deploy/local/compute/connections.yml in native mode. They read it at
 startup, so their pods carry a checksum of this file and restart when it changes.
 
-Locally the chart adds nextflow-funnel-kubernetes-local: Nextflow Jobs and Funnel in this release's compute namespace,
-with run storage on the minikube node. It's defined here rather than in values.yaml because it depends on the
-release (namespace, storage path, image tag), and so a values override can't leave a default connection behind (Helm
-merges maps). Extra connections come from ga4gh.referenceCloud.compute.connections.
+Whenever compute is on (refcloud.computeEnabled), the chart adds its own connection: nextflow-funnel-kubernetes-local
+locally (run storage on RustFS), or nextflow-funnel-kubernetes-aws on AWS (an S3 bucket, from
+ga4gh.referenceCloud.compute.aws; spec 0013). Nextflow Jobs and Funnel run in this release's compute namespace. It's
+defined here rather than in values.yaml because it depends on the release (namespace, image tag), and so a values
+override can't leave a default connection behind (Helm merges maps). Extra connections come from
+ga4gh.referenceCloud.compute.connections.
 
-The connection itself is refcloud.localComputeConnection (templates/common/_compute.tpl), which the compute
-namespace's ResourceQuota is computed from too.
+The connection itself is refcloud.computeConnection (templates/common/_compute.tpl), which the compute namespace's
+ResourceQuota and LimitRange, and Funnel's config, are computed from too.
 */}}
 {{- $connections := deepCopy (.Values.ga4gh.referenceCloud.compute.connections | default dict) }}
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
-{{- $local := include "refcloud.localComputeConnection" . | fromYaml }}
-{{- $_ := set $connections "nextflow-funnel-kubernetes-local" $local }}
+{{- if include "refcloud.computeEnabled" . }}
+{{- $_ := set $connections (include "refcloud.computeConnectionName" .) (include "refcloud.computeConnection" . | fromYaml) }}
 {{- end }}
 apiVersion: v1
 kind: ConfigMap

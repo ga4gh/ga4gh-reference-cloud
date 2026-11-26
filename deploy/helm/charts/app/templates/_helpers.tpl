@@ -69,10 +69,57 @@ securityContext:
 
 {{/*
 The compute namespace: one per release, created by the chart (templates/common/compute-namespace.yaml), so several
-installations can share a cluster. Funnel, its workers and the task pods run there.
+installations can share a cluster. Funnel, its workers and the task pods run there. Its name is
+ga4gh.referenceCloud.compute.namespace, or <release name>-compute: releases with the same name in one cluster (e.g.
+staging and production in their own namespaces) set their own (spec 0013).
 */}}
 {{- define "refcloud.computeNamespace" -}}
-{{ .Release.Name }}-compute
+{{- .Values.ga4gh.referenceCloud.compute.namespace | default (printf "%s-compute" .Release.Name) -}}
+{{- end -}}
+
+{{/*
+The SELinux level every compute pod shares: the Nextflow Jobs, Funnel's workers and executors. On nodes that enforce
+SELinux (EKS Auto Mode's), each pod otherwise gets random categories, and a volume can be used only by the pod that
+mounted it last: a task's worker and executors could not share its workspace claim (spec 0013, Task 5). Nodes without
+SELinux (minikube's) ignore it.
+
+ga4gh.referenceCloud.compute.seLinuxLevel, or derived from the compute namespace's name: two categories from its
+checksums, so each environment gets its own level with nothing to configure. Tasks stay apart from each other because
+each task's claim is mounted only into its own pods.
+*/}}
+{{- define "refcloud.computeSelinuxLevel" -}}
+{{- $level := .Values.ga4gh.referenceCloud.compute.seLinuxLevel }}
+{{- if $level }}
+{{- if not (regexMatch "^s0(:c[0-9]{1,4}(,c[0-9]{1,4})*)?$" $level) }}
+{{- fail (printf "ga4gh.referenceCloud.compute.seLinuxLevel must be an SELinux level such as s0:c123,c456, not %q" $level) }}
+{{- end }}
+{{- $level -}}
+{{- else }}
+{{- $namespace := include "refcloud.computeNamespace" . }}
+{{- $first := mod (adler32sum $namespace | atoi) 1024 }}
+{{- $second := mod (adler32sum (printf "%s/selinux" $namespace) | atoi) 1024 }}
+{{- if eq $first $second }}
+{{- $second = mod (add $second 1) 1024 }}
+{{- end }}
+{{- printf "s0:c%d,c%d" (min $first $second) (max $first $second) -}}
+{{- end }}
+{{- end -}}
+
+{{/*
+Where the compute pods run (the Nextflow Jobs, Funnel's workers and executors; not Funnel's server): the node selector
+and tolerations from ga4gh.referenceCloud.compute, as YAML for a pod spec. Empty when they're empty: any node.
+Usage: {{ include "refcloud.computePodPlacement" . | indent 6 }}
+*/}}
+{{- define "refcloud.computePodPlacement" -}}
+{{- $compute := .Values.ga4gh.referenceCloud.compute }}
+{{- with $compute.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $compute.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -105,4 +152,40 @@ The local S3 bucket compute runs are kept in (runs/<run id>/ under it), on RustF
 */}}
 {{- define "refcloud.localComputeBucket" -}}
 refcloud-compute
+{{- end -}}
+
+{{/*
+Service-info for core-api's GA4GH services, from ga4gh.referenceCloud.serviceInfo, which they all share (values.yaml):
+DRS, refget, Data Connect, the service registry, and each compute platform's WES and TES. A service's id is
+org.ga4gh.refcloud.<id>.<idSuffix>, its name "<name> (<environmentName>)", and its version the lockstep image tag.
+Descriptions, types and timestamps stay each service's own (core-api's application.yml).
+Usage: {{- include "refcloud.serviceInfoEnv" (dict "root" . "prefix" "GA4GH_REFCLOUD_DRS_SERVICEINFO" "id" "drs" "name" "GA4GH Reference Cloud DRS Service") | nindent 12 }}
+*/}}
+{{- define "refcloud.serviceInfoEnv" -}}
+{{- $info := .root.Values.ga4gh.referenceCloud.serviceInfo -}}
+- name: {{ .prefix }}_ID
+  value: {{ printf "org.ga4gh.refcloud.%s.%s" .id (required "ga4gh.referenceCloud.serviceInfo.idSuffix is required" $info.idSuffix) | quote }}
+- name: {{ .prefix }}_NAME
+  value: {{ printf "%s (%s)" .name (required "ga4gh.referenceCloud.serviceInfo.environmentName is required" $info.environmentName) | quote }}
+{{ include "refcloud.serviceInfoSharedEnv" . }}
+{{- end -}}
+
+{{/*
+The service-info settings every service shares, for services whose ids and names are built elsewhere (compute's WES and
+TES, from each platform). Usage: as refcloud.serviceInfoEnv, without "id" and "name"
+*/}}
+{{- define "refcloud.serviceInfoSharedEnv" -}}
+{{- $info := .root.Values.ga4gh.referenceCloud.serviceInfo -}}
+- name: {{ .prefix }}_ORGANIZATION_NAME
+  value: {{ $info.organization.name | quote }}
+- name: {{ .prefix }}_ORGANIZATION_URL
+  value: {{ $info.organization.url | quote }}
+- name: {{ .prefix }}_CONTACTURL
+  value: {{ $info.contactUrl | quote }}
+- name: {{ .prefix }}_DOCUMENTATIONURL
+  value: {{ $info.documentationUrl | quote }}
+- name: {{ .prefix }}_ENVIRONMENT
+  value: {{ required "ga4gh.referenceCloud.serviceInfo.environment is required" $info.environment | quote }}
+- name: {{ .prefix }}_VERSION
+  value: {{ .root.Values.image.tag | quote }}
 {{- end -}}

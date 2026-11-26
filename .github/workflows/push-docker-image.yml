@@ -65,9 +65,11 @@ jobs:
           file: ${{ inputs.dockerfile || format('{0}/Dockerfile', inputs.app-path) }}
           platforms: linux/amd64,linux/arm64
           push: true
+          # the develop tag follows the develop branch only, so a build from any other branch (e.g. a feature branch
+          # added to a caller's triggers for testing on AWS) leaves it alone. an empty line adds no tag
           tags: |
             ${{ env.IMAGE }}:${{ env.DOCKER_TAG }}
             ${{ env.IMAGE }}:sha-${{ github.sha }}
-            ${{ env.IMAGE }}:develop
+            ${{ github.ref == 'refs/heads/develop' && format('{0}:develop', env.IMAGE) || '' }}
           cache-from: type=gha,scope=${{ inputs.docker-repo }}
           cache-to: type=gha,scope=${{ inputs.docker-repo }},mode=max

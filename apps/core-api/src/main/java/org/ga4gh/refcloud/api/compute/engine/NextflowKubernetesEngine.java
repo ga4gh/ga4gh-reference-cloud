@@ -78,6 +78,9 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
     // the Nextflow image's user, which owns the compute storage (as Funnel's workers and executors do)
     static final long RUN_AS = 10001;
 
+    // Karpenter's (and so EKS Auto Mode's) annotation for pods it must never evict to consolidate or replace nodes
+    static final String DO_NOT_DISRUPT_ANNOTATION = "karpenter.sh/do-not-disrupt";
+
     // a finished Job is deleted at clean-up; this removes it anyway if core-api never gets to it
     static final Duration FINISHED_JOB_TTL = Duration.ofDays(1);
 
@@ -330,7 +333,14 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
     // how a run on S3 storage reaches its files (spec 0012). an endpoint (an S3-compatible server such as RustFS) is
     // reached by its address, since workflow pods have no DNS, which means path-style URLs; on AWS the bucket's own
     // virtual-hosted URL, which needs DNS (the AWS platform spec)
-    record S3Access(String runUrl, String region, String endpoint, NextflowEngine.RunFiles files) {
+    // hostAlias: the endpoint's name and the address the Job reaches it at (none on AWS's public names, or when the
+    // endpoint is an address already)
+    record S3Access(
+            String runUrl,
+            String region,
+            String endpoint,
+            Optional<HostAlias> hostAlias,
+            NextflowEngine.RunFiles files) {
 
         // nextflow's S3 client settings (nf-amazon), appended to the run's refcloud.config. the credentials come from
         // the environment
@@ -357,9 +367,14 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         S3Location prefix =
                 S3Location.parse(location).orElseThrow(() -> new IOException("invalid run location " + location));
         String endpoint = null;
+        Optional<HostAlias> hostAlias = Optional.empty();
         String runUrl;
         if (storage.endpoint() != null) {
-            endpoint = stripTrailingSlash(withResolvedHost(storage.endpoint().toString(), resolver));
+            // the endpoint keeps its name, which the Job's /etc/hosts pins to the address core-api resolves it to now:
+            // the Job has no DNS (spec 0011), and over TLS (an AWS interface endpoint, spec 0013) the certificate names
+            // the endpoint, not its address. path-style, as Funnel's workers reach it
+            endpoint = stripTrailingSlash(storage.endpoint().toString());
+            hostAlias = hostAlias(storage.endpoint().getHost(), resolver);
             runUrl = endpoint + "/" + prefix.bucket() + "/" + prefix.key();
         } else {
             runUrl = "https://" + prefix.bucket() + ".s3." + storage.region() + ".amazonaws.com/" + prefix.key();
@@ -372,7 +387,7 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
                 S3_RUN_DIRECTORY + "/" + run.getWorkflowPath().substring(location.length() + 1),
                 location + "/work",
                 location + "/outputs");
-        return Optional.of(new S3Access(runUrl, storage.region(), endpoint, files));
+        return Optional.of(new S3Access(runUrl, storage.region(), endpoint, hostAlias, files));
     }
 
     // a groovy single-quoted string's content: backslashes, then quotes, escaped
@@ -387,6 +402,25 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
     // looks up a host name's address (InetAddress::getByName; a stand-in in tests)
     interface Resolver {
         InetAddress resolve(String host) throws UnknownHostException;
+    }
+
+    // an entry of the Job's /etc/hosts (its pod's hostAliases)
+    record HostAlias(String ip, String hostname) {}
+
+    // the host's address, for the Job's /etc/hosts; none when the host is an address already
+    static Optional<HostAlias> hostAlias(String host, Resolver resolver) throws IOException {
+        if (host == null || host.isEmpty()) {
+            throw new IOException("the storage endpoint has no host");
+        }
+        if (isAddress(host)) {
+            return Optional.empty();
+        }
+        return Optional.of(new HostAlias(resolver.resolve(host).getHostAddress(), host));
+    }
+
+    // an IPv4 address, or an IPv6 one (URI hosts write those in brackets)
+    private static boolean isAddress(String host) {
+        return host.startsWith("[") || host.chars().allMatch(c -> Character.isDigit(c) || c == '.');
     }
 
     // the TES endpoint with core-api's host name replaced by its address (its Service's, through core-api's own DNS),
@@ -443,18 +477,32 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         spec.put("ttlSecondsAfterFinished", FINISHED_JOB_TTL.toSeconds());
 
         ObjectNode template = spec.putObject("template");
-        template.putObject("metadata").set("labels", labels(run));
+        ObjectNode podMetadata = template.putObject("metadata");
+        podMetadata.set("labels", labels(run));
+        // a run can't survive its pod moving, so node autoscalers (Karpenter, EKS Auto Mode) never move it to save
+        // nodes; elsewhere the annotation means nothing
+        podMetadata.putObject("annotations").put(DO_NOT_DISRUPT_ANNOTATION, "true");
         ObjectNode pod = template.putObject("spec");
         pod.put("restartPolicy", "Never");
         // nextflow talks only to the refcloud TES: it needs no kubernetes access, nor the namespace's service variables
         pod.put("automountServiceAccountToken", false);
         pod.put("enableServiceLinks", false);
         pod.put("terminationGracePeriodSeconds", cancelGracePeriod.toSeconds());
+        placement(pod, engine);
+        // the run storage endpoint's name, since the Job has no DNS (see s3Access)
+        s3.flatMap(S3Access::hostAlias).ifPresent(alias -> {
+            ObjectNode entry = pod.putArray("hostAliases").addObject();
+            entry.put("ip", alias.ip());
+            entry.putArray("hostnames").add(alias.hostname());
+        });
         ObjectNode podSecurity = pod.putObject("securityContext");
         podSecurity.put("runAsNonRoot", true);
         podSecurity.put("runAsUser", RUN_AS);
         podSecurity.put("runAsGroup", RUN_AS);
         podSecurity.putObject("seccompProfile").put("type", "RuntimeDefault");
+        if (engine.selinuxLevel() != null) {
+            podSecurity.putObject("seLinuxOptions").put("level", engine.selinuxLevel());
+        }
 
         ObjectNode container = pod.putArray("containers").addObject();
         container.put("name", "nextflow");
@@ -527,6 +575,28 @@ public class NextflowKubernetesEngine implements WorkflowEngine {
         tmpVolume.put("name", "tmp");
         tmpVolume.putObject("emptyDir");
         return job;
+    }
+
+    // the nodes the connection's engine runs on (its node selector and tolerations), if it names any
+    private static void placement(ObjectNode pod, ComputeConfig.Engine engine) {
+        if (!engine.nodeSelector().isEmpty()) {
+            ObjectNode selector = pod.putObject("nodeSelector");
+            engine.nodeSelector().forEach(label -> selector.put(label.key(), label.value()));
+        }
+        if (!engine.tolerations().isEmpty()) {
+            ArrayNode tolerations = pod.putArray("tolerations");
+            for (ComputeConfig.Toleration toleration : engine.tolerations()) {
+                ObjectNode entry = tolerations.addObject();
+                entry.put("key", toleration.key());
+                entry.put("operator", toleration.operator());
+                if (toleration.value() != null) {
+                    entry.put("value", toleration.value());
+                }
+                if (toleration.effect() != null) {
+                    entry.put("effect", toleration.effect());
+                }
+            }
+        }
     }
 
     // a variable read from the run's Secret, so its value is never in the Job's spec

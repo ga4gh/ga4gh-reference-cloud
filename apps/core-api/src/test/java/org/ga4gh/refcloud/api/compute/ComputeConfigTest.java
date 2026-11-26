@@ -162,6 +162,7 @@ public class ComputeConfigTest {
         properties.put(PREFIX + "storage.prefix", "refcloud/");
         properties.put(PREFIX + "storage.region", "us-east-1");
         properties.put(PREFIX + "storage.endpoint", "http://rustfs.refcloud-compute.svc:9000");
+        properties.put(PREFIX + "storage.sts-endpoint", "http://rustfs.refcloud-compute.svc:9000");
         properties.put(PREFIX + "storage.path-style-access", "true");
         properties.put(PREFIX + "storage.access-key-id-env", "REFCLOUD_COMPUTE_S3_ACCESS_KEY_ID");
         properties.put(PREFIX + "storage.secret-access-key-env", "REFCLOUD_COMPUTE_S3_SECRET_ACCESS_KEY");
@@ -179,6 +180,7 @@ public class ComputeConfigTest {
         assertEquals(storage.bucket(), "refcloud-compute");
         assertEquals(storage.prefix(), "refcloud/");
         assertEquals(storage.endpoint(), URI.create("http://rustfs.refcloud-compute.svc:9000"));
+        assertEquals(storage.stsEndpoint(), URI.create("http://rustfs.refcloud-compute.svc:9000"));
         assertTrue(storage.pathStyleAccess());
         assertEquals(storage.runRoleArn(), "arn:aws:iam::000000000000:role/refcloud-compute-run");
         assertEquals(storage.runCredentialsMaxSeconds(), Integer.valueOf(43200));
@@ -195,6 +197,7 @@ public class ComputeConfigTest {
         for (String setting : List.of(
                 "prefix",
                 "endpoint",
+                "sts-endpoint",
                 "path-style-access",
                 "access-key-id-env",
                 "secret-access-key-env",
@@ -206,7 +209,22 @@ public class ComputeConfigTest {
         ComputeConfig.Storage storage = config.connections().get("c1").storage();
         assertEquals(storage.prefix(), "");
         assertFalse(storage.pathStyleAccess());
+        assertEquals(storage.stsEndpoint(), null);
         assertEquals(storage.runCredentialsMaxSeconds(), Integer.valueOf(3600));
+        assertTrue(validator.validate(config).isEmpty());
+    }
+
+    // through compute's S3 interface endpoint on AWS (spec 0013): an endpoint for S3, and AWS's own STS
+    @Test
+    public void s3StorageOnAwsThroughAnInterfaceEndpoint() {
+        Map<String, Object> properties = validS3Connection();
+        properties.remove(PREFIX + "storage.sts-endpoint");
+        properties.remove(PREFIX + "storage.access-key-id-env");
+        properties.remove(PREFIX + "storage.secret-access-key-env");
+        properties.put(PREFIX + "storage.endpoint", "https://bucket.vpce-0abc-xyz.s3.us-east-2.vpce.amazonaws.com");
+        ComputeConfig config = bind(properties);
+
+        assertEquals(config.connections().get("c1").storage().stsEndpoint(), null);
         assertTrue(validator.validate(config).isEmpty());
     }
 
@@ -313,5 +331,85 @@ public class ComputeConfigTest {
         validConnection().forEach((key, value) -> properties.put(key.replace(".c1.", ".Bad_Key."), value));
 
         assertFalse(validator.validate(bind(properties)).isEmpty());
+    }
+
+    // a kubernetes connection kept to a node pool, with an SELinux level for its pods (spec 0013), as the helm chart
+    // writes it: label keys keep their dots and slashes, since they're values here, not map keys
+    private Map<String, Object> placedConnection() {
+        Map<String, Object> properties = validS3Connection();
+        properties.put(PREFIX + "engine.node-selector[0].key", "refcloud.ga4gh.org/compute");
+        properties.put(PREFIX + "engine.node-selector[0].value", "staging");
+        properties.put(PREFIX + "engine.tolerations[0].key", "refcloud.ga4gh.org/compute");
+        properties.put(PREFIX + "engine.tolerations[0].operator", "Equal");
+        properties.put(PREFIX + "engine.tolerations[0].value", "staging");
+        properties.put(PREFIX + "engine.tolerations[0].effect", "NoSchedule");
+        properties.put(PREFIX + "engine.selinux-level", "s0:c123,c456");
+        return properties;
+    }
+
+    @Test
+    public void enginePlacementBindsAndIsValid() {
+        ComputeConfig config = bind(placedConnection());
+
+        ComputeConfig.Engine engine = config.connections().get("c1").engine();
+        assertEquals(
+                engine.nodeSelector(), List.of(new ComputeConfig.NodeLabel("refcloud.ga4gh.org/compute", "staging")));
+        assertEquals(
+                engine.tolerations(),
+                List.of(new ComputeConfig.Toleration("refcloud.ga4gh.org/compute", "Equal", "staging", "NoSchedule")));
+        assertEquals(engine.selinuxLevel(), "s0:c123,c456");
+        assertTrue(
+                validator.validate(config).isEmpty(), validator.validate(config).toString());
+    }
+
+    @Test
+    public void enginePlacementIsOptional() {
+        ComputeConfig.Engine engine =
+                bind(validS3Connection()).connections().get("c1").engine();
+
+        assertEquals(engine.nodeSelector(), List.of());
+        assertEquals(engine.tolerations(), List.of());
+        assertEquals(engine.selinuxLevel(), null);
+    }
+
+    @Test
+    public void invalidEnginePlacementIsAViolation() {
+        Map<String, String> invalid = Map.of(
+                "engine.node-selector[0].key", "not a label",
+                "engine.node-selector[0].value", "not a value!",
+                "engine.tolerations[0].operator", "Matches",
+                "engine.tolerations[0].effect", "NoRun",
+                "engine.selinux-level", "s0:c123;c456");
+        for (Map.Entry<String, String> setting : invalid.entrySet()) {
+            Map<String, Object> properties = placedConnection();
+            properties.put(PREFIX + setting.getKey(), setting.getValue());
+
+            assertEquals(validator.validate(bind(properties)).size(), 1, setting.toString());
+        }
+    }
+
+    // a toleration with no key would tolerate every taint, and Exists compares no value
+    @Test
+    public void tolerationNeedsAKeyAndExistsTakesNoValue() {
+        Map<String, Object> noKey = placedConnection();
+        noKey.remove(PREFIX + "engine.tolerations[0].key");
+        Map<String, Object> existsWithValue = placedConnection();
+        existsWithValue.put(PREFIX + "engine.tolerations[0].operator", "Exists");
+
+        assertEquals(validator.validate(bind(noKey)).size(), 1);
+        Set<ConstraintViolation<ComputeConfig>> violations = validator.validate(bind(existsWithValue));
+        assertEquals(violations.size(), 1);
+        assertTrue(violations.iterator().next().getMessage().contains("Exists takes no value"));
+    }
+
+    @Test
+    public void nodeSelectorNamingALabelTwiceIsAViolation() {
+        Map<String, Object> properties = placedConnection();
+        properties.put(PREFIX + "engine.node-selector[1].key", "refcloud.ga4gh.org/compute");
+        properties.put(PREFIX + "engine.node-selector[1].value", "prod");
+
+        Set<ConstraintViolation<ComputeConfig>> violations = validator.validate(bind(properties));
+        assertEquals(violations.size(), 1);
+        assertTrue(violations.iterator().next().getMessage().contains("more than once"));
     }
 }

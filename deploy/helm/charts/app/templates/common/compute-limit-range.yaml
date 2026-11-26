@@ -1,15 +1,15 @@
 {{- /*
-The compute namespace's LimitRange (local only, like the namespace):
+The compute namespace's LimitRange (with the namespace, whenever compute is on):
   * defaults for any container that sets no CPU or memory, which the ResourceQuota requires (the compute stack's own
     pods set their own; this is for anything else, e.g. a stand-in pod checking the NetworkPolicies);
-  * a maximum per container: the largest the local connection allows (a task, a Nextflow Job, or Funnel's worker), so
+  * a maximum per container: the largest the chart's connection allows (a task, a Nextflow Job, or Funnel's worker), so
     nothing bigger runs even if it gets past core-api's limits.
 */}}
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
-{{- $connection := include "refcloud.localComputeConnection" . | fromYaml }}
+{{- if include "refcloud.computeEnabled" . }}
+{{- $connection := include "refcloud.computeConnection" . | fromYaml }}
 {{- $limits := $connection.limits }}
 {{- $engine := $connection.engine }}
-{{- /* Funnel's worker limit: 1 core, 256Mi (files/funnel/worker-job.yaml) */}}
+{{- /* Funnel's worker: the task's resources, at least 256Mi (files/funnel/worker-job.yaml); and at least a core */}}
 {{- $maxCpu := maxf (index $limits "max-task-cpu-cores" | float64) (index $engine "cpu-cores" | float64) 1.0 | mulf 1000 }}
 {{- $maxMemory := maxf (index $limits "max-task-memory-gb" | float64 | mulf 1000000000) (index $engine "memory-gb" | float64 | mulf 1000000000) 268435456.0 }}
 apiVersion: v1

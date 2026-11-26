@@ -32,6 +32,7 @@ jobs:
               - 'deploy/local/**'
               - 'apps/**/Dockerfile'
               - 'compute/images/**'
+              - 'deploy/helm/setup/**'
               - '.hadolint.yaml'
               - '.trivyignore'
               - 'scripts/refcloud-static-analysis-deploy-local.sh'

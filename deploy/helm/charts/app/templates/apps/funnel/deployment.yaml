@@ -1,4 +1,4 @@
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 # Funnel's server: the TES executor behind core-api's TES API. It runs each task as a worker Job in the compute
 # namespace (files/funnel/worker-job.yaml), and never touches the run storage itself (its workers do). Its TES API
 # has no auth: only core-api may call it

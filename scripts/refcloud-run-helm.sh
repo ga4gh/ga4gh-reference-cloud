@@ -1,7 +1,8 @@
 #!/bin/zsh
 
 # Runs the refcloud in minikube via the helm chart in deploy/helm.
-# Requires a prior ./scripts/refcloud-setup.sh run (databases, OAuth client, k8s secrets).
+# Requires a prior ./scripts/refcloud-setup.sh run (databases, OAuth client, k8s secrets). The chart's setup Jobs then
+# check them on every deploy, and should find nothing to change.
 #
 #   ./scripts/refcloud-run-helm.sh          build images, deploy, then run 'minikube tunnel'
 #   ./scripts/refcloud-run-helm.sh --down   uninstall the helm release
@@ -82,11 +83,12 @@ switch_core_api_to_recreate() {
 deploy_release() {
   local tag=$1
 
-  log_info "deploying helm release '$HELM_RELEASE' with image tag '$tag' (runs database migrations first)"
+  log_info "deploying helm release '$HELM_RELEASE' with image tag '$tag' (setup-predeploy and the database migrations run first, setup-postdeploy last)"
   helm_local upgrade --install "$HELM_RELEASE" "$HELM_CHART_DIR" \
     --set image.tag="$tag" \
     --wait --timeout 10m \
-  > /dev/null || { log_error "failed to deploy helm release '$HELM_RELEASE', check 'kubectl get pods' and 'kubectl get jobs'"; exit 1; }
+  > /dev/null || { log_error "failed to deploy helm release '$HELM_RELEASE', check 'kubectl get pods' and 'kubectl get jobs' (the setup Jobs' logs: 'kubectl logs job/setup-predeploy', 'kubectl logs job/setup-postdeploy --all-containers')"; exit 1; }
+  print_setup_summaries
 
   # rebuilt images can keep the same tag (uncommitted changes), so always restart app pods
   log_info "restarting refcloud app deployments to pick up rebuilt images"
@@ -101,6 +103,18 @@ deploy_release() {
   done
 }
 
+# the setup Jobs' last lines: what they checked, and whether they changed anything. refcloud-setup.sh has prepared
+# everything, so locally they should change nothing (refcloud seed always rewrites its rows)
+print_setup_summaries() {
+  local summary
+  summary=$(kubectl_local logs job/setup-predeploy --tail=1 2>/dev/null)
+  log_info "setup-predeploy: ${summary:-no log (see 'kubectl logs job/setup-predeploy')}"
+  summary=$(kubectl_local logs job/setup-postdeploy --container hydra-client --tail=1 2>/dev/null)
+  log_info "setup-postdeploy: ${summary:-no log (see 'kubectl logs job/setup-postdeploy --all-containers')}"
+  summary=$(kubectl_local logs job/setup-postdeploy --container seed --tail=1 2>/dev/null)
+  log_info "setup-postdeploy (refcloud seed): ${summary:-no log (see 'kubectl logs job/setup-postdeploy --all-containers')}"
+}
+
 uninstall_release() {
   if ! minikube_running; then
     log_info "minikube is not running, nothing to uninstall"
@@ -110,6 +124,7 @@ uninstall_release() {
   if helm_local status "$HELM_RELEASE" > /dev/null 2>&1; then
     log_info "uninstalling helm release '$HELM_RELEASE'"
     helm_local uninstall "$HELM_RELEASE" --wait > /dev/null || { log_error "failed to uninstall helm release '$HELM_RELEASE'"; exit 1; }
+    delete_setup_jobs
     log_info "compute runs' files are kept (RustFS's data, '$RUSTFS_DATA_CLAIM'): ./scripts/refcloud-setup.sh --reset deletes them"
   else
     log_info "helm release '$HELM_RELEASE' is not installed"

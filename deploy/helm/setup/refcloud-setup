@@ -1,0 +1,610 @@
+#!/usr/bin/env bash
+#
+# refcloud-setup: checks, and creates or fixes, what a refcloud deployment needs in its namespace and its Postgres
+# server (spec 0013, Task 2). The helm chart runs it in two hook Jobs (charts/app/templates/apps/setup/):
+#
+#   refcloud-setup predeploy    before the migrations, on every install and upgrade: the Secrets the chart expects,
+#                               each app's database and the login role that owns it, and Data Connect's read-only role
+#   refcloud-setup postdeploy   once the release is applied: the researcher UI's OAuth client in Hydra, created if
+#                               it's missing, its settings updated where they differ from the chart's. The same Job
+#                               then runs `refcloud seed` with the admin CLI image
+#
+# A check changes something only when it fails, so on a deployment where everything is intact nothing changes. It
+# never deletes anything, and never changes an existing Secret. Each check is logged as [OK] or [CHANGE], a problem it
+# can't fix as [ERROR] (and the Job fails), and the last line sums up.
+#
+# predeploy connects to Postgres as the admin login in refcloud-db-admin. To create it (a first deploy on AWS), or to
+# repair it, the operator puts Postgres's master credentials in refcloud-db-bootstrap for one deploy: predeploy then
+# connects as the master user, creates or repairs refcloud_admin (a role that can create databases and roles, but isn't
+# a superuser) and its grants, and saves its login in refcloud-db-admin. The operator deletes refcloud-db-bootstrap
+# afterwards; a copy that can't connect (e.g. its password has since rotated) is ignored.
+#
+# Locally, scripts/refcloud-setup.sh prepares the same things before helm mode runs, so these Jobs find them intact:
+# keep the names, defaults and role settings below in sync with scripts/lib/common.sh.
+
+set -euo pipefail
+
+# ##############################
+# CONSTANTS
+# ##############################
+
+# the admin login predeploy connects as (host, port, username, password). Locally, scripts/refcloud-setup.sh creates it
+# with the local Postgres login; elsewhere, predeploy creates it for DB_ADMIN_ROLE, with the bootstrap login
+DB_ADMIN_SECRET=refcloud-db-admin
+# the bootstrap login (host, port, username, password): Postgres's master user (on AWS, RDS's, from Secrets Manager),
+# which the operator puts here for one deploy, then deletes. Used whenever it exists and can connect
+DB_BOOTSTRAP_SECRET=refcloud-db-bootstrap
+# the admin role predeploy creates with the bootstrap login: it can create databases and roles, isn't a superuser, and
+# (from Postgres 16) manages only the roles it creates or is granted. Its random password lives only in DB_ADMIN_SECRET
+DB_ADMIN_ROLE=refcloud_admin
+
+# the researcher UI's OAuth client, as scripts/refcloud-setup.sh creates it
+HYDRA_RESEARCHER_CLIENT_ID=ga4gh-reference-cloud-researcher-client
+
+# Data Connect's role: read-only, and each query stops after this long
+READER_STATEMENT_TIMEOUT=30s
+
+# how long postdeploy waits for Hydra's admin API to be ready, in seconds
+HYDRA_READY_TIMEOUT=300
+
+SA_DIR=/var/run/secrets/kubernetes.io/serviceaccount
+
+CHECKS=0
+CHANGES=0
+
+# ##############################
+# LOGGING
+# ##############################
+
+ok() {
+  CHECKS=$((CHECKS + 1))
+  echo "[OK] $1"
+}
+
+change() {
+  CHECKS=$((CHECKS + 1))
+  CHANGES=$((CHANGES + 1))
+  echo "[CHANGE] $1"
+}
+
+info() {
+  echo "[INFO] $1"
+}
+
+fail() {
+  echo "[ERROR] $1" >&2
+  exit 1
+}
+
+summary() {
+  local checks="$CHECKS checks"
+  if [[ $CHECKS -eq 1 ]]; then
+    checks="1 check"
+  fi
+  if [[ $CHANGES -eq 0 ]]; then
+    echo "[OK] $1: $checks passed, nothing changed"
+  else
+    echo "[OK] $1: done, $CHANGES of $checks changed something (the [CHANGE] lines above)"
+  fi
+}
+
+# random hex characters, twice as many as the given number of bytes
+random_hex() {
+  od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'
+}
+
+# ##############################
+# KUBERNETES API (SECRETS)
+# ##############################
+
+# a request to the Kubernetes API as the Job's ServiceAccount: <method> <path> [- to send stdin as the body]. Prints
+# the response body, then the HTTP status on a line of its own. The token reaches curl through a config file
+# descriptor, never through a process's arguments
+kube_api() {
+  local method=$1 path=$2 body=()
+  if [[ $# -ge 3 ]]; then
+    body=(--header 'Content-Type: application/json' --data-binary @-)
+  fi
+  curl --silent --show-error --max-time 30 --request "$method" \
+    --cacert "$SA_DIR/ca.crt" \
+    --config <(printf 'header = "Authorization: Bearer %s"\n' "$(< "$SA_DIR/token")") \
+    "${body[@]}" --write-out '\n%{http_code}' \
+    "https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}${path}"
+}
+
+# the Secrets read so far: name -> the Secret's JSON
+declare -A SECRET_JSON
+
+# reads a Secret into SECRET_JSON; returns 1 if it doesn't exist
+load_secret() {
+  local name=$1 response status
+  response=$(kube_api GET "/api/v1/namespaces/$NAMESPACE/secrets/$name") || fail "can't reach the Kubernetes API"
+  status=${response##*$'\n'}
+  case "$status" in
+    200) SECRET_JSON[$name]=${response%$'\n'*} ;;
+    404) return 1 ;;
+    *) fail "reading Secret '$name' failed (HTTP $status): ${response%$'\n'*}" ;;
+  esac
+}
+
+# a loaded Secret's value for a key (empty if it has none)
+secret_value() {
+  jq -r --arg key "$2" '(.data // {})[$key] // "" | @base64d' <<< "${SECRET_JSON[$1]}"
+}
+
+# stops unless a loaded Secret has every one of the given keys. Setup never changes an existing Secret, so a missing
+# key is for whoever owns it to add
+require_keys() {
+  local name=$1 key missing=()
+  shift
+  for key in "$@"; do
+    if ! jq -e --arg key "$key" '(.data // {}) | has($key)' <<< "${SECRET_JSON[$name]}" > /dev/null; then
+      missing+=("$key")
+    fi
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    fail "Secret '$name' has no ${missing[*]} (it needs: $*). Setup never changes an existing Secret: add the missing keys to it"
+  fi
+}
+
+# creates a Secret from <key>=<value> pairs. The values go to jq and curl on stdin, never in their arguments
+create_secret() {
+  local name=$1 pair body response status
+  shift
+  body=$(for pair in "$@"; do printf '%s\t%s\n' "${pair%%=*}" "${pair#*=}"; done \
+    | jq -R -n --arg name "$name" '{
+        apiVersion: "v1",
+        kind: "Secret",
+        type: "Opaque",
+        metadata: {name: $name, labels: {"app.kubernetes.io/created-by": "refcloud-setup"}},
+        stringData: ([inputs | split("\t") | {key: .[0], value: .[1]}] | from_entries)
+      }')
+  response=$(kube_api POST "/api/v1/namespaces/$NAMESPACE/secrets" - <<< "$body") || fail "can't reach the Kubernetes API"
+  status=${response##*$'\n'}
+  if [[ "$status" != 201 ]]; then
+    fail "creating Secret '$name' failed (HTTP $status): ${response%$'\n'*}"
+  fi
+}
+
+# ensure_secret <name> <key>=<value>...: the Secret exists with these keys, or it's created with these values. A
+# value of random:<bytes> is that many random bytes, in hex
+ensure_secret() {
+  local name=$1 pair key value values=()
+  shift
+  if load_secret "$name"; then
+    require_keys "$name" "${@%%=*}"
+    ok "Secret '$name' exists, with its keys"
+    return
+  fi
+  for pair in "$@"; do
+    key=${pair%%=*}
+    value=${pair#*=}
+    if [[ "$value" == random:* ]]; then
+      value=$(random_hex "${value#random:}")
+    fi
+    values+=("$key=$value")
+  done
+  create_secret "$name" "${values[@]}"
+  load_secret "$name" || fail "Secret '$name' was created, but can't be read back"
+  change "created Secret '$name' (${*%%=*})"
+}
+
+# ensure_stored_data_secret <name> <database> <key>=<value>...: as ensure_secret, for a Secret whose values the
+# database depends on: Kratos and Hydra encrypt what they store with theirs, and Hydra keeps the OAuth client's secret.
+# New values would make what's stored unusable, so it's created only while the database has no tables yet
+ensure_stored_data_secret() {
+  local name=$1 database=$2
+  shift 2
+  if ! load_secret "$name" && database_has_tables "$database"; then
+    fail "Secret '$name' is missing, but database '$database' already has data that depends on its values: restore the Secret (keys: ${*%%=*}). New values would make what's stored unusable"
+  fi
+  ensure_secret "$name" "$@"
+}
+
+# ##############################
+# POSTGRES
+# ##############################
+
+# runs SQL (from the first argument) as the admin login, in PGDATABASE, and prints its result: unaligned, tuples only.
+# Names are passed as psql variables (the other arguments, name=value) and quoted by psql in the SQL, with :'name' for
+# a literal or :"name" for an identifier, never pasted in. Passwords come from the environment, with \getenv
+admin_sql() {
+  local sql=$1 pair vars=()
+  shift
+  for pair in "$@"; do
+    vars+=(-v "$pair")
+  done
+  psql --no-psqlrc --quiet --tuples-only --no-align -v ON_ERROR_STOP=1 "${vars[@]}" <<< "$sql"
+}
+
+# connects admin_sql to the login in a loaded Secret (host, port, username, password); returns 1, with CONNECT_ERROR,
+# if it can't connect
+use_login() {
+  local secret=$1
+  require_keys "$secret" host port username password
+  PGHOST=$(secret_value "$secret" host)
+  PGPORT=$(secret_value "$secret" port)
+  PGUSER=$(secret_value "$secret" username)
+  PGPASSWORD=$(secret_value "$secret" password)
+  export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE=postgres PGCONNECT_TIMEOUT=10 PGAPPNAME=refcloud-setup
+  if SERVER_VERSION_NUM=$(admin_sql 'SHOW server_version_num' 2>&1); then
+    return 0
+  fi
+  CONNECT_ERROR=${SERVER_VERSION_NUM//$'\n'/ }
+  return 1
+}
+
+# whether <admin> can manage <role>: change its password and settings, and grant it. From Postgres 16, a role that
+# isn't a superuser needs ADMIN on it, which it gets on the roles it creates; before 16, CREATEROLE was enough
+admin_manages() {
+  [[ "$(admin_sql "SELECT CASE WHEN current_setting('server_version_num')::int >= 160000
+      THEN pg_has_role(:'admin', :'role', 'MEMBER WITH ADMIN OPTION')
+      ELSE (SELECT rolsuper OR rolcreaterole FROM pg_roles WHERE rolname = :'admin') END" admin="$1" role="$2")" == t ]]
+}
+
+database_owner() {
+  admin_sql "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = :'db'" db="$1"
+}
+
+role_exists() {
+  [[ "$(admin_sql "SELECT count(*) FROM pg_roles WHERE rolname = :'role'" role="$1")" == 1 ]]
+}
+
+database_has_tables() {
+  [[ -n "$(database_owner "$1")" ]] || return 1
+  [[ "$(PGDATABASE=$1 admin_sql "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema'))")" == t ]]
+}
+
+# whether <role> can log in to <database> with <password>; sets LOGIN_ERROR when it can't
+can_log_in() {
+  LOGIN_ERROR=$(PGUSER=$1 PGDATABASE=$2 PGPASSWORD=$3 psql --no-psqlrc --quiet --tuples-only -c 'SELECT 1' 2>&1 > /dev/null) && return 0
+  return 1
+}
+
+# Postgres 16 and later let the admin make a role a database's owner only if it can SET ROLE to it, and an admin that
+# isn't a superuser (RDS's master user) gets only ADMIN on the roles it creates. Earlier versions need membership
+ensure_admin_can_become() {
+  local role=$1 privilege=MEMBER
+  if [[ $SERVER_VERSION_NUM -ge 160000 ]]; then
+    privilege=SET
+  fi
+  if [[ "$(admin_sql "SELECT pg_has_role(current_user, :'role', :'privilege')" role="$role" privilege="$privilege")" == t ]]; then
+    return
+  fi
+  admin_sql 'GRANT :"role" TO CURRENT_USER' role="$role" > /dev/null
+  change "granted role '$role' to '$PGUSER' (the login predeploy connects as), so it can make the role a database's owner"
+}
+
+# a login role, created with this password if it doesn't exist
+ensure_login_role() {
+  local role=$1 password=$2
+  if role_exists "$role"; then
+    if ! admin_manages "$PGUSER" "$role"; then
+      fail "role '$role' exists, but '$PGUSER' (the login predeploy connects as) can't manage it: from Postgres 16 it needs ADMIN on the role. For '$DB_ADMIN_ROLE', deploy once with the master credentials in Secret '$DB_BOOTSTRAP_SECRET', which grants it (deploy/helm/README.md)"
+    fi
+    ok "role '$role' exists, and '$PGUSER' manages it"
+    return
+  fi
+  ROLE_PASSWORD=$password admin_sql $'\\getenv password ROLE_PASSWORD\nCREATE ROLE :"role" WITH LOGIN PASSWORD :\'password\'' role="$role" > /dev/null
+  change "created login role '$role'"
+}
+
+# the database, owned by this role
+ensure_database() {
+  local db=$1 role=$2 owner
+  owner=$(database_owner "$db")
+  if [[ -z "$owner" ]]; then
+    ensure_admin_can_become "$role"
+    admin_sql 'CREATE DATABASE :"db" OWNER :"role"' db="$db" role="$role" > /dev/null \
+      || fail "couldn't create database '$db' as '$PGUSER' (the error is above)"
+    change "created database '$db', owned by '$role'"
+  elif [[ "$owner" != "$role" ]]; then
+    ensure_admin_can_become "$role"
+    admin_sql 'ALTER DATABASE :"db" OWNER TO :"role"' db="$db" role="$role" > /dev/null \
+      || fail "couldn't change the owner of database '$db' from '$owner' to '$role' as '$PGUSER' (the error is above): it must own the database, through its owner. Deploy once with the master credentials in Secret '$DB_BOOTSTRAP_SECRET', which can"
+    change "changed the owner of database '$db' from '$owner' to '$role'"
+  else
+    ok "database '$db' exists, owned by '$role'"
+  fi
+}
+
+# the role logs in to the database with this password, or its password (and LOGIN) is set from it
+ensure_role_password() {
+  local role=$1 password=$2 db=$3
+  if can_log_in "$role" "$db" "$password"; then
+    ok "role '$role' logs in with its Secret's password"
+    return
+  fi
+  ROLE_PASSWORD=$password admin_sql $'\\getenv password ROLE_PASSWORD\nALTER ROLE :"role" WITH LOGIN PASSWORD :\'password\'' role="$role" > /dev/null
+  change "set the password of role '$role' from its Secret (it couldn't log in: ${LOGIN_ERROR//$'\n'/ })"
+  can_log_in "$role" "$db" "$password" \
+    || fail "role '$role' still can't log in to database '$db' with its Secret's password: ${LOGIN_ERROR//$'\n'/ }"
+}
+
+# ensure_app_database <Secret>: an app's login role and database, both named after the Secret's username (as the
+# chart's connection strings are), the database owned by the role, and the role logging in with the Secret's password
+ensure_app_database() {
+  local secret=$1 role password
+  role=$(secret_value "$secret" username)
+  password=$(secret_value "$secret" password)
+  if [[ -z "$role" || -z "$password" ]]; then
+    fail "Secret '$secret' has an empty username or password"
+  fi
+  ensure_login_role "$role" "$password"
+  ensure_database "$role" "$role"
+  ensure_role_password "$role" "$password" "$role"
+}
+
+# ensure_reader_role <Secret> <database>: Data Connect's role, named after the Secret's username: it logs in, can't
+# create databases or roles, every transaction is read-only, and each statement times out. Its SELECT grants come from
+# core-api's Liquibase migrations, which run after predeploy
+ensure_reader_role() {
+  local secret=$1 db=$2 role password attributes config
+  role=$(secret_value "$secret" username)
+  password=$(secret_value "$secret" password)
+  if [[ -z "$role" || -z "$password" ]]; then
+    fail "Secret '$secret' has an empty username or password"
+  fi
+  ensure_login_role "$role" "$password"
+
+  attributes=$(admin_sql "SELECT rolsuper::text || ',' || rolcreatedb::text || ',' || rolcreaterole::text FROM pg_roles WHERE rolname = :'role'" role="$role")
+  if [[ "$attributes" == true,* ]]; then
+    fail "role '$role' is a superuser, which Data Connect's read-only role must not be: as a superuser, run ALTER ROLE \"$role\" NOSUPERUSER"
+  elif [[ "$attributes" != false,false,false ]]; then
+    admin_sql 'ALTER ROLE :"role" WITH NOCREATEDB NOCREATEROLE' role="$role" > /dev/null
+    change "role '$role' can no longer create databases or roles"
+  else
+    ok "role '$role' can't create databases or roles"
+  fi
+
+  config=",$(admin_sql "SELECT coalesce(array_to_string(rolconfig, ','), '') FROM pg_roles WHERE rolname = :'role'" role="$role"),"
+  if [[ "$config" == *,default_transaction_read_only=on,* ]]; then
+    ok "role '$role' is read-only (default_transaction_read_only)"
+  else
+    admin_sql 'ALTER ROLE :"role" SET default_transaction_read_only = on' role="$role" > /dev/null
+    change "role '$role' is now read-only (default_transaction_read_only)"
+  fi
+  if [[ "$config" == *,statement_timeout=$READER_STATEMENT_TIMEOUT,* ]]; then
+    ok "role '$role' has a $READER_STATEMENT_TIMEOUT statement timeout"
+  else
+    admin_sql "ALTER ROLE :\"role\" SET statement_timeout = :'timeout'" role="$role" timeout="$READER_STATEMENT_TIMEOUT" > /dev/null
+    change "role '$role' now has a $READER_STATEMENT_TIMEOUT statement timeout"
+  fi
+
+  ensure_role_password "$role" "$password" "$db"
+}
+
+# with the bootstrap login: DB_ADMIN_ROLE, the admin login later deploys connect as, saved in DB_ADMIN_SECRET with a
+# random password. An existing Secret keeps its password, which the role is given if it can't log in with it
+ensure_admin_login() {
+  local password attributes
+  if [[ -n "${SECRET_JSON[$DB_ADMIN_SECRET]:-}" ]]; then
+    require_keys "$DB_ADMIN_SECRET" host port username password
+    if [[ "$(secret_value "$DB_ADMIN_SECRET" username)" != "$DB_ADMIN_ROLE" \
+      || "$(secret_value "$DB_ADMIN_SECRET" host)" != "$PGHOST" || "$(secret_value "$DB_ADMIN_SECRET" port)" != "$PGPORT" ]]; then
+      fail "Secret '$DB_ADMIN_SECRET' isn't the login of '$DB_ADMIN_ROLE' at $PGHOST:$PGPORT (the bootstrap login's server), and setup never changes an existing Secret: delete it, and deploy again to create it"
+    fi
+    ok "Secret '$DB_ADMIN_SECRET' exists, for '$DB_ADMIN_ROLE'"
+  else
+    create_secret "$DB_ADMIN_SECRET" "host=$PGHOST" "port=$PGPORT" "username=$DB_ADMIN_ROLE" "password=$(random_hex 24)"
+    load_secret "$DB_ADMIN_SECRET" || fail "Secret '$DB_ADMIN_SECRET' was created, but can't be read back"
+    change "created Secret '$DB_ADMIN_SECRET' for '$DB_ADMIN_ROLE', with a random password"
+  fi
+  password=$(secret_value "$DB_ADMIN_SECRET" password)
+  ensure_login_role "$DB_ADMIN_ROLE" "$password"
+
+  attributes=$(admin_sql "SELECT rolcreatedb::text || ',' || rolcreaterole::text FROM pg_roles WHERE rolname = :'role'" role="$DB_ADMIN_ROLE")
+  if [[ "$attributes" == true,true ]]; then
+    ok "role '$DB_ADMIN_ROLE' can create databases and roles"
+  else
+    admin_sql 'ALTER ROLE :"role" WITH CREATEDB CREATEROLE' role="$DB_ADMIN_ROLE" > /dev/null
+    change "role '$DB_ADMIN_ROLE' can now create databases and roles"
+  fi
+  ensure_role_password "$DB_ADMIN_ROLE" "$password" postgres
+}
+
+# with the bootstrap login: DB_ADMIN_ROLE manages this role (ADMIN on it), so later deploys can change its password and
+# settings, and make it a database's owner
+ensure_admin_role_manages() {
+  local role=$1
+  if admin_manages "$DB_ADMIN_ROLE" "$role"; then
+    ok "'$DB_ADMIN_ROLE' manages role '$role'"
+    return
+  fi
+  admin_sql 'GRANT :"role" TO :"admin" WITH ADMIN OPTION' role="$role" admin="$DB_ADMIN_ROLE" > /dev/null \
+    || fail "couldn't grant role '$role' to '$DB_ADMIN_ROLE' as '$PGUSER' (the error is above)"
+  change "granted role '$role' to '$DB_ADMIN_ROLE', with ADMIN, so later deploys can manage it"
+}
+
+# ##############################
+# STEPS
+# ##############################
+
+predeploy() {
+  local bootstrap=false kratos_db hydra_db core_api_db reader role
+
+  info "predeploy: checking the Secrets, databases and roles the refcloud needs"
+  if [[ -z "${NAMESPACE:-}" ]]; then
+    fail "NAMESPACE isn't set: the chart sets it to the release namespace"
+  fi
+  if [[ ! -r "$SA_DIR/token" ]]; then
+    fail "no ServiceAccount token: predeploy reads and creates Secrets as its ServiceAccount (setup-predeploy)"
+  fi
+
+  # the bootstrap login if it's there and can connect (to create or repair the admin login), otherwise the admin login
+  load_secret "$DB_ADMIN_SECRET" || true
+  if load_secret "$DB_BOOTSTRAP_SECRET"; then
+    if use_login "$DB_BOOTSTRAP_SECRET"; then
+      bootstrap=true
+      info "connected to Postgres $(admin_sql 'SHOW server_version') at $PGHOST:$PGPORT as '$PGUSER', the bootstrap login (Secret '$DB_BOOTSTRAP_SECRET'), to create or repair '$DB_ADMIN_ROLE'"
+    else
+      info "ignoring Secret '$DB_BOOTSTRAP_SECRET', which can't connect (e.g. the master password has rotated since it was copied): $CONNECT_ERROR. Delete it (kubectl delete secret $DB_BOOTSTRAP_SECRET)"
+    fi
+  fi
+  if ! $bootstrap; then
+    if [[ -z "${SECRET_JSON[$DB_ADMIN_SECRET]:-}" ]]; then
+      fail "Secret '$DB_ADMIN_SECRET' is missing. On AWS, put Postgres's master credentials in Secret '$DB_BOOTSTRAP_SECRET' and deploy again: predeploy then creates the admin login. Locally, run ./scripts/refcloud-setup.sh. See deploy/helm/README.md"
+    fi
+    use_login "$DB_ADMIN_SECRET" \
+      || fail "can't connect to Postgres with the admin login in Secret '$DB_ADMIN_SECRET': $CONNECT_ERROR. On AWS, to repair it, put Postgres's master credentials in Secret '$DB_BOOTSTRAP_SECRET' and deploy again. Locally, run ./scripts/refcloud-setup.sh. See deploy/helm/README.md"
+    info "connected to Postgres $(admin_sql 'SHOW server_version') at $PGHOST:$PGPORT as '$PGUSER' (Secret '$DB_ADMIN_SECRET')"
+  fi
+
+  # the Secrets the chart expects (deploy/helm/README.md). Existing ones are only checked
+  ensure_secret common-db-info "host=$PGHOST" "port=$PGPORT"
+  ensure_secret kratos-db-credentials username=kratos password=random:24
+  ensure_secret hydra-db-credentials username=hydra password=random:24
+  ensure_secret refcloud-api-db-credentials username=refcloudapi password=random:24
+  ensure_secret refcloud-api-data-connect-db-credentials username=data_connect_reader password=random:24
+  ensure_secret refcloud-api-kratos-webhook username=kratos_webhook_user password=random:24
+  kratos_db=$(secret_value kratos-db-credentials username)
+  hydra_db=$(secret_value hydra-db-credentials username)
+  # Kratos's cipher (xchacha20-poly1305) must be 32 characters
+  ensure_stored_data_secret kratos-secrets "$kratos_db" cookie=random:32 cipher=random:16
+  ensure_stored_data_secret hydra-secrets "$hydra_db" system-secret=random:32 pairwise-salt=random:32
+  ensure_stored_data_secret refcloud-ui-hydra-researcher-client "$hydra_db" "id=$HYDRA_RESEARCHER_CLIENT_ID" secret=random:24
+
+  # with the bootstrap login: the admin login later deploys use
+  if $bootstrap; then
+    ensure_admin_login
+  fi
+
+  # each app's database and role, then Data Connect's role in core-api's database
+  core_api_db=$(secret_value refcloud-api-db-credentials username)
+  reader=$(secret_value refcloud-api-data-connect-db-credentials username)
+  ensure_app_database kratos-db-credentials
+  ensure_app_database hydra-db-credentials
+  ensure_app_database refcloud-api-db-credentials
+  ensure_reader_role refcloud-api-data-connect-db-credentials "$core_api_db"
+
+  # with the bootstrap login: the admin login manages every app role from now on
+  if $bootstrap; then
+    for role in "$kratos_db" "$hydra_db" "$core_api_db" "$reader"; do
+      ensure_admin_role_manages "$role"
+    done
+    info "bootstrapped: later deploys connect as '$DB_ADMIN_ROLE' (Secret '$DB_ADMIN_SECRET'). Delete Secret '$DB_BOOTSTRAP_SECRET' now (kubectl delete secret $DB_BOOTSTRAP_SECRET); setup no longer needs the master password, so it can also be rotated"
+  fi
+
+  # on an upgrade, the apps already running read their Secrets (and so their passwords) only when they start
+  if [[ $CHANGES -gt 0 ]]; then
+    info "apps already running read Secrets only when they start: if a Secret or password an app uses was created or changed above, restart that app once the deploy is done (kubectl rollout restart deployment/<name>)"
+  fi
+  summary predeploy
+}
+
+# the researcher UI's OAuth client settings the chart decides, as scripts/refcloud-setup.sh creates the client. The
+# secret isn't one of them: Hydra never returns it, so it's set only when the client is created
+hydra_client_settings() {
+  jq -n '{
+    redirect_uris: [env.HYDRA_CLIENT_REDIRECT_URI],
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    scope: "openid offline_access profile",
+    token_endpoint_auth_method: "client_secret_post"
+  }'
+}
+
+# the settings (one per line) where the client (JSON, on stdin) differs from <settings>. Lists compare as sets, and the
+# scope as a set of words, so order doesn't count as a difference
+hydra_client_differences() {
+  jq -r --argjson settings "$1" '
+    def normal($key): if $key == "scope" then (. // "" | split(" ") | map(select(. != "")) | sort)
+      elif type == "array" then sort else . end;
+    . as $client | $settings | keys_unsorted[] as $key
+    | select(($client[$key] | normal($key)) != ($settings[$key] | normal($key))) | $key'
+}
+
+# GET on Hydra's admin API: prints the response body, then the HTTP status on a line of its own
+hydra_get() {
+  curl --silent --show-error --max-time 30 --write-out '\n%{http_code}' "$HYDRA_ADMIN_URL$1"
+}
+
+postdeploy() {
+  local name waited=0 client_path response status body settings client changed field differences=()
+
+  info "postdeploy: checking the researcher UI's OAuth client in Hydra"
+  for name in HYDRA_ADMIN_URL HYDRA_CLIENT_ID HYDRA_CLIENT_SECRET HYDRA_CLIENT_REDIRECT_URI; do
+    if [[ -z "${!name:-}" ]]; then
+      fail "$name isn't set: the chart sets it"
+    fi
+  done
+
+  # after an install, Hydra may still be starting
+  until curl --silent --fail --max-time 5 --output /dev/null "$HYDRA_ADMIN_URL/health/ready"; do
+    if [[ $waited -ge $HYDRA_READY_TIMEOUT ]]; then
+      fail "Hydra's admin API ($HYDRA_ADMIN_URL) isn't ready after $HYDRA_READY_TIMEOUT seconds"
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+
+  settings=$(hydra_client_settings)
+  client_path="/admin/clients/$(jq -rn 'env.HYDRA_CLIENT_ID | @uri')"
+  response=$(hydra_get "$client_path") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  status=${response##*$'\n'}
+  client=${response%$'\n'*}
+  case "$status" in
+    200)
+      ok "Hydra client '$HYDRA_CLIENT_ID' exists"
+      ;;
+    404)
+      # the secret comes from the environment and goes to curl on stdin; the response, which repeats it, is discarded
+      body=$(jq '. + {client_id: env.HYDRA_CLIENT_ID, client_secret: env.HYDRA_CLIENT_SECRET}' <<< "$settings")
+      status=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' \
+        --request POST --header 'Content-Type: application/json' --data-binary @- \
+        "$HYDRA_ADMIN_URL/admin/clients" <<< "$body") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+      if [[ "$status" != 201 ]]; then
+        fail "creating Hydra client '$HYDRA_CLIENT_ID' failed (HTTP $status)"
+      fi
+      change "created Hydra client '$HYDRA_CLIENT_ID' (redirect URI $HYDRA_CLIENT_REDIRECT_URI)"
+      summary postdeploy
+      return
+      ;;
+    *)
+      fail "checking Hydra client '$HYDRA_CLIENT_ID' failed (HTTP $status)"
+      ;;
+  esac
+
+  # an existing client: the settings the chart decides (e.g. the redirect URI, which follows the hostname) are updated
+  # where they differ, with a JSON Patch, so whatever else was set on the client stays. Its secret isn't checked
+  changed=$(hydra_client_differences "$settings" <<< "$client") || fail "can't compare Hydra client '$HYDRA_CLIENT_ID' with the chart's settings"
+  if [[ -n "$changed" ]]; then
+    mapfile -t differences <<< "$changed"
+  fi
+  if [[ ${#differences[@]} -eq 0 ]]; then
+    ok "Hydra client '$HYDRA_CLIENT_ID' has the chart's settings ($(jq -r 'keys_unsorted | join(", ")' <<< "$settings"))"
+    summary postdeploy
+    return
+  fi
+  body=$(jq -n --argjson settings "$settings" --args '[$ARGS.positional[] | {op: "add", path: "/\(.)", value: $settings[.]}]' "${differences[@]}")
+  status=$(curl --silent --show-error --max-time 30 --output /dev/null --write-out '%{http_code}' \
+    --request PATCH --header 'Content-Type: application/json' --data-binary @- \
+    "$HYDRA_ADMIN_URL$client_path" <<< "$body") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  if [[ "$status" != 200 ]]; then
+    fail "updating Hydra client '$HYDRA_CLIENT_ID' failed (HTTP $status)"
+  fi
+  for field in "${differences[@]}"; do
+    change "updated Hydra client '$HYDRA_CLIENT_ID': $field from $(jq -c --arg f "$field" '.[$f]' <<< "$client") to $(jq -c --arg f "$field" '.[$f]' <<< "$settings")"
+  done
+
+  # read it back: every setting should now match
+  response=$(hydra_get "$client_path") || fail "can't reach Hydra's admin API ($HYDRA_ADMIN_URL)"
+  if [[ "${response##*$'\n'}" != 200 || -n "$(hydra_client_differences "$settings" <<< "${response%$'\n'*}")" ]]; then
+    fail "Hydra client '$HYDRA_CLIENT_ID' still differs from the chart's settings after the update"
+  fi
+
+  summary postdeploy
+}
+
+# ##############################
+# MAIN
+# ##############################
+
+case "${1:-}" in
+  predeploy) predeploy ;;
+  postdeploy) postdeploy ;;
+  *)
+    echo "usage: refcloud-setup predeploy|postdeploy" >&2
+    exit 2
+    ;;
+esac

@@ -1,12 +1,17 @@
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
+{{- if include "refcloud.computeEnabled" . }}
 # Funnel's database (one BoltDB file), so tasks survive a restart of its server. It goes with the release: core-api
-# keeps its own record of every task, and the runs' files are in RustFS (spec 0012, Task 6)
+# keeps its own record of every task, and the runs' files are in the connection's S3 storage (spec 0012, Task 6). From
+# ga4gh.referenceCloud.compute.storageClass (the cluster's default when empty); an EBS volume keeps Funnel's server in
+# its zone, which the general node pool spans
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: funnel-db
   namespace: {{ include "refcloud.computeNamespace" . }}
 spec:
+  {{- with .Values.ga4gh.referenceCloud.compute.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
   accessModes:
     - ReadWriteOnce
   resources:

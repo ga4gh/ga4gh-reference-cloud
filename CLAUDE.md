@@ -39,7 +39,7 @@ Source code for refcloud services/apps are stored in the `apps/` directory. Apps
 Configuration code for deploying the refcloud is stored in the `deploy/` directory. Deployment contexts include:
 
 * `deploy/local` - local deployment of the refcloud on user's machine
-* `deploy/helm` - helm chart for deploying the refcloud in a local or remote kubernetes cluster
+* `deploy/helm` - helm chart for deploying the refcloud in a local or remote kubernetes cluster. Its setup Jobs (Helm hooks) check or create the Secrets, databases, roles and OAuth client on every deploy, with the `refcloud-setup` image from `deploy/helm/setup` (built with the lockstep tag, like the apps)
 
 ### Other Directories
 

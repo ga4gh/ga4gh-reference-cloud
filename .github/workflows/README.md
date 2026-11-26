@@ -3,7 +3,7 @@
 | Workflows | Purpose |
 |-|-|
 | `static-analysis-<app>.yml` | Static analysis for one app or context (required PR checks) |
-| `push-docker-image-<app>.yml` | Builds and pushes an app image to ECR on pushes to `develop`, via the reusable `push-docker-image.yml`. `app-path` is the build context: core-api and the admin CLI build from the repo root (`app-path: .`, with `dockerfile`), to bundle `compute/workflows/` |
+| `push-docker-image-<app>.yml` | Builds and pushes an app image to ECR on pushes to `develop`, via the reusable `push-docker-image.yml`. `app-path` is the build context: core-api and the admin CLI build from the repo root (`app-path: .`, with `dockerfile`), to bundle `compute/workflows/`. Tags: the `git describe` tag, `sha-<commit>`, and `develop` (only from `develop`, so a branch added to a caller's triggers for testing leaves it alone) |
 
 ## Conventions
 

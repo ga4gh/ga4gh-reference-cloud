@@ -38,8 +38,12 @@ TLS_CERT_DIR="./deploy/helm/.certs"
 KUBERNETES_COMPUTE_NAMESPACE="$HELM_RELEASE-compute"
 KUBERNETES_COMPUTE_CONNECTION_KEY="nextflow-funnel-kubernetes-local"
 KUBERNETES_COMPUTE_PLATFORM_ID="nextflow-demo-kubernetes"
-# secrets the helm chart expects, deleted on --reset
+# the AWS deployments' platform (staging and production register it by hand, spec 0013): the demo script tries it too
+AWS_COMPUTE_PLATFORM_ID="nextflow-aws-us-east-2"
+# secrets the helm chart expects, deleted on --reset. refcloud-db-admin is Postgres's admin login, which the chart's
+# setup Jobs use to check the databases and roles (deploy/helm/setup)
 K8S_SECRETS=(
+  refcloud-db-admin
   common-db-info
   kratos-db-credentials
   hydra-db-credentials
@@ -67,7 +71,11 @@ REFCLOUD_IMAGES=(
   "refcloud-docs:apps/docs:Dockerfile"
   "refcloud-admin-cli:.:apps/admin-cli/Dockerfile"
   "refcloud-nextflow:compute/images/nextflow:Dockerfile"
+  "refcloud-setup:deploy/helm/setup:Dockerfile"
 )
+# the chart's setup Jobs (deploy/helm/charts/app/templates/apps/setup). Helm hooks, so uninstalling the release leaves
+# them (and, after a failed deploy, setup-predeploy's ServiceAccount, Role and RoleBinding)
+SETUP_JOBS=(setup-predeploy setup-postdeploy)
 # deployments running refcloud app images (restarted after each build)
 REFCLOUD_APP_DEPLOYMENTS=(refcloud-api refcloud-ui refcloud-docs refcloud-admin-cli)
 # all deployments in the release (waited on after each deploy)
@@ -535,6 +543,13 @@ apply_k8s_secrets() {
 
   # host.minikube.internal is provided by minikube and reaches host postgres; connections
   # arrive from 127.0.0.1, so no pg_hba.conf/listen_addresses changes are needed
+  # Postgres's admin login, for the chart's setup Jobs: the user setup's own psql commands connect as. if your Postgres
+  # asks for a password on connections from 127.0.0.1, set PGPASSWORD when running setup
+  apply_k8s_secret generic refcloud-db-admin \
+    --from-literal=host=host.minikube.internal \
+    --from-literal=port=5432 \
+    --from-literal=username="$(psql -d postgres -tAc 'SELECT current_user;')" \
+    --from-literal=password="${PGPASSWORD:-}"
   apply_k8s_secret generic common-db-info \
     --from-literal=host=host.minikube.internal \
     --from-literal=port=5432
@@ -582,6 +597,15 @@ apply_k8s_secrets() {
     --from-literal=secret-access-key="$(random_secret)"
 }
 
+# the setup Jobs, and what a failed setup-predeploy leaves: hooks, which uninstalling the release doesn't remove
+delete_setup_jobs() {
+  log_info "deleting the setup Jobs (${SETUP_JOBS[*]})"
+  kubectl_local delete job "${SETUP_JOBS[@]}" --ignore-not-found > /dev/null 2>&1 \
+    || { log_error "failed to delete the setup Jobs"; exit 1; }
+  kubectl_local delete rolebinding,role,serviceaccount setup-predeploy --ignore-not-found > /dev/null 2>&1 \
+    || { log_error "failed to delete setup-predeploy's ServiceAccount, Role and RoleBinding"; exit 1; }
+}
+
 # removes the TLS certificate (recreated fresh by create_tls_cert), the helm release (it holds
 # db connections), refcloud secrets, and RustFS's data (compute runs' files, which outlive the release)
 reset_kubernetes() {
@@ -595,6 +619,8 @@ reset_kubernetes() {
     log_info "uninstalling helm release '$HELM_RELEASE'"
     helm_local uninstall "$HELM_RELEASE" --wait > /dev/null 2>&1 || { log_error "failed to uninstall helm release '$HELM_RELEASE'"; exit 1; }
   fi
+
+  delete_setup_jobs
 
   log_info "deleting refcloud kubernetes secrets"
   kubectl_local delete secret "${K8S_SECRETS[@]}" --ignore-not-found > /dev/null 2>&1 || { log_error "failed to delete kubernetes secrets"; exit 1; }

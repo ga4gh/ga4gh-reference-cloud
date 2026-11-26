@@ -3,20 +3,23 @@ The compute namespace's ResourceQuota: a backstop behind core-api's own limits, 
 within its pooled limits (runs, tasks in flight, their CPU and memory). If something slips past them, Kubernetes
 refuses the extra pods: a run waits, and ends at its deadline, instead of overloading the cluster.
 
-Computed from the local connection (refcloud.localComputeConnection), so it follows its settings: everything the
+Computed from the chart's connection (refcloud.computeConnection: the local or the AWS one), so it follows its
+settings: everything the
 connection allows at once, half again (pods shutting down still count, and must never block new ones):
   * each run: its Nextflow Job (engine cpu-cores, memory-gb; requests equal limits);
-  * each task in flight: its executor (the task's resources, within the pooled max-cpu-cores-in-flight and
-    max-memory-gb-in-flight; requests equal limits) and its Funnel worker (files/funnel/worker-job.yaml);
+  * each task in flight: its Funnel worker, which requests and is limited to the task's resources (at least 256Mi), and
+    its executor, which requests 50m and up to 256Mi and is limited to the task's resources: the worker reserves the
+    executor's room on their node (files/funnel/worker-job.yaml, executor-job.yaml; spec 0013, Task 8). The tasks'
+    resources are within the pooled max-cpu-cores-in-flight and max-memory-gb-in-flight;
   * Funnel's server (templates/apps/funnel/deployment.yaml);
   * storage claims: each task's workspace (at most max-task-disk-gb) and Funnel's database (funnel-db.yaml, 1Gi).
-Keep the worker's and Funnel's sizes below in sync with those files.
+Keep the per-task and Funnel's server's sizes below in sync with those files.
 
 With a quota on CPU and memory, every pod in the namespace must set requests and limits for both: all of the compute
 stack's pods do.
 */}}
-{{- if eq .Values.ga4gh.referenceCloud.cloudEnvironment "local" }}
-{{- $connection := include "refcloud.localComputeConnection" . | fromYaml }}
+{{- if include "refcloud.computeEnabled" . }}
+{{- $connection := include "refcloud.computeConnection" . | fromYaml }}
 {{- $limits := $connection.limits }}
 {{- $engine := $connection.engine }}
 {{- $runs := index $limits "max-concurrent-runs" | float64 }}
@@ -25,23 +28,26 @@ stack's pods do.
 {{- $taskMemoryGb := index $limits "max-memory-gb-in-flight" | float64 }}
 {{- $nextflowCpu := index $engine "cpu-cores" | float64 }}
 {{- $nextflowMemoryGb := index $engine "memory-gb" | float64 }}
-{{- /* Funnel's worker (per task) and server: millicores and bytes (64Mi, 256Mi) */}}
-{{- $workerCpuRequest := 50.0 }}
-{{- $workerCpuLimit := 1000.0 }}
-{{- $workerMemoryRequest := 67108864.0 }}
-{{- $workerMemoryLimit := 268435456.0 }}
+{{- /* per task beyond its resources: the executor's own request (50m, 256Mi), and the worker's 256Mi floor; Funnel's
+server: millicores and bytes (64Mi, 256Mi) */}}
+{{- $executorCpuRequest := 50.0 }}
+{{- $perTaskMemory := 268435456.0 }}
 {{- $serverCpuRequest := 50.0 }}
 {{- $serverCpuLimit := 500.0 }}
 {{- $serverMemoryRequest := 67108864.0 }}
 {{- $serverMemoryLimit := 268435456.0 }}
 {{- $headroom := 1.5 }}
-{{- /* what the runs and tasks themselves request (and are limited to): millicores and bytes */}}
-{{- $workloadCpu := addf (mulf $taskCpu 1000) (mulf $runs $nextflowCpu 1000) }}
-{{- $workloadMemory := addf (mulf $taskMemoryGb 1000000000) (mulf $runs $nextflowMemoryGb 1000000000) }}
-{{- $requestsCpu := addf $workloadCpu (mulf $tasks $workerCpuRequest) $serverCpuRequest | mulf $headroom | ceil }}
-{{- $limitsCpu := addf $workloadCpu (mulf $tasks $workerCpuLimit) $serverCpuLimit | mulf $headroom | ceil }}
-{{- $requestsMemory := addf $workloadMemory (mulf $tasks $workerMemoryRequest) $serverMemoryRequest | mulf $headroom | ceil }}
-{{- $limitsMemory := addf $workloadMemory (mulf $tasks $workerMemoryLimit) $serverMemoryLimit | mulf $headroom | ceil }}
+{{- /* the runs' Nextflow Jobs (requests equal limits), and the tasks' resources in flight: millicores and bytes */}}
+{{- $runsCpu := mulf $runs $nextflowCpu 1000 }}
+{{- $runsMemory := mulf $runs $nextflowMemoryGb 1000000000 }}
+{{- $tasksCpu := mulf $taskCpu 1000 }}
+{{- $tasksMemory := mulf $taskMemoryGb 1000000000 }}
+{{- /* requests: the workers reserve the tasks' resources, and each executor adds its own small request; limits: the
+workers' and the executors' each reach the tasks' resources */}}
+{{- $requestsCpu := addf $runsCpu $tasksCpu (mulf $tasks $executorCpuRequest) $serverCpuRequest | mulf $headroom | ceil }}
+{{- $limitsCpu := addf $runsCpu (mulf $tasksCpu 2) $serverCpuLimit | mulf $headroom | ceil }}
+{{- $requestsMemory := addf $runsMemory $tasksMemory (mulf $tasks $perTaskMemory 2) $serverMemoryRequest | mulf $headroom | ceil }}
+{{- $limitsMemory := addf $runsMemory (mulf $tasksMemory 2) (mulf $tasks $perTaskMemory) $serverMemoryLimit | mulf $headroom | ceil }}
 {{- $pods := addf $runs (mulf $tasks 2) 1 | mulf $headroom | ceil }}
 {{- $taskDiskGb := index $limits "max-task-disk-gb" | float64 }}
 {{- $claims := addf $tasks 1 | mulf $headroom | ceil }}

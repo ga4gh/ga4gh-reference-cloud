@@ -197,6 +197,13 @@ Stage 1 items were checked on 2026-11-11. Details are in the spec's **Decisions 
    * Each run's engine gets credentials limited to its own prefix (STS `AssumeRole` with a session policy).
 
    Details are in spec 0012, Decisions (Task 1).
+9. ✅ **AWS (EKS Auto Mode), checked 2026-11-25 and 2026-11-26 on staging** (spec 0013, Tasks 5 and 8):
+   * EKS Pod Identity gives core-api and Funnel's workers their roles (Funnel's Go SDK and core-api's Java SDK pick them up), and pods can't reach the node's own credentials;
+   * per-task workspace claims on EBS work, once a task's worker and executors share one SELinux level (Auto Mode's nodes enforce SELinux), and the worker reserves its executors' CPU and memory (an executor must run on its worker's node);
+   * the Nextflow Jobs reach S3 with no DNS, through a private S3 endpoint at fixed addresses (Auto Mode's DNS-based policies limit connections, not lookups, and S3's shared addresses reach any bucket);
+   * the compute namespace's policies hold on EKS, naming each destination in both forms the network plugins match.
+
+   The bundled demo runs end to end there. Details are in spec 0013, Decisions (Tasks 5 to 8).
 
 ## Open Questions
 
@@ -204,4 +211,4 @@ _None._
 
 ## Next Step
 
-Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md). Stage 2 is specified in [`claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md`](../specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md), and stage 3 (S3 storage) in [`claude/specs/archive/0012-add-compute-s3-storage.md`](../specs/archive/0012-add-compute-s3-storage.md). Next: the AWS compute platform (milestones item 3).
+Stage 1 (D16) is specified in [`claude/specs/archive/0008-add-compute-wes-tes.md`](../specs/archive/0008-add-compute-wes-tes.md). Next, by priority: [`docs/milestones/2026-12-18-Compute-Milestones.md`](../../docs/milestones/2026-12-18-Compute-Milestones.md). Stage 2 is specified in [`claude/specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md`](../specs/archive/0011-add-compute-nextflow-funnel-kubernetes.md), stage 3 (S3 storage) in [`claude/specs/archive/0012-add-compute-s3-storage.md`](../specs/archive/0012-add-compute-s3-storage.md), and the AWS compute platform in [`claude/specs/archive/0013-add-compute-aws-platform.md`](../specs/archive/0013-add-compute-aws-platform.md). Next: the My Runs page (milestones item 4).
