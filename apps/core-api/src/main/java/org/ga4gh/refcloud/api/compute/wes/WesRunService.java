@@ -484,13 +484,19 @@ public class WesRunService {
                 tesBase + task.getId());
     }
 
-    // a run as GET /runs lists it, with its workflow as submitted
+    // a run as GET /runs lists it, with its workflow as submitted and when it was submitted
     static WesViews.RunSummary runSummary(ComputeRun run) {
         String workflowUrl = run.getRequest() == null
                 ? null
                 : run.getRequest().path("workflow_url").asString(null);
         return new WesViews.RunSummary(
-                run.getId(), run.getState(), run.getStartedAt(), run.getEndedAt(), tags(run), workflowUrl);
+                run.getId(),
+                run.getState(),
+                run.getStartedAt(),
+                run.getEndedAt(),
+                tags(run),
+                workflowUrl,
+                run.getCreatedAt());
     }
 
     private static Map<String, String> tags(ComputeRun run) {

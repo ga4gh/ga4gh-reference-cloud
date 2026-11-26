@@ -163,12 +163,14 @@ public class WesRunServiceTest {
         assertFalse(json.contains("docker run"), json);
     }
 
-    // GET /runs carries each run's workflow as submitted (beyond WES's schema), so a list needn't fetch each run's log
+    // GET /runs carries each run's workflow and when it was submitted (beyond WES's schema), so a list needn't fetch
+    // each run's log, and lists from several platforms merge in the order each is sorted by
     @Test
-    public void runSummariesCarryTheWorkflowUrl() {
+    public void runSummariesCarryTheWorkflowUrlAndSubmittedTime() {
         ComputeRun run = ComputeRun.builder()
                 .id("r1")
                 .state("COMPLETE")
+                .createdAt(Instant.parse("2026-11-26T14:59:50Z"))
                 .startedAt(Instant.parse("2026-11-26T15:00:00Z"))
                 .endedAt(Instant.parse("2026-11-26T15:01:30Z"))
                 .request(objectMapper.readTree(
@@ -179,8 +181,10 @@ public class WesRunServiceTest {
         String json = objectMapper.writeValueAsString(summary);
 
         assertEquals(summary.workflowUrl(), "refcloud:bundled/drs-checksum");
+        assertEquals(summary.submittedTime(), Instant.parse("2026-11-26T14:59:50Z"));
         assertEquals(summary.tags(), Map.of("purpose", "demo"));
         assertTrue(json.contains("\"workflow_url\":\"refcloud:bundled/drs-checksum\""), json);
+        assertTrue(json.contains("\"submitted_time\":"), json);
         // a run without a stored request has no workflow, and no tags
         WesViews.RunSummary bare = WesRunService.runSummary(
                 ComputeRun.builder().id("r2").state("QUEUED").build());

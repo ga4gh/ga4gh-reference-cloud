@@ -17,9 +17,11 @@ public final class WesViews {
 
     public record RunStatus(@JsonProperty("run_id") String runId, String state) {}
 
-    // a run in GET /runs; tags is required by WES, so it's always present (possibly empty). workflow_url isn't in WES's
-    // schema (clients ignore it): the run's workflow as submitted, so a list of runs can show it without fetching each
-    // run's log (the researcher UI's My Runs page, spec 0014)
+    // a run in GET /runs; tags is required by WES, so it's always present (possibly empty). Two fields beyond WES's
+    // schema, which clients ignore (the researcher UI's workflow runs page, spec 0014):
+    //   * workflow_url: the run's workflow as submitted, so a list can show it without fetching each run's log;
+    //   * submitted_time: when it was submitted, which GET /runs orders by (newest first), so lists from several
+    //     platforms merge in the same order (start_time is empty while a run is queued)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record RunSummary(
             @JsonProperty("run_id") String runId,
@@ -27,7 +29,8 @@ public final class WesViews {
             @JsonProperty("start_time") Instant startTime,
             @JsonProperty("end_time") Instant endTime,
             Map<String, String> tags,
-            @JsonProperty("workflow_url") String workflowUrl) {}
+            @JsonProperty("workflow_url") String workflowUrl,
+            @JsonProperty("submitted_time") Instant submittedTime) {}
 
     // next_page_token is "" on the last page, as WES specifies
     public record RunListResponse(

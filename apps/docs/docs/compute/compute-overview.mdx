@@ -79,9 +79,12 @@ WES has no way to download a run's files, so the reference cloud adds a download
 * `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/outputs/{path}` downloads one of them. Only the researcher who submitted the run can download its outputs, and `{path}` can't reach outside the run's outputs.
 * `GET /ga4gh/wes/{platformId}/v1/runs/{run_id}/logs/{stdout|stderr}` returns the workflow engine's console output. The run log's `run_log.stdout` and `run_log.stderr` point here.
 
-### Each Run's Workflow in the List of Runs
+### Each Run's Workflow and Submission Time in the List of Runs
 
-`GET /ga4gh/wes/{platformId}/v1/runs` lists each run with its `workflow_url`, as it was submitted, next to the fields WES defines for a run summary. A list of runs can then show each run's workflow without fetching each run's log.
+`GET /ga4gh/wes/{platformId}/v1/runs` lists each run with two fields beyond those WES defines for a run summary:
+
+* `workflow_url`: the run's workflow, as it was submitted, so a list of runs can show it without fetching each run's log;
+* `submitted_time`: when it was submitted. The list is ordered by it, newest first, so lists from several platforms can be merged in the same order. `start_time` stays empty while a run is queued.
 
 ## Workflow Compatibility
 

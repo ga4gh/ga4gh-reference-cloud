@@ -57,7 +57,7 @@ This works locally (both modes) and on staging, the static analysis passes, and 
 * **The runs list:**
   * the platforms where the researcher's access is approved, from `/api/compute-platforms`;
   * then each one's `GET /runs`, merged newest first, with the platform as a column.
-* **A run's page** (`/my-runs/{platformId}/{runId}`):
+* **A run's page** (`/workflow-runs/{platformId}/{runId}`):
   * the run log, refreshed every few seconds while the run is active;
   * its tasks, each with its state from TES;
   * the run's and each task's logs;
@@ -135,6 +135,54 @@ The page, its table, paging, and empty and error states (no approved platform, n
 
 **Decisions (Task 3):**
 
+Agreed 2026-11-26 (the user):
+1. **The page is `/workflow-runs`, labelled "View Workflow Runs"** in the sidebar's Compute section, below "Browse Compute Platforms". (This supersedes the proposed `/my-runs`; a run's page follows it, at `/workflow-runs/{platformId}/{runId}`.)
+2. **One table, not one per platform,** with these columns in this order:
+   * the run (a short ID, linking to its page);
+   * the workflow, by its allowlist name (the `workflow_url` when there's none);
+   * the platform's name;
+   * the state, as a coloured pill;
+   * when it started and ended, or how long it's been running.
+
+   Runs from every platform interleave by time, not grouped by platform.
+3. **Paging:** each platform's latest 20, merged, with "Load more" while any platform has more.
+4. **Refreshing:** every 10 seconds while any listed run isn't finished: `QUEUED`, `INITIALIZING`, `RUNNING` or `CANCELING`. WES has no `PENDING`. Finished runs are `COMPLETE`, `EXECUTOR_ERROR`, `SYSTEM_ERROR` and `CANCELED`.
+5. **When there's nothing to show:**
+   * no approved platform: a link to Browse Compute Platforms to request access;
+   * no runs: a pointer to the docs on submitting through WES;
+   * a platform that doesn't answer: a notice for it, with the other platforms' runs still listed.
+6. **No filters in this task** (Future Directions).
+7. **WES's run summaries also gain `submitted_time`,** which is what each platform's `GET /runs` is ordered by (newest first). `start_time` can't serve: it's empty while a run is queued, and set when it starts. So lists from several platforms merge in the same order, and the list shows "Submitted …" for a queued run (agreed 2026-11-26).
+
+Built 2026-11-26:
+
+8. **core-api:** `submitted_time`, from the run's `created_at`, next to `workflow_url`.
+   * The summary's unit test covers it.
+   * core-api's 330 tests and its static analysis pass.
+   * The docs site's compute overview lists both fields under "Non-Standard Extensions".
+9. **The page:** `app/workflow-runs/page.tsx`. It checks the Kratos session and fetches the platforms on the server, as Browse Compute Platforms does, and hands them to `components/pages/workflow-runs/WorkflowRunsClient.tsx`.
+   * **Fetching:** once the passport is in place (`usePassportToken`), it fetches each approved platform's first 20 runs through the WES proxy.
+   * **Merging** (`utils/workflowRuns.ts`, `mergeRuns`): newest first, by submission time compared as a time (timestamps' fractional seconds vary in length, so their strings don't sort), then by run ID. While a platform has more pages, only runs at least as new as its oldest loaded run are shown, the newest such limit among those platforms, so "Load more" never adds a run above one already shown. A platform that failed doesn't hold the others back.
+   * **Load more** fetches the next page from every platform that has more.
+   * **Refresh:** every 10 seconds while any listed run isn't finished, each platform's newest page is folded in. Updated runs replace their old copies, new runs join, and the paging position stays, since WES's page tokens point at a run. A platform that had failed starts over from its fresh page.
+   * **The table:**
+     * the run's short ID, linking to `/workflow-runs/{platformId}/{runId}` (Task 4);
+     * the workflow, by its allowlist name, or its URL;
+     * the platform's name;
+     * the state, as a pill: in progress amber, complete green, errors red, cancelled grey;
+     * the time: "Submitted …" while queued; once started, "Started …" and "Ended … (duration)", or "Running for …".
+   * **Notices:**
+     * no approved platform: a link to Browse Compute Platforms;
+     * no runs: a link to the docs' "Run a Workflow Via WES";
+     * a platform that failed: a warning naming it, with the rest still listed;
+     * the platforms themselves failing: an error.
+   * **The sidebar:** "View Workflow Runs", below "Browse Compute Platforms".
+10. **Checked:**
+    * the UI's lint, types and formatting pass;
+    * the merge, time and state helpers pass a scratch check with sample data (run with Node from the TypeScript source): interleaving, the paging limit, a failed platform, fractional seconds, durations, finished states.
+
+    The rendered page is checked in Task 5, with the run's page: a headless browser pass, and the demo followed locally and on staging.
+
 ### Task 4: A run's page
 
 * the state, timeline, workflow and parameters;
@@ -160,3 +208,5 @@ The page, its table, paging, and empty and error states (no approved platform, n
 ## Future Directions
 
 * **Submitting runs from the UI** (decided out of scope 2026-11-13; revisit later). Each workflow takes its own inputs, and not every workflow describes them in a schema a form could use. A middle ground: offer a form only for allowlisted workflows that ship a parameter schema (e.g. nf-core's `nextflow_schema.json`), starting with the bundled `drs-checksum`, which takes a single DRS input. Every workflow a platform runs is admin-approved (D20), and admins fix how it runs (D21), so the form only needs the parameters.
+* **Filters on the workflow runs list** (Task 3, decision 6): by state, platform or workflow, when researchers have enough runs to need them.
+* **Runs the researcher can't reach any more** (Task 1, decision 4): those on disabled platforms, or after their platform visa is revoked, aren't listed. If owners should always see their own runs, core-api would let them list and read those runs without the visa.
