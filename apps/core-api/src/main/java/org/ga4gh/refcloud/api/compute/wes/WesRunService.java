@@ -208,11 +208,8 @@ public class WesRunService {
                 after == null ? null : after.id(),
                 size + 1);
         boolean more = page.size() > size;
-        List<WesViews.RunSummary> runs = page.stream()
-                .limit(size)
-                .map(run -> new WesViews.RunSummary(
-                        run.getId(), run.getState(), run.getStartedAt(), run.getEndedAt(), tags(run)))
-                .toList();
+        List<WesViews.RunSummary> runs =
+                page.stream().limit(size).map(WesRunService::runSummary).toList();
         ComputeRun last = more ? page.get(size - 1) : null;
         return new WesViews.RunListResponse(
                 runs, last == null ? "" : new ComputePageToken(last.getCreatedAt(), last.getId()).encode());
@@ -487,7 +484,16 @@ public class WesRunService {
                 tesBase + task.getId());
     }
 
-    private Map<String, String> tags(ComputeRun run) {
+    // a run as GET /runs lists it, with its workflow as submitted
+    static WesViews.RunSummary runSummary(ComputeRun run) {
+        String workflowUrl = run.getRequest() == null
+                ? null
+                : run.getRequest().path("workflow_url").asString(null);
+        return new WesViews.RunSummary(
+                run.getId(), run.getState(), run.getStartedAt(), run.getEndedAt(), tags(run), workflowUrl);
+    }
+
+    private static Map<String, String> tags(ComputeRun run) {
         Map<String, String> tags = new LinkedHashMap<>();
         if (run.getRequest() != null) {
             JsonNode node = run.getRequest().path("tags");

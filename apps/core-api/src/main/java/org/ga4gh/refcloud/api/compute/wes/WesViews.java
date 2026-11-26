@@ -17,14 +17,17 @@ public final class WesViews {
 
     public record RunStatus(@JsonProperty("run_id") String runId, String state) {}
 
-    // a run in GET /runs; tags is required by WES, so it's always present (possibly empty)
+    // a run in GET /runs; tags is required by WES, so it's always present (possibly empty). workflow_url isn't in WES's
+    // schema (clients ignore it): the run's workflow as submitted, so a list of runs can show it without fetching each
+    // run's log (the researcher UI's My Runs page, spec 0014)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record RunSummary(
             @JsonProperty("run_id") String runId,
             String state,
             @JsonProperty("start_time") Instant startTime,
             @JsonProperty("end_time") Instant endTime,
-            Map<String, String> tags) {}
+            Map<String, String> tags,
+            @JsonProperty("workflow_url") String workflowUrl) {}
 
     // next_page_token is "" on the last page, as WES specifies
     public record RunListResponse(
